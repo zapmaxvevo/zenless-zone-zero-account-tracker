@@ -12,6 +12,8 @@ from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.errors import register_exception_handlers
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.web.routers.accounts import router as accounts_router
+from zzz_tracker.web.routers.agents import router as agents_router
+from zzz_tracker.web.routers.catalog import router as catalog_router
 from zzz_tracker.web.routers.health import router as health_router
 
 
@@ -39,6 +41,8 @@ def create_app(
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(accounts_router)
+    app.include_router(agents_router)
+    app.include_router(catalog_router)
     return app
 
 

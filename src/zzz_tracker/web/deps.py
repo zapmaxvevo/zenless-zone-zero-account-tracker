@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from zzz_tracker.config import Settings
 from zzz_tracker.enka.client import EnkaClient
 from zzz_tracker.enka.static_data import StaticData
+from zzz_tracker.errors import StaticDataUnavailableError
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.tracker.service import TrackerService
 
@@ -39,6 +40,16 @@ def get_static_data(request: Request) -> StaticData | None:
     return static
 
 
+def get_required_static_data(
+    static: Annotated[StaticData | None, Depends(get_static_data)],
+) -> StaticData:
+    if static is None:
+        raise StaticDataUnavailableError(
+            "The catalog needs Enka's static data; run `zzz-tracker sync-static` first"
+        )
+    return static
+
+
 def get_tracker_service(
     session: Annotated[Session, Depends(get_db)],
     enka: Annotated[EnkaClient, Depends(get_enka_client)],
@@ -52,4 +63,5 @@ DatabaseManagerDep = Annotated[DatabaseManager, Depends(get_db_manager)]
 SessionDep = Annotated[Session, Depends(get_db)]
 EnkaClientDep = Annotated[EnkaClient, Depends(get_enka_client)]
 StaticDataDep = Annotated["StaticData | None", Depends(get_static_data)]
+RequiredStaticDataDep = Annotated[StaticData, Depends(get_required_static_data)]
 TrackerServiceDep = Annotated[TrackerService, Depends(get_tracker_service)]

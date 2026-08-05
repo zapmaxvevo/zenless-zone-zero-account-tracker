@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from zzz_tracker.errors import ExternalServiceError, NotFoundError
+from zzz_tracker.errors import ExternalServiceError, StaticDataUnavailableError
 
 STORE_BASE_URL = "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/zzz"
 ASSET_BASE_URL = "https://enka.network"
@@ -93,7 +93,7 @@ class StaticData:
         for filename in STATIC_FILES:
             path = base / filename
             if not path.exists():
-                raise NotFoundError(
+                raise StaticDataUnavailableError(
                     f"Static data file {filename} is missing from {base}; "
                     "run `zzz-tracker sync-static` first"
                 )
@@ -114,7 +114,7 @@ class StaticData:
         """Load the static data, or None when it has not been downloaded yet."""
         try:
             return cls.from_dir(directory, language)
-        except (NotFoundError, ValueError):
+        except (StaticDataUnavailableError, ValueError):
             return None
 
     @property

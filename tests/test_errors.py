@@ -4,13 +4,19 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from zzz_tracker.errors import ExternalServiceError, NotFoundError, RateLimitedError
+from zzz_tracker.errors import (
+    ExternalServiceError,
+    NotFoundError,
+    RateLimitedError,
+    StaticDataUnavailableError,
+)
 
 
 @pytest.mark.parametrize(
     ("error", "status_code"),
     [
         (NotFoundError("no such account"), 404),
+        (StaticDataUnavailableError("run sync-static"), 503),
         (ExternalServiceError("enka is down"), 502),
         (RateLimitedError("slow down"), 429),
     ],

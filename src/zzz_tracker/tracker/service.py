@@ -49,6 +49,20 @@ class TrackerService:
             raise NotFoundError(f"Account {uid} is not tracked yet")
         return account
 
+    def list_agents(self, uid: str) -> list[Agent]:
+        self.get_account(uid)
+        return list(
+            self._session.scalars(
+                select(Agent).where(Agent.account_uid == uid).order_by(Agent.game_id)
+            )
+        )
+
+    def get_agent(self, agent_id: int) -> Agent:
+        agent = self._session.get(Agent, agent_id)
+        if agent is None:
+            raise NotFoundError(f"Agent {agent_id} is not tracked")
+        return agent
+
     def sync_account(self, uid: str, force: bool = False) -> Account:
         """Import (or refresh) an account from Enka, honouring the ttl it reports."""
         existing = self.find_account(uid)

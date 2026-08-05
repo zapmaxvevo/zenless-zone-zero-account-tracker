@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.errors import NotFoundError
+from zzz_tracker.errors import StaticDataUnavailableError
 
 
 def test_raw_game_ids_resolve_to_localized_names_and_icons(static_data: StaticData) -> None:
@@ -43,8 +43,9 @@ def test_unknown_ids_resolve_to_nothing_instead_of_failing(static_data: StaticDa
 def test_loading_static_data_that_was_never_downloaded_explains_how_to_get_it(
     tmp_path: Path,
 ) -> None:
-    with pytest.raises(NotFoundError) as exc_info:
+    with pytest.raises(StaticDataUnavailableError) as exc_info:
         StaticData.from_dir(tmp_path)
 
     assert "sync-static" in str(exc_info.value)
+    assert exc_info.value.status_code == 503
     assert StaticData.load_optional(tmp_path) is None

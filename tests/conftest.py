@@ -125,3 +125,14 @@ def app(
 def client(app: FastAPI) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def client_without_static_data(
+    settings: Settings, db_manager: DatabaseManager, enka_client: EnkaClient
+) -> Iterator[TestClient]:
+    application = create_app(settings, enka=enka_client)
+    application.state.db = db_manager
+    application.state.static = None
+    with TestClient(application) as test_client:
+        yield test_client

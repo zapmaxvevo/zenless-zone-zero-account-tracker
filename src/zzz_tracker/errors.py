@@ -20,6 +20,11 @@ class NotFoundError(ZZZTrackerError):
     default_detail = "Resource not found"
 
 
+class StaticDataUnavailableError(ZZZTrackerError):
+    status_code = 503
+    default_detail = "Enka's static data has not been downloaded yet"
+
+
 class ExternalServiceError(ZZZTrackerError):
     status_code = 502
     default_detail = "Upstream service failed"
