@@ -60,7 +60,7 @@ class FakeEnkaNetwork:
 
 @pytest.fixture
 def enka_payload() -> dict[str, Any]:
-    raw = (FIXTURES_DIR / "enka_profile.json").read_text(encoding="utf-8")
+    raw = (FIXTURES_DIR / "enka_account.json").read_text(encoding="utf-8")
     payload: dict[str, Any] = json.loads(raw)
     return payload
 

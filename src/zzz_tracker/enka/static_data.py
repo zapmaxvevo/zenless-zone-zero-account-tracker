@@ -52,7 +52,7 @@ class WEngineInfo:
 
 @dataclass(frozen=True, slots=True)
 class DiscSetInfo:
-    suit_id: int
+    set_id: int
     name: str
     icon_url: str | None
     set_bonus: dict[str, int]
@@ -156,16 +156,16 @@ class StaticData:
         entry = self._disc_items.get(str(game_id))
         return None if entry is None else entry.get("Rarity")
 
-    def disc_suit_id(self, game_id: int) -> int | None:
+    def disc_set_id(self, game_id: int) -> int | None:
         entry = self._disc_items.get(str(game_id))
         return None if entry is None else entry.get("SuitId")
 
-    def disc_set(self, suit_id: int) -> DiscSetInfo | None:
-        entry = self._disc_suits.get(str(suit_id))
+    def disc_set(self, set_id: int) -> DiscSetInfo | None:
+        entry = self._disc_suits.get(str(set_id))
         if entry is None:
             return None
         return DiscSetInfo(
-            suit_id=suit_id,
+            set_id=set_id,
             name=self.translate(entry.get("Name")),
             icon_url=asset_url(entry.get("Icon")),
             set_bonus=dict(entry.get("SetBonusProps", {})),

@@ -50,7 +50,7 @@ def test_each_disc_carries_its_slot_stats_and_the_set_it_completes(
     discs = parsed.agents[0].discs
 
     assert [disc.slot for disc in discs] == [1, 2, 3, 4, 5, 6]
-    assert [disc.suit_id for disc in discs] == [31000, 31000, 31000, 31000, 32800, 32800]
+    assert [disc.set_id for disc in discs] == [31000, 31000, 31000, 31000, 32800, 32800]
     assert {disc.rarity for disc in discs} == {4}
 
     first = discs[0]
@@ -59,12 +59,13 @@ def test_each_disc_carries_its_slot_stats_and_the_set_it_completes(
     assert first.roll_count == 5
     assert first.item_uid == 8001
     assert first.main_stat is not None
-    assert first.main_stat.as_main_stat() == {"property_id": 11103, "value": 550}
+    assert first.main_stat.prop_id == 11103
+    assert first.main_stat.value == 550
     assert [stat.as_substat() for stat in first.substats] == [
-        {"property_id": 20103, "value": 24, "rolls": 3},
-        {"property_id": 21103, "value": 48, "rolls": 1},
-        {"property_id": 12103, "value": 19, "rolls": 2},
-        {"property_id": 13103, "value": 15, "rolls": 1},
+        {"prop_id": 20103, "value": 24, "rolls": 3},
+        {"prop_id": 21103, "value": 48, "rolls": 1},
+        {"prop_id": 12103, "value": 19, "rolls": 2},
+        {"prop_id": 13103, "value": 15, "rolls": 1},
     ]
 
 
@@ -88,7 +89,7 @@ def test_without_the_static_data_discs_map_without_rarity_or_set(
 
     assert len(discs) == 6
     assert {disc.rarity for disc in discs} == {None}
-    assert {disc.suit_id for disc in discs} == {None}
+    assert {disc.set_id for disc in discs} == {None}
 
 
 def test_an_empty_showcase_still_yields_the_account_it_belongs_to() -> None:

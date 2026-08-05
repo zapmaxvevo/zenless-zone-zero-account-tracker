@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from zzz_tracker.errors import NotFoundError, RateLimitedError
 from zzz_tracker.storage.models import SOURCE_ENKA, SOURCE_MANUAL, Account, Agent, utc_now
-from zzz_tracker.tracker.service import TrackerService
+from zzz_tracker.tracker.service import DEFAULT_SYNC_TTL_SECONDS, TrackerService
 
 from .conftest import RATE_LIMITED_UID, TRACKED_UID, UNKNOWN_UID, FakeEnkaNetwork
 
@@ -53,10 +53,11 @@ def test_importing_a_uid_stores_the_profile_with_its_agents_and_their_builds(
     assert soldier.wengine.modification_level == 5
     assert [disc.slot for disc in soldier.discs] == [1, 2, 3, 4, 5, 6]
     assert soldier.discs[0].game_id == 31041
-    assert soldier.discs[0].suit_id == 31000
+    assert soldier.discs[0].set_id == 31000
     assert soldier.discs[0].rarity == 4
-    assert soldier.discs[0].main_stat == {"property_id": 11103, "value": 550}
-    assert soldier.discs[0].substats[0] == {"property_id": 20103, "value": 24, "rolls": 3}
+    assert soldier.discs[0].main_stat_id == 11103
+    assert soldier.discs[0].main_stat_value == 550
+    assert soldier.discs[0].substats[0] == {"prop_id": 20103, "value": 24, "rolls": 3}
 
 
 def test_a_second_import_within_the_ttl_reuses_what_was_already_stored(
@@ -100,6 +101,25 @@ def test_once_the_ttl_expires_the_account_is_fetched_again(
     assert enka.times_queried(TRACKED_UID) == 2
 
 
+def test_an_account_served_without_a_ttl_still_gets_a_grace_period(
+    service: TrackerService,
+    enka: FakeEnkaNetwork,
+    enka_payload: dict[str, Any],
+) -> None:
+    # Given
+    without_ttl = copy.deepcopy(enka_payload)
+    without_ttl.pop("ttl")
+    enka.set_profile(TRACKED_UID, without_ttl)
+
+    # When
+    account = service.sync_account(TRACKED_UID)
+    service.sync_account(TRACKED_UID)
+
+    # Then
+    assert account.sync_ttl_seconds == DEFAULT_SYNC_TTL_SECONDS
+    assert enka.times_queried(TRACKED_UID) == 1
+
+
 def test_a_showcase_that_changed_updates_the_agent_in_place(
     service: TrackerService,
     session: Session,
@@ -123,7 +143,7 @@ def test_a_showcase_that_changed_updates_the_agent_in_place(
     assert soldier.mindscape_level == 6
     assert [disc.slot for disc in soldier.discs] == [1, 2, 3, 4, 5, 6]
     assert soldier.discs[0].game_id == 32845
-    assert soldier.discs[0].suit_id == 32800
+    assert soldier.discs[0].set_id == 32800
     assert soldier.discs[0].level == 9
 
 

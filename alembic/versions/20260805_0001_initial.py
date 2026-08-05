@@ -1,8 +1,8 @@
-"""initial schema
+"""initial
 
-Revision ID: e53381c49e7c
+Revision ID: 0001
 Revises:
-Create Date: 2026-08-05 20:18:07.379358
+Create Date: 2026-08-05 20:27:30.429040
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "e53381c49e7c"
+revision: str = "0001"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -32,10 +32,10 @@ def upgrade() -> None:
         sa.Column("avatar_id", sa.Integer(), nullable=True),
         sa.Column("title_id", sa.Integer(), nullable=True),
         sa.Column("calling_card_id", sa.Integer(), nullable=True),
-        sa.Column("last_synced_at", sa.DateTime(), nullable=True),
+        sa.Column("last_synced_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sync_ttl_seconds", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("uid"),
     )
     op.create_table(
@@ -49,10 +49,10 @@ def upgrade() -> None:
         sa.Column("core_skill_enhancement", sa.Integer(), nullable=False),
         sa.Column("skill_levels", sa.JSON(), nullable=False),
         sa.Column("weapon_effect_state", sa.Integer(), nullable=True),
-        sa.Column("obtained_at", sa.DateTime(), nullable=True),
+        sa.Column("obtained_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("source", sa.String(length=16), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["account_uid"], ["accounts.uid"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("account_uid", "game_id", name="uq_agents_account_game"),
@@ -66,8 +66,8 @@ def upgrade() -> None:
         sa.Column("account_uid", sa.String(length=16), nullable=False),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("notes", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["account_uid"], ["accounts.uid"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -80,11 +80,12 @@ def upgrade() -> None:
         sa.Column("agent_id", sa.Integer(), nullable=False),
         sa.Column("slot", sa.Integer(), nullable=False),
         sa.Column("game_id", sa.Integer(), nullable=False),
-        sa.Column("suit_id", sa.Integer(), nullable=True),
+        sa.Column("set_id", sa.Integer(), nullable=True),
         sa.Column("rarity", sa.Integer(), nullable=True),
         sa.Column("level", sa.Integer(), nullable=False),
         sa.Column("roll_count", sa.Integer(), nullable=False),
-        sa.Column("main_stat", sa.JSON(), nullable=False),
+        sa.Column("main_stat_id", sa.Integer(), nullable=True),
+        sa.Column("main_stat_value", sa.Integer(), nullable=False),
         sa.Column("substats", sa.JSON(), nullable=False),
         sa.Column("item_uid", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="CASCADE"),

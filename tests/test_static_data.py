@@ -28,8 +28,8 @@ def test_raw_game_ids_resolve_to_localized_names_and_icons(static_data: StaticDa
 
 def test_a_disc_piece_knows_its_rarity_and_the_set_it_belongs_to(static_data: StaticData) -> None:
     assert static_data.disc_rarity(31041) == 4
-    assert static_data.disc_suit_id(31041) == 31000
-    assert static_data.disc_suit_id(32845) == 32800
+    assert static_data.disc_set_id(31041) == 31000
+    assert static_data.disc_set_id(32845) == 32800
 
 
 def test_unknown_ids_resolve_to_nothing_instead_of_failing(static_data: StaticData) -> None:

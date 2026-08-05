@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +15,8 @@ from zzz_tracker.storage.models import (
     WEngine,
     utc_now,
 )
+
+DEFAULT_SYNC_TTL_SECONDS = 60
 
 
 class TrackerService:
@@ -78,8 +78,8 @@ class TrackerService:
         account.avatar_id = parsed.avatar_id
         account.title_id = parsed.title_id
         account.calling_card_id = parsed.calling_card_id
-        account.last_synced_at = utc_now().replace(tzinfo=None)
-        account.sync_ttl_seconds = profile.ttl
+        account.last_synced_at = utc_now()
+        account.sync_ttl_seconds = profile.ttl or DEFAULT_SYNC_TTL_SECONDS
         self._session.flush()
         return account
 
@@ -104,7 +104,7 @@ class TrackerService:
         agent.core_skill_enhancement = parsed.core_skill_enhancement
         agent.skill_levels = dict(parsed.skill_levels)
         agent.weapon_effect_state = parsed.weapon_effect_state
-        agent.obtained_at = _naive(parsed.obtained_at)
+        agent.obtained_at = parsed.obtained_at
         agent.source = SOURCE_ENKA
         self._session.flush()
 
@@ -131,21 +131,15 @@ class TrackerService:
                 agent_id=agent.id, slot=parsed_disc.slot
             )
             disc.game_id = parsed_disc.game_id
-            disc.suit_id = parsed_disc.suit_id
+            disc.set_id = parsed_disc.set_id
             disc.rarity = parsed_disc.rarity
             disc.level = parsed_disc.level
             disc.roll_count = parsed_disc.roll_count
-            disc.main_stat = parsed_disc.main_stat.as_main_stat() if parsed_disc.main_stat else {}
+            disc.main_stat_id = parsed_disc.main_stat.prop_id if parsed_disc.main_stat else None
+            disc.main_stat_value = parsed_disc.main_stat.value if parsed_disc.main_stat else 0
             disc.substats = [stat.as_substat() for stat in parsed_disc.substats]
             disc.item_uid = parsed_disc.item_uid
             if disc not in agent.discs:
                 agent.discs.append(disc)
         for stale in by_slot.values():
             agent.discs.remove(stale)
-
-
-def _naive(value: datetime | None) -> datetime | None:
-    """SQLite columns are timezone-naive; store UTC without the tzinfo."""
-    if value is None:
-        return None
-    return value.replace(tzinfo=None)

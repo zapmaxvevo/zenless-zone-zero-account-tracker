@@ -47,11 +47,13 @@ class Account(Base):
     title_id: Mapped[int | None] = mapped_column(Integer, default=None)
     calling_card_id: Mapped[int | None] = mapped_column(Integer, default=None)
 
-    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     sync_ttl_seconds: Mapped[int] = mapped_column(Integer, default=0)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
 
     agents: Mapped[list[Agent]] = relationship(
         back_populates="account",
@@ -94,11 +96,13 @@ class Agent(Base):
     core_skill_enhancement: Mapped[int] = mapped_column(Integer, default=0)
     skill_levels: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     weapon_effect_state: Mapped[int | None] = mapped_column(Integer, default=None)
-    obtained_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    obtained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     source: Mapped[str] = mapped_column(String(16), default=SOURCE_ENKA)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
 
     account: Mapped[Account] = relationship(back_populates="agents")
     wengine: Mapped[WEngine | None] = relationship(
@@ -138,10 +142,9 @@ class WEngine(Base):
 class DriveDisc(Base):
     """Equipped drive disc.
 
-    `game_id` is the individual piece id, `suit_id` the set it belongs to (resolved from the
-    static data), and `roll_count` is Enka's BreakLevel: how many substat rolls it received.
-    `main_stat` is `{"property_id": int, "value": int}` and `substats` a list of
-    `{"property_id": int, "value": int, "rolls": int}`.
+    `game_id` is the individual piece id and `set_id` the set it completes, resolved from the
+    static data. `roll_count` is Enka's BreakLevel: how many substat rolls the piece received.
+    `substats` is a list of `{"prop_id": int, "value": int, "rolls": int}`.
     """
 
     __tablename__ = "drive_discs"
@@ -151,11 +154,12 @@ class DriveDisc(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), index=True)
     slot: Mapped[int] = mapped_column(Integer)
     game_id: Mapped[int] = mapped_column(Integer)
-    suit_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    set_id: Mapped[int | None] = mapped_column(Integer, default=None)
     rarity: Mapped[int | None] = mapped_column(Integer, default=None)
     level: Mapped[int] = mapped_column(Integer, default=0)
     roll_count: Mapped[int] = mapped_column(Integer, default=0)
-    main_stat: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    main_stat_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    main_stat_value: Mapped[int] = mapped_column(Integer, default=0)
     substats: Mapped[list[Any]] = mapped_column(JSON, default=list)
     item_uid: Mapped[int | None] = mapped_column(Integer, default=None)
 
@@ -172,8 +176,10 @@ class Team(Base):
     name: Mapped[str] = mapped_column(String(64))
     notes: Mapped[str] = mapped_column(Text, default="")
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
 
     account: Mapped[Account] = relationship(back_populates="teams")
     members: Mapped[list[TeamMember]] = relationship(

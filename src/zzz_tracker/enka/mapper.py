@@ -10,15 +10,12 @@ from zzz_tracker.enka.static_data import StaticData
 
 @dataclass(frozen=True, slots=True)
 class ParsedStat:
-    property_id: int
+    prop_id: int
     value: int
     rolls: int = 0
 
-    def as_main_stat(self) -> dict[str, int]:
-        return {"property_id": self.property_id, "value": self.value}
-
     def as_substat(self) -> dict[str, int]:
-        return {"property_id": self.property_id, "value": self.value, "rolls": self.rolls}
+        return {"prop_id": self.prop_id, "value": self.value, "rolls": self.rolls}
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +31,7 @@ class ParsedWEngine:
 class ParsedDisc:
     slot: int
     game_id: int
-    suit_id: int | None
+    set_id: int | None
     rarity: int | None
     level: int
     roll_count: int
@@ -118,11 +115,11 @@ def _timestamp_to_datetime(value: Any) -> datetime | None:
 
 def parse_stat(raw: Any) -> ParsedStat | None:
     data = _as_dict(raw)
-    property_id = _as_optional_int(data.get("PropertyId"))
-    if property_id is None:
+    prop_id = _as_optional_int(data.get("PropertyId"))
+    if prop_id is None:
         return None
     return ParsedStat(
-        property_id=property_id,
+        prop_id=prop_id,
         value=_as_int(data.get("PropertyValue")),
         rolls=_as_int(data.get("PropertyLevel")),
     )
@@ -170,7 +167,7 @@ def parse_disc(raw: Any, static: StaticData | None = None) -> ParsedDisc | None:
     return ParsedDisc(
         slot=slot,
         game_id=game_id,
-        suit_id=static.disc_suit_id(game_id) if static else None,
+        set_id=static.disc_set_id(game_id) if static else None,
         rarity=static.disc_rarity(game_id) if static else None,
         level=_as_int(equipment.get("Level")),
         roll_count=_as_int(equipment.get("BreakLevel")),
