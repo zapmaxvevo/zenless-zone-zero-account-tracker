@@ -1,0 +1,44 @@
+{
+  "Items": {
+    "31041": {
+      "Rarity": 4,
+      "SuitId": 31000
+    },
+    "31042": {
+      "Rarity": 4,
+      "SuitId": 31000
+    },
+    "31043": {
+      "Rarity": 4,
+      "SuitId": 31000
+    },
+    "31044": {
+      "Rarity": 4,
+      "SuitId": 31000
+    },
+    "32845": {
+      "Rarity": 4,
+      "SuitId": 32800
+    },
+    "32846": {
+      "Rarity": 4,
+      "SuitId": 32800
+    }
+  },
+  "Suits": {
+    "31000": {
+      "Icon": "/ui/zzz/SuitWoodpeckerElectro.png",
+      "Name": "EquipmentSuit_31000_name",
+      "SetBonusProps": {
+        "20103": 800
+      }
+    },
+    "32800": {
+      "Icon": "/ui/zzz/SuitAstralVoice.png",
+      "Name": "EquipmentSuit_32800_name",
+      "SetBonusProps": {
+        "12102": 1000
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "11101": {
+    "Name": "HpMax_base",
+    "Format": "{0:0}"
+  },
+  "11103": {
+    "Name": "HpMax",
+    "Format": "{0:0}"
+  },
+  "12101": {
+    "Name": "Atk_base",
+    "Format": "{0:0.#}"
+  },
+  "12102": {
+    "Name": "Atk_Ratio",
+    "Format": "{0:0.#%}"
+  },
+  "12103": {
+    "Name": "Atk",
+    "Format": "{0:0.#}"
+  },
+  "13103": {
+    "Name": "Def",
+    "Format": "{0:0.#}"
+  },
+  "20103": {
+    "Name": "Crit",
+    "Format": "{0:0.#%}"
+  },
+  "21103": {
+    "Name": "CritDmg",
+    "Format": "{0:0.#%}"
+  },
+  "31203": {
+    "Name": "ElementMystery",
+    "Format": "{0:0}"
+  },
+  "31903": {
+    "Name": "AddedDamageRatio_Ether",
+    "Format": "{0:0.#%}"
+  }
+}

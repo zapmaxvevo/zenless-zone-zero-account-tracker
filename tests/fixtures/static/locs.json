@@ -1,0 +1,20 @@
+{
+  "en": {
+    "AddedDamageRatio_Ether": "Ether DMG Bonus",
+    "Atk": "ATK",
+    "Atk_Ratio": "Percent ATK",
+    "Atk_base": "Base ATK",
+    "Avatar_Female_Size02_Ellen": "Ellen",
+    "Avatar_Female_Size02_Longinus": "Soldier 11",
+    "Crit": "CRIT Rate",
+    "CritDmg": "CRIT DMG",
+    "Def": "DEF",
+    "ElementMystery": "Anomaly Proficiency",
+    "EquipmentSuit_31000_name": "Woodpecker Electro",
+    "EquipmentSuit_32800_name": "Astral Voice",
+    "HpMax": "HP",
+    "HpMax_base": "Base HP",
+    "Item_Weapon_S_1041_Name": "The Brimstone",
+    "Item_Weapon_S_1211_Name": "Weeping Cradle"
+  }
+}

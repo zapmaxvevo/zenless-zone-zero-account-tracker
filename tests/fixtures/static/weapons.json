@@ -1,0 +1,30 @@
+{
+  "14104": {
+    "ItemName": "Item_Weapon_S_1041_Name",
+    "Rarity": 4,
+    "ProfessionType": "Attack",
+    "ImagePath": "/ui/zzz/Weapon_S_1041.png",
+    "MainStat": {
+      "PropertyId": 12101,
+      "PropertyValue": 46
+    },
+    "SecondaryStat": {
+      "PropertyId": 12102,
+      "PropertyValue": 1200
+    }
+  },
+  "14121": {
+    "ItemName": "Item_Weapon_S_1211_Name",
+    "Rarity": 4,
+    "ProfessionType": "Support",
+    "ImagePath": "/ui/zzz/Weapon_S_1211.png",
+    "MainStat": {
+      "PropertyId": 12101,
+      "PropertyValue": 46
+    },
+    "SecondaryStat": {
+      "PropertyId": 23103,
+      "PropertyValue": 960
+    }
+  }
+}
