@@ -20,6 +20,18 @@ class NotFoundError(ZZZTrackerError):
     default_detail = "Resource not found"
 
 
+class ConflictError(ZZZTrackerError):
+    status_code = 409
+    default_detail = "The resource already exists"
+
+
+class ValidationError(ZZZTrackerError):
+    """A request that is well-formed but breaks a rule only the domain can check."""
+
+    status_code = 422
+    default_detail = "The request breaks a domain rule"
+
+
 class StaticDataUnavailableError(ZZZTrackerError):
     status_code = 503
     default_detail = "Enka's static data has not been downloaded yet"

@@ -5,10 +5,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from zzz_tracker.errors import (
+    ConflictError,
     ExternalServiceError,
     NotFoundError,
     RateLimitedError,
     StaticDataUnavailableError,
+    ValidationError,
 )
 
 
@@ -16,6 +18,8 @@ from zzz_tracker.errors import (
     ("error", "status_code"),
     [
         (NotFoundError("no such account"), 404),
+        (ConflictError("that agent is already tracked"), 409),
+        (ValidationError("an agent cannot take two slots"), 422),
         (StaticDataUnavailableError("run sync-static"), 503),
         (ExternalServiceError("enka is down"), 502),
         (RateLimitedError("slow down"), 429),

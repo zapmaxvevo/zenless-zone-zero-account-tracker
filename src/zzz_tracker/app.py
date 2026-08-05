@@ -15,6 +15,7 @@ from zzz_tracker.web.routers.accounts import router as accounts_router
 from zzz_tracker.web.routers.agents import router as agents_router
 from zzz_tracker.web.routers.catalog import router as catalog_router
 from zzz_tracker.web.routers.health import router as health_router
+from zzz_tracker.web.routers.teams import router as teams_router
 
 
 @asynccontextmanager
@@ -42,6 +43,7 @@ def create_app(
     app.include_router(health_router)
     app.include_router(accounts_router)
     app.include_router(agents_router)
+    app.include_router(teams_router)
     app.include_router(catalog_router)
     return app
 
