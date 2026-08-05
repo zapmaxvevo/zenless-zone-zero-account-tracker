@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Local data: sqlite db and Enka static data dumps
+data/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Vercel
+.vercel/
+
+# Env & local config
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+.claude/settings.local.json
