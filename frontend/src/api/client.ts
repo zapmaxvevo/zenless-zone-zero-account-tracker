@@ -1,4 +1,15 @@
-import type { HealthResponse } from './types';
+import type {
+  AccountListResponse,
+  AccountRead,
+  AgentDetailRead,
+  AgentListResponse,
+  CatalogAgentRead,
+  CatalogDiscSetRead,
+  CatalogListResponse,
+  CatalogPropertyRead,
+  CatalogWEngineRead,
+  HealthResponse,
+} from './types';
 
 const BASE = '/api';
 
@@ -88,4 +99,17 @@ export function del<T>(path: string): Promise<T> {
 
 export const api = {
   health: () => get<HealthResponse>('/health'),
+
+  trackAccount: (uid: string) => post<AccountRead>('/accounts', { uid }),
+  listAccounts: () => get<AccountListResponse>('/accounts'),
+  getAccount: (uid: string) => get<AccountRead>(`/accounts/${uid}`),
+  syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`),
+
+  listAgents: (uid: string) => get<AgentListResponse>(`/accounts/${uid}/agents`),
+  getAgent: (agentId: number | string) => get<AgentDetailRead>(`/agents/${agentId}`),
+
+  catalogAgents: () => get<CatalogListResponse<CatalogAgentRead>>('/catalog/agents'),
+  catalogWEngines: () => get<CatalogListResponse<CatalogWEngineRead>>('/catalog/wengines'),
+  catalogDiscSets: () => get<CatalogListResponse<CatalogDiscSetRead>>('/catalog/discs'),
+  catalogProperties: () => get<CatalogListResponse<CatalogPropertyRead>>('/catalog/properties'),
 };

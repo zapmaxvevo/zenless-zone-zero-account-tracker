@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError } from '../api/client';
+import { describeError } from '../api/errors';
 
 export interface UseApiResult<T> {
   data: T | null;
@@ -13,12 +13,6 @@ interface Settled<T> {
   requestId: string;
   data: T | null;
   error: string | null;
-}
-
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError) return error.detail;
-  if (error instanceof Error) return error.message;
-  return 'Error desconocido';
 }
 
 /**
@@ -45,7 +39,7 @@ export function useApi<T>(fetcher: () => Promise<T>, key: string = ''): UseApiRe
         if (!cancelled) setSettled({ requestId, data, error: null });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setSettled({ requestId, data: null, error: messageOf(error) });
+        if (!cancelled) setSettled({ requestId, data: null, error: describeError(error) });
       });
     return () => {
       cancelled = true;
