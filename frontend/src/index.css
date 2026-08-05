@@ -1,0 +1,82 @@
+/* Tema oscuro estilo New Eridu — base global */
+
+:root {
+  --bg: #0d0e12;
+  --bg-panel: #16181f;
+  --bg-panel-2: #1e212b;
+  --border: #2a2e3a;
+  --border-strong: #3d4354;
+  --text: #e8e9ee;
+  --text-dim: #9096a6;
+  --accent: #f3e600;
+  --accent-dim: #b9af1a;
+  --green: #46d18a;
+  --red: #e0555f;
+  --ui: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% -10%, #1c1f2b 0%, var(--bg) 60%), var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
