@@ -28,7 +28,8 @@ const SKILLS: Record<string, string> = {
   '6': 'Asistencia',
 };
 
-const RARITIES: Record<number, string> = { 2: 'B', 3: 'A', 4: 'S', 5: 'S' };
+/** ZZZ rankea por letra, no por estrellas, y la escala llega hasta 4: no hay rareza 5. */
+const RARITIES: Record<number, string> = { 2: 'B', 3: 'A', 4: 'S' };
 
 /** Los índices que usa Enka; el 4 no existe. */
 export const SKILL_KEYS = ['0', '1', '2', '3', '5', '6'];
@@ -46,7 +47,12 @@ export function skillLabel(key: string): string {
   return SKILLS[key] ?? `Habilidad ${key}`;
 }
 
-/** Rango del juego (S/A/B); Enka usa 4 para S en agentes y 5 en W-Engines. */
+/**
+ * Rango del juego: S, A o B.
+ *
+ * Vale igual para agentes, W-Engines y discos — los tres usan la misma escala 2..4.
+ * Un valor fuera de ella se muestra crudo en vez de inventarle una letra.
+ */
 export function rarityLabel(rarity: number | null): string | null {
   if (rarity === null) return null;
   return RARITIES[rarity] ?? `R${rarity}`;

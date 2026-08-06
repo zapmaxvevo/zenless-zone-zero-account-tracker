@@ -29,7 +29,7 @@ const AGENT: AgentDetailRead = {
     game_id: 14104,
     name: 'The Brimstone',
     icon_url: null,
-    rarity: 5,
+    rarity: 4,
     level: 60,
     modification_level: 5,
     phase: 1,

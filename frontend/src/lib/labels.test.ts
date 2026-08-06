@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import { elementLabel, nameOr, professionLabel, rarityLabel, skillLabel } from './labels';
+
+describe('rarityLabel', () => {
+  it('traduce la escala 2..4 al rango por letra que usa el juego', () => {
+    expect(rarityLabel(4)).toBe('S');
+    expect(rarityLabel(3)).toBe('A');
+    expect(rarityLabel(2)).toBe('B');
+  });
+
+  it('no inventa una letra para valores fuera de la escala', () => {
+    expect(rarityLabel(5)).toBe('R5');
+    expect(rarityLabel(1)).toBe('R1');
+  });
+
+  it('deja pasar el null de un id que los datos estáticos no resolvieron', () => {
+    expect(rarityLabel(null)).toBeNull();
+  });
+});
+
+describe('elementLabel y professionLabel', () => {
+  it('traducen lo que Enka publica en inglés', () => {
+    expect(elementLabel('Fire')).toBe('Fuego');
+    expect(elementLabel('AuricInk')).toBe('Tinta áurica');
+    expect(professionLabel('Anomaly')).toBe('Anomalía');
+  });
+
+  it('muestran crudo un valor nuevo en vez de romperse', () => {
+    expect(elementLabel('Plasma')).toBe('Plasma');
+    expect(professionLabel('Trickster')).toBe('Trickster');
+    expect(professionLabel(null)).toBeNull();
+  });
+});
+
+describe('skillLabel', () => {
+  it('nombra los índices de habilidad de Enka', () => {
+    expect(skillLabel('0')).toBe('Ataque básico');
+    expect(skillLabel('6')).toBe('Asistencia');
+    expect(skillLabel('9')).toBe('Habilidad 9');
+  });
+});
+
+describe('nameOr', () => {
+  it('cae en el id crudo cuando el backend no resolvió el nombre', () => {
+    expect(nameOr('Soldier 11', 'Agente', 1041)).toBe('Soldier 11');
+    expect(nameOr(null, 'Agente', 1041)).toBe('Agente 1041');
+  });
+});
