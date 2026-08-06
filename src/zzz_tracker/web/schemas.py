@@ -6,11 +6,29 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from zzz_tracker.enka.mapper import ParsedAgent, ParsedDisc, ParsedStat, ParsedWEngine
 from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.storage.models import Account, Agent, DriveDisc, Team, WEngine, as_utc
-from zzz_tracker.tracker.service import TEAM_SLOTS, TeamEdit, TeamMemberEdit
+from zzz_tracker.tracker.service import (
+    DISC_SLOTS,
+    TEAM_SLOTS,
+    AgentEdit,
+    TeamEdit,
+    TeamMemberEdit,
+)
 
 UID_PATTERN = r"^\d{6,16}$"
+
+# In-game caps, used to keep hand-typed builds honest. Raise them when the game does.
+MAX_LEVEL = 60
+MAX_PROMOTION_LEVEL = 5
+MAX_MINDSCAPE_LEVEL = 6
+MAX_CORE_SKILL_ENHANCEMENT = 6
+MAX_MODIFICATION_LEVEL = 5
+MAX_PHASE = 5
+MAX_RARITY = 5
+MAX_DISC_LEVEL = 15
+MAX_DISC_ROLLS = 5
 
 
 class ErrorResponse(BaseModel):
@@ -248,6 +266,131 @@ class AgentDetailRead(AgentRead):
 
 class AgentListResponse(BaseModel):
     items: list[AgentRead]
+
+
+class SubstatWrite(BaseModel):
+    prop_id: int = Field(ge=1, description="Enka property id, as served by /catalog/properties")
+    value: int = Field(default=0, ge=0, description="Raw value, in the property's own scale")
+    rolls: int = Field(default=0, ge=0)
+
+
+class WEngineWrite(BaseModel):
+    game_id: int = Field(ge=1)
+    level: int = Field(default=1, ge=1, le=MAX_LEVEL)
+    modification_level: int = Field(default=0, ge=0, le=MAX_MODIFICATION_LEVEL)
+    phase: int = Field(default=1, ge=1, le=MAX_PHASE)
+
+    def as_parsed(self) -> ParsedWEngine:
+        return ParsedWEngine(
+            game_id=self.game_id,
+            level=self.level,
+            modification_level=self.modification_level,
+            phase=self.phase,
+            item_uid=None,
+        )
+
+
+class DriveDiscWrite(BaseModel):
+    """One equipped disc. `set_id` and `rarity` are looked up from the static data when omitted."""
+
+    slot: int = Field(ge=1, le=DISC_SLOTS)
+    game_id: int = Field(ge=1, description="Id of the piece itself, not of its set")
+    set_id: int | None = None
+    rarity: int | None = Field(default=None, ge=1, le=MAX_RARITY)
+    level: int = Field(default=0, ge=0, le=MAX_DISC_LEVEL)
+    roll_count: int = Field(default=0, ge=0, le=MAX_DISC_ROLLS)
+    main_stat_id: int | None = None
+    main_stat_value: int = Field(default=0, ge=0)
+    substats: list[SubstatWrite] = Field(default_factory=list)
+
+    def as_parsed(self, static: StaticData | None) -> ParsedDisc:
+        main_stat = (
+            ParsedStat(prop_id=self.main_stat_id, value=self.main_stat_value)
+            if self.main_stat_id is not None
+            else None
+        )
+        return ParsedDisc(
+            slot=self.slot,
+            game_id=self.game_id,
+            set_id=self.set_id if self.set_id is not None else self._known_set_id(static),
+            rarity=self.rarity if self.rarity is not None else self._known_rarity(static),
+            level=self.level,
+            roll_count=self.roll_count,
+            main_stat=main_stat,
+            substats=tuple(
+                ParsedStat(prop_id=stat.prop_id, value=stat.value, rolls=stat.rolls)
+                for stat in self.substats
+            ),
+            item_uid=None,
+        )
+
+    def _known_set_id(self, static: StaticData | None) -> int | None:
+        return static.disc_set_id(self.game_id) if static else None
+
+    def _known_rarity(self, static: StaticData | None) -> int | None:
+        return static.disc_rarity(self.game_id) if static else None
+
+
+class AgentWrite(BaseModel):
+    """An agent typed in by hand, with the build it wears; unsent fields start at zero."""
+
+    game_id: int = Field(ge=1, description="Id from /catalog/agents")
+    level: int = Field(default=1, ge=1, le=MAX_LEVEL)
+    promotion_level: int = Field(default=0, ge=0, le=MAX_PROMOTION_LEVEL)
+    mindscape_level: int = Field(default=0, ge=0, le=MAX_MINDSCAPE_LEVEL)
+    core_skill_enhancement: int = Field(default=0, ge=0, le=MAX_CORE_SKILL_ENHANCEMENT)
+    skill_levels: dict[str, int] = Field(
+        default_factory=dict, description="Skill index as string to its level"
+    )
+    wengine: WEngineWrite | None = None
+    discs: list[DriveDiscWrite] = Field(default_factory=list)
+
+    def as_parsed_agent(self, static: StaticData | None) -> ParsedAgent:
+        return ParsedAgent(
+            game_id=self.game_id,
+            level=self.level,
+            promotion_level=self.promotion_level,
+            mindscape_level=self.mindscape_level,
+            core_skill_enhancement=self.core_skill_enhancement,
+            skill_levels=dict(self.skill_levels),
+            weapon_effect_state=None,
+            obtained_at=None,
+            wengine=self.wengine.as_parsed() if self.wengine else None,
+            discs=tuple(disc.as_parsed(static) for disc in self.discs),
+        )
+
+
+class AgentUpdate(BaseModel):
+    """A correction to a tracked agent: every field is optional and only what is sent changes.
+
+    `wengine` and `discs` are replaced rather than merged — sending discs means sending the
+    whole set, and `"wengine": null` unequips it. Applying any of this turns the agent into a
+    manual one, so later syncs stop overwriting it.
+    """
+
+    level: int | None = Field(default=None, ge=1, le=MAX_LEVEL)
+    promotion_level: int | None = Field(default=None, ge=0, le=MAX_PROMOTION_LEVEL)
+    mindscape_level: int | None = Field(default=None, ge=0, le=MAX_MINDSCAPE_LEVEL)
+    core_skill_enhancement: int | None = Field(default=None, ge=0, le=MAX_CORE_SKILL_ENHANCEMENT)
+    skill_levels: dict[str, int] | None = None
+    wengine: WEngineWrite | None = None
+    discs: list[DriveDiscWrite] | None = None
+
+    def as_edit(self, static: StaticData | None) -> AgentEdit:
+        return AgentEdit(
+            level=self.level,
+            promotion_level=self.promotion_level,
+            mindscape_level=self.mindscape_level,
+            core_skill_enhancement=self.core_skill_enhancement,
+            skill_levels=dict(self.skill_levels) if self.skill_levels is not None else None,
+            wengine=self.wengine.as_parsed() if self.wengine else None,
+            clear_wengine="wengine" in self.model_fields_set and self.wengine is None,
+            discs=(
+                tuple(disc.as_parsed(static) for disc in self.discs)
+                if self.discs is not None
+                else None
+            ),
+        )
 
 
 class TeamMemberWrite(BaseModel):

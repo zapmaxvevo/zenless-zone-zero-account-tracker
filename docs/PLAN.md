@@ -75,7 +75,7 @@ Los stats se guardan como IDs de propiedad de Enka + valores crudos; la resoluci
 - `POST /accounts` `{uid}` — importa desde Enka y crea la cuenta; `POST /accounts/{uid}/sync` — re-importa respetando `ttl`.
 - `GET /accounts` / `GET /accounts/{uid}` — resumen de cuenta.
 - `GET /accounts/{uid}/agents` / `GET /agents/{id}` — roster y detalle de build.
-- `POST /accounts/{uid}/agents` + `PATCH /agents/{id}` — alta/edición manual (incluye W-Engine y discos anidados).
+- `POST /accounts/{uid}/agents` + `PATCH /agents/{id}` + `DELETE /agents/{id}` — alta/edición/baja manual (incluye W-Engine y discos anidados; borrar un agente lo saca de los teams que lo usaban).
 - `GET /accounts/{uid}/teams` + CRUD — team comps.
 - `GET /catalog/agents|wengines|discs|properties` — id → nombre/icono/rareza desde los datos estáticos (para pickers y render).
 

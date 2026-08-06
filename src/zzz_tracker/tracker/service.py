@@ -3,15 +3,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from zzz_tracker.enka.client import EnkaClient
-from zzz_tracker.enka.mapper import ParsedAgent, ParsedProfile, parse_profile
+from zzz_tracker.enka.mapper import (
+    ParsedAgent,
+    ParsedDisc,
+    ParsedProfile,
+    ParsedWEngine,
+    parse_profile,
+)
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.errors import NotFoundError, ValidationError
+from zzz_tracker.errors import ConflictError, NotFoundError, ValidationError
 from zzz_tracker.storage.models import (
     SOURCE_ENKA,
+    SOURCE_MANUAL,
     Account,
     Agent,
     DriveDisc,
@@ -24,6 +31,25 @@ from zzz_tracker.storage.models import (
 DEFAULT_SYNC_TTL_SECONDS = 60
 TEAM_SLOTS = 3
 DISC_SLOTS = 6
+
+
+@dataclass(frozen=True, slots=True)
+class AgentEdit:
+    """A partial change to a tracked agent.
+
+    `None` means "leave it as it is". `wengine` and `discs` are not merged: a W-Engine
+    replaces whatever was equipped, and the discs replace the whole set, so a build is
+    edited by sending it complete. `clear_wengine` unequips the current one.
+    """
+
+    level: int | None = None
+    promotion_level: int | None = None
+    mindscape_level: int | None = None
+    core_skill_enhancement: int | None = None
+    skill_levels: dict[str, int] | None = None
+    wengine: ParsedWEngine | None = None
+    clear_wengine: bool = False
+    discs: tuple[ParsedDisc, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,11 +68,12 @@ class TeamEdit:
 
 
 class TrackerService:
-    """Use cases around tracked accounts: importing from Enka and reading them back.
+    """Use cases around tracked accounts: importing from Enka, editing by hand, reading back.
 
     Sync never overwrites hand-edited data: agents whose `source` is `manual` are left
     untouched, and agents missing from the showcase are kept rather than deleted, since
-    Enka only exposes the handful of agents the player put on display.
+    Enka only exposes the handful of agents the player put on display. Editing an agent is
+    what marks it `manual`, so a correction survives every later sync.
     """
 
     def __init__(
@@ -84,6 +111,77 @@ class TrackerService:
         if agent is None:
             raise NotFoundError(f"Agent {agent_id} is not tracked")
         return agent
+
+    def create_agent(self, uid: str, parsed: ParsedAgent) -> Agent:
+        """Add an agent Enka never showed, with the build the player typed in."""
+        account = self.get_account(uid)
+        if self._find_agent(uid, parsed.game_id) is not None:
+            raise ConflictError(f"Agent {parsed.game_id} is already tracked for account {uid}")
+        self._ensure_one_disc_per_slot(parsed.discs)
+
+        agent = Agent(account_uid=account.uid, game_id=parsed.game_id)
+        self._session.add(agent)
+        agent.level = parsed.level
+        agent.promotion_level = parsed.promotion_level
+        agent.mindscape_level = parsed.mindscape_level
+        agent.core_skill_enhancement = parsed.core_skill_enhancement
+        agent.skill_levels = dict(parsed.skill_levels)
+        agent.weapon_effect_state = parsed.weapon_effect_state
+        agent.obtained_at = parsed.obtained_at
+        agent.source = SOURCE_MANUAL
+        self._session.flush()
+
+        self._replace_wengine(agent, parsed.wengine)
+        self._replace_discs(agent, parsed.discs)
+
+        self._session.commit()
+        self._session.refresh(agent)
+        return agent
+
+    def update_agent(self, agent_id: int, edit: AgentEdit) -> Agent:
+        """Correct an agent by hand. Doing so makes it `manual`, so no sync overwrites it."""
+        agent = self.get_agent(agent_id)
+        if edit.discs is not None:
+            self._ensure_one_disc_per_slot(edit.discs)
+
+        if edit.level is not None:
+            agent.level = edit.level
+        if edit.promotion_level is not None:
+            agent.promotion_level = edit.promotion_level
+        if edit.mindscape_level is not None:
+            agent.mindscape_level = edit.mindscape_level
+        if edit.core_skill_enhancement is not None:
+            agent.core_skill_enhancement = edit.core_skill_enhancement
+        if edit.skill_levels is not None:
+            agent.skill_levels = dict(edit.skill_levels)
+        agent.source = SOURCE_MANUAL
+        self._session.flush()
+
+        if edit.wengine is not None or edit.clear_wengine:
+            self._replace_wengine(agent, edit.wengine)
+        if edit.discs is not None:
+            self._replace_discs(agent, edit.discs)
+
+        self._session.commit()
+        self._session.refresh(agent)
+        return agent
+
+    def delete_agent(self, agent_id: int) -> None:
+        """Stop tracking an agent, freeing the slot it held in any team comp."""
+        agent = self.get_agent(agent_id)
+        self._session.execute(delete(TeamMember).where(TeamMember.agent_id == agent.id))
+        self._session.delete(agent)
+        self._session.commit()
+
+    def _find_agent(self, uid: str, game_id: int) -> Agent | None:
+        return self._session.scalars(
+            select(Agent).where(Agent.account_uid == uid, Agent.game_id == game_id)
+        ).one_or_none()
+
+    def _ensure_one_disc_per_slot(self, discs: Sequence[ParsedDisc]) -> None:
+        slots = [disc.slot for disc in discs]
+        if len(set(slots)) != len(slots):
+            raise ValidationError("Each drive disc slot can only be filled once")
 
     def list_teams(self, uid: str) -> list[Team]:
         self.get_account(uid)
@@ -190,12 +288,7 @@ class TrackerService:
         return account
 
     def _upsert_agent(self, account: Account, parsed: ParsedAgent) -> Agent | None:
-        agent = self._session.scalars(
-            select(Agent).where(
-                Agent.account_uid == account.uid,
-                Agent.game_id == parsed.game_id,
-            )
-        ).one_or_none()
+        agent = self._find_agent(account.uid, parsed.game_id)
 
         if agent is not None and agent.is_manual:
             return None
@@ -214,25 +307,25 @@ class TrackerService:
         agent.source = SOURCE_ENKA
         self._session.flush()
 
-        self._replace_wengine(agent, parsed)
-        self._replace_discs(agent, parsed)
+        self._replace_wengine(agent, parsed.wengine)
+        self._replace_discs(agent, parsed.discs)
         return agent
 
-    def _replace_wengine(self, agent: Agent, parsed: ParsedAgent) -> None:
-        if parsed.wengine is None:
+    def _replace_wengine(self, agent: Agent, parsed: ParsedWEngine | None) -> None:
+        if parsed is None:
             agent.wengine = None
             return
         wengine = agent.wengine or WEngine(agent_id=agent.id)
-        wengine.game_id = parsed.wengine.game_id
-        wengine.level = parsed.wengine.level
-        wengine.modification_level = parsed.wengine.modification_level
-        wengine.phase = parsed.wengine.phase
-        wengine.item_uid = parsed.wengine.item_uid
+        wengine.game_id = parsed.game_id
+        wengine.level = parsed.level
+        wengine.modification_level = parsed.modification_level
+        wengine.phase = parsed.phase
+        wengine.item_uid = parsed.item_uid
         agent.wengine = wengine
 
-    def _replace_discs(self, agent: Agent, parsed: ParsedAgent) -> None:
+    def _replace_discs(self, agent: Agent, discs: Sequence[ParsedDisc]) -> None:
         by_slot = {disc.slot: disc for disc in agent.discs}
-        for parsed_disc in parsed.discs:
+        for parsed_disc in discs:
             disc = by_slot.pop(parsed_disc.slot, None) or DriveDisc(
                 agent_id=agent.id, slot=parsed_disc.slot
             )
