@@ -3,12 +3,17 @@ import type {
   AccountRead,
   AgentDetailRead,
   AgentListResponse,
+  AgentUpdate,
+  AgentWrite,
   CatalogAgentRead,
   CatalogDiscSetRead,
   CatalogListResponse,
   CatalogPropertyRead,
   CatalogWEngineRead,
   HealthResponse,
+  TeamListResponse,
+  TeamRead,
+  TeamWrite,
 } from './types';
 
 const BASE = '/api';
@@ -89,6 +94,10 @@ export function post<T>(path: string, body?: unknown): Promise<T> {
   return request<T>('POST', path, body ?? {});
 }
 
+export function put<T>(path: string, body: unknown): Promise<T> {
+  return request<T>('PUT', path, body);
+}
+
 export function patch<T>(path: string, body: unknown): Promise<T> {
   return request<T>('PATCH', path, body);
 }
@@ -107,6 +116,17 @@ export const api = {
 
   listAgents: (uid: string) => get<AgentListResponse>(`/accounts/${uid}/agents`),
   getAgent: (agentId: number | string) => get<AgentDetailRead>(`/agents/${agentId}`),
+  createAgent: (uid: string, body: AgentWrite) =>
+    post<AgentDetailRead>(`/accounts/${uid}/agents`, body),
+  updateAgent: (agentId: number | string, body: AgentUpdate) =>
+    patch<AgentDetailRead>(`/agents/${agentId}`, body),
+  deleteAgent: (agentId: number | string) => del<void>(`/agents/${agentId}`),
+
+  listTeams: (uid: string) => get<TeamListResponse>(`/accounts/${uid}/teams`),
+  createTeam: (uid: string, body: TeamWrite) => post<TeamRead>(`/accounts/${uid}/teams`, body),
+  getTeam: (teamId: number | string) => get<TeamRead>(`/teams/${teamId}`),
+  updateTeam: (teamId: number | string, body: TeamWrite) => put<TeamRead>(`/teams/${teamId}`, body),
+  deleteTeam: (teamId: number | string) => del<void>(`/teams/${teamId}`),
 
   catalogAgents: () => get<CatalogListResponse<CatalogAgentRead>>('/catalog/agents'),
   catalogWEngines: () => get<CatalogListResponse<CatalogWEngineRead>>('/catalog/wengines'),

@@ -26,7 +26,6 @@ export default function AgentCard({ agent }: AgentCardProps) {
         <h3>{name}</h3>
         <p className="dim">
           Nv. {agent.level} · M{agent.mindscape_level}
-          {agent.source === 'manual' && ' · manual'}
         </p>
         <p className="tags">
           {agent.elements.map((element) => (
@@ -35,6 +34,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
             </span>
           ))}
           {profession && <span className="tag">{profession}</span>}
+          {agent.source === 'manual' && <span className="tag tag-manual">Manual</span>}
         </p>
         <p className="dim small">
           {agent.wengine

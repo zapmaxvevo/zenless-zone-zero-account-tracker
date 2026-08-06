@@ -8,6 +8,9 @@ describe('describeError', () => {
     expect(describeError(new ApiError(429, 'rate limited'))).toContain('limitando');
     expect(describeError(new ApiError(502, 'upstream failed'))).toContain('Enka');
     expect(describeError(new ApiError(503, 'static data missing'))).toContain('sync-static');
+    expect(describeError(new ApiError(409, 'Agent 1041 is already tracked'))).toContain(
+      'ya tiene ese agente',
+    );
   });
 
   it('suma el detail del backend a los errores de validación', () => {

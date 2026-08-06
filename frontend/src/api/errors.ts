@@ -19,6 +19,8 @@ function messageForStatus(error: ApiError): string {
   switch (error.status) {
     case 404:
       return 'No encontramos esa cuenta. Revisá el UID: tiene que existir y estar en la vitrina pública del juego.';
+    case 409:
+      return 'Esa cuenta ya tiene ese agente: editalo desde el roster en vez de cargarlo de nuevo.';
     case 422:
       return `Los datos enviados no son válidos: ${error.detail}`;
     case 429:

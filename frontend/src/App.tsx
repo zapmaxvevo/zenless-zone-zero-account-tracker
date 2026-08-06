@@ -3,9 +3,12 @@ import './App.css';
 import { api } from './api/client';
 import { useApi } from './hooks/useApi';
 import AccountPage from './pages/AccountPage';
+import AgentFormPage from './pages/AgentFormPage';
 import AgentPage from './pages/AgentPage';
 import HomePage from './pages/HomePage';
 import RosterPage from './pages/RosterPage';
+import TeamEditorPage from './pages/TeamEditorPage';
+import TeamsPage from './pages/TeamsPage';
 
 export default function App() {
   return (
@@ -22,7 +25,12 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/account/:uid" element={<AccountPage />} />
           <Route path="/account/:uid/agents" element={<RosterPage />} />
+          <Route path="/account/:uid/agents/new" element={<AgentFormPage />} />
           <Route path="/account/:uid/agents/:agentId" element={<AgentPage />} />
+          <Route path="/account/:uid/agents/:agentId/edit" element={<AgentFormPage />} />
+          <Route path="/account/:uid/teams" element={<TeamsPage />} />
+          <Route path="/account/:uid/teams/new" element={<TeamEditorPage />} />
+          <Route path="/account/:uid/teams/:teamId/edit" element={<TeamEditorPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
 

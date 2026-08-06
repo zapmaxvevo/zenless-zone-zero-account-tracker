@@ -101,6 +101,90 @@ export interface AgentListResponse {
   items: AgentRead[];
 }
 
+export interface TeamMemberRead {
+  slot: number;
+  agent: AgentRead;
+}
+
+export interface TeamRead {
+  id: number;
+  account_uid: string;
+  name: string;
+  notes: string;
+  members: TeamMemberRead[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TeamListResponse {
+  items: TeamRead[];
+}
+
+export interface TeamMemberWrite {
+  slot: number;
+  agent_id: number;
+}
+
+/** El equipo entero: mandarlo reemplaza nombre, notas y todos los miembros. */
+export interface TeamWrite {
+  name: string;
+  notes: string;
+  members: TeamMemberWrite[];
+}
+
+export interface SubstatWrite {
+  prop_id: number;
+  value: number;
+  rolls: number;
+}
+
+export interface WEngineWrite {
+  game_id: number;
+  level: number;
+  modification_level: number;
+  phase: number;
+}
+
+export interface DriveDiscWrite {
+  slot: number;
+  /** Id de la pieza, no del set; el backend deduce `set_id` y `rarity` si van en null. */
+  game_id: number;
+  set_id: number | null;
+  rarity: number | null;
+  level: number;
+  roll_count: number;
+  main_stat_id: number | null;
+  main_stat_value: number;
+  substats: SubstatWrite[];
+}
+
+export interface AgentWrite {
+  game_id: number;
+  level: number;
+  promotion_level: number;
+  mindscape_level: number;
+  core_skill_enhancement: number;
+  skill_levels: Record<string, number>;
+  wengine: WEngineWrite | null;
+  discs: DriveDiscWrite[];
+}
+
+/**
+ * Corrección de un agente: solo viaja lo que cambió.
+ *
+ * `wengine` y `discs` reemplazan, no mergean. Omitir una clave la deja intacta; mandar
+ * `wengine: null` desequipa y `discs: []` vacía los discos.
+ */
+export interface AgentUpdate {
+  level?: number;
+  promotion_level?: number;
+  mindscape_level?: number;
+  core_skill_enhancement?: number;
+  skill_levels?: Record<string, number>;
+  wengine?: WEngineWrite | null;
+  discs?: DriveDiscWrite[];
+}
+
 export interface CatalogAgentRead {
   game_id: number;
   name: string;

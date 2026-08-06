@@ -92,6 +92,9 @@ function AccountOverview({ account, uid, onSynced }: AccountOverviewProps) {
       <p className="actions">
         <Link className="link-button" to={`/account/${account.uid}/agents`}>
           Ver el roster ({account.agent_count})
+        </Link>{' '}
+        <Link className="link-button" to={`/account/${account.uid}/teams`}>
+          Equipos
         </Link>
       </p>
     </section>

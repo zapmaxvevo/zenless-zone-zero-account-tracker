@@ -446,6 +446,163 @@
   color: var(--accent-dim);
 }
 
+/* Formularios */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.field-row .field {
+  flex: 1 1 8rem;
+}
+
+.field-row > button {
+  margin-top: 0.75rem;
+}
+
+.slot-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.substat-fields {
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.substat-fields legend {
+  padding: 0 0.35rem;
+}
+
+/* Equipos */
+
+.team-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.team {
+  padding: 0.9rem;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.team-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.team-slots {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.team-slot a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.team-slot a:hover {
+  border-color: var(--accent);
+}
+
+.team-slot a > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.team-slot-portrait {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.team-slot-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-slot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.tag-manual {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
 @media (max-width: 640px) {
   .agent-hero {
     flex-direction: column;

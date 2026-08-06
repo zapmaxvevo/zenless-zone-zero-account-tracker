@@ -1,6 +1,7 @@
-import { Fragment } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Fragment, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { describeError } from '../api/errors';
 import type { AgentDetailRead, CatalogPropertyRead, EquippedSetRead } from '../api/types';
 import DiscCard from '../components/DiscCard';
 import StatusMessage from '../components/StatusMessage';
@@ -34,28 +35,62 @@ export default function AgentPage() {
         </StatusMessage>
       )}
 
-      {data && <AgentBuild agent={data} properties={properties.data?.items ?? []} />}
+      {data && <AgentBuild agent={data} uid={uid} properties={properties.data?.items ?? []} />}
     </>
   );
 }
 
 interface AgentBuildProps {
   agent: AgentDetailRead;
+  uid: string;
   properties: CatalogPropertyRead[];
 }
 
-function AgentBuild({ agent, properties }: AgentBuildProps) {
+function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
+  const navigate = useNavigate();
   const name = nameOr(agent.name, 'Agente', agent.game_id);
   const rarity = rarityLabel(agent.rarity);
   const profession = professionLabel(agent.profession);
   const discsBySlot = new Map(agent.discs.map((disc) => [disc.slot, disc]));
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    const warning =
+      `¿Sacar a ${name} del roster? Se borra su build y queda fuera de los equipos ` +
+      'que lo tenían, aunque esos equipos siguen existiendo.';
+    if (!window.confirm(warning)) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteAgent(agent.id);
+      navigate(`/account/${uid}/agents`);
+    } catch (caught) {
+      setDeleteError(describeError(caught));
+      setDeleting(false);
+    }
+  }
 
   return (
     <>
       <section className="panel agent-hero">
         {agent.image_url && <img className="agent-portrait" src={agent.image_url} alt="" />}
         <div>
-          <h2>{name}</h2>
+          <header className="panel-header">
+            <h2>{name}</h2>
+            <div className="team-actions">
+              <Link className="link-button" to={`/account/${uid}/agents/${agent.id}/edit`}>
+                Editar
+              </Link>
+              <button type="button" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
+          </header>
+
+          {deleteError && <StatusMessage kind="error">{deleteError}</StatusMessage>}
+
           <p className="tags">
             {rarity && <span className={`tag rank rank-${rarity}`}>{rarity}</span>}
             {agent.elements.map((element) => (
@@ -64,7 +99,7 @@ function AgentBuild({ agent, properties }: AgentBuildProps) {
               </span>
             ))}
             {profession && <span className="tag">{profession}</span>}
-            {agent.source === 'manual' && <span className="tag">Carga manual</span>}
+            {agent.source === 'manual' && <span className="tag tag-manual">Manual</span>}
           </p>
           <dl className="meta">
             <dt>Nivel</dt>

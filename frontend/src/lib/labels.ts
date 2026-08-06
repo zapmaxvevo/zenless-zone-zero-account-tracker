@@ -30,6 +30,9 @@ const SKILLS: Record<string, string> = {
 
 const RARITIES: Record<number, string> = { 2: 'B', 3: 'A', 4: 'S', 5: 'S' };
 
+/** Los índices que usa Enka; el 4 no existe. */
+export const SKILL_KEYS = ['0', '1', '2', '3', '5', '6'];
+
 export function elementLabel(element: string): string {
   return ELEMENTS[element] ?? element;
 }

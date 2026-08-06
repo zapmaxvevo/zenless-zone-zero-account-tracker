@@ -19,9 +19,14 @@ export default function RosterPage() {
       <section className="panel">
         <header className="panel-header">
           <h2>Roster ({agents.length})</h2>
-          <button type="button" onClick={reload} disabled={loading}>
-            Actualizar
-          </button>
+          <div className="team-actions">
+            <Link className="link-button" to={`/account/${uid}/agents/new`}>
+              Agregar agente
+            </Link>
+            <button type="button" onClick={reload} disabled={loading}>
+              Actualizar
+            </button>
+          </div>
         </header>
 
         {loading && <StatusMessage kind="loading">Cargando los agentes…</StatusMessage>}
@@ -35,7 +40,7 @@ export default function RosterPage() {
         {!loading && !error && agents.length === 0 && (
           <StatusMessage kind="empty">
             Esta cuenta no tiene agentes. Enka solo publica los que estén en la vitrina del juego:
-            ponelos ahí y sincronizá de nuevo.
+            ponelos ahí y sincronizá de nuevo, o cargalos a mano.
           </StatusMessage>
         )}
 
