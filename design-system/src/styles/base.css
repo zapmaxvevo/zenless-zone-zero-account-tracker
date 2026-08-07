@@ -1,0 +1,53 @@
+/* Base global: reset, superficie de la página y estilos de elementos crudos.
+   Todo diseño hecho con este DS parte de este fondo oscuro. */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% -10%, #1c1f2b 0%, var(--bg) 60%), var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Utilidades de texto usadas en todo el sistema. */
+
+.dim {
+  color: var(--text-dim);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.mono {
+  font-family: var(--mono);
+}
