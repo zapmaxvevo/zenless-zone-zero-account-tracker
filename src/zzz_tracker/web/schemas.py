@@ -8,11 +8,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from zzz_tracker.enka.mapper import ParsedAgent, ParsedDisc, ParsedStat, ParsedWEngine
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.storage.models import Account, Agent, DriveDisc, Team, WEngine, as_utc
+from zzz_tracker.storage.models import (
+    Account,
+    Agent,
+    ChallengeRun,
+    ChallengeRunEntry,
+    DriveDisc,
+    HoyolabCredential,
+    LostVoidProgress,
+    Team,
+    WEngine,
+    as_utc,
+    region_for_uid,
+)
 from zzz_tracker.tracker.service import (
     DISC_SLOTS,
     TEAM_SLOTS,
     AgentEdit,
+    ChronicleSyncReport,
     TeamEdit,
     TeamMemberEdit,
 )
@@ -60,6 +73,9 @@ class AccountRead(BaseModel):
     calling_card_id: int | None
     last_synced_at: datetime | None
     next_sync_available_at: datetime | None
+    region: str
+    chronicle_public: bool
+    chronicle_synced_at: datetime | None
     agent_count: int
 
     @classmethod
@@ -75,6 +91,9 @@ class AccountRead(BaseModel):
             calling_card_id=account.calling_card_id,
             last_synced_at=as_utc(account.last_synced_at),
             next_sync_available_at=account.next_sync_available_at(),
+            region=account.region or region_for_uid(account.uid),
+            chronicle_public=account.chronicle_public,
+            chronicle_synced_at=as_utc(account.chronicle_synced_at),
             agent_count=len(account.agents),
         )
 
@@ -507,3 +526,180 @@ class CatalogPropertyListResponse(BaseModel):
     """Never empty: without downloaded static data the catalog answers 503, not `[]`."""
 
     items: list[CatalogPropertyRead]
+
+
+class CredentialWrite(BaseModel):
+    ltuid_v2: str = Field(min_length=1, max_length=32)
+    ltoken_v2: str = Field(min_length=1, max_length=512)
+
+
+class CredentialRead(BaseModel):
+    account_uid: str
+    ltuid_v2: str
+    rejected: bool
+    last_used_at: datetime | None
+    created_at: datetime | None
+    updated_at: datetime | None
+
+    @classmethod
+    def from_credential(cls, credential: HoyolabCredential) -> CredentialRead:
+        return cls(
+            account_uid=credential.account_uid,
+            ltuid_v2=credential.ltuid_v2,
+            rejected=credential.is_rejected,
+            last_used_at=as_utc(credential.last_used_at),
+            created_at=as_utc(credential.created_at),
+            updated_at=as_utc(credential.updated_at),
+        )
+
+
+class ChallengeAgentRead(BaseModel):
+    game_id: int
+    level: int
+    rarity: str
+    element: str
+    mindscape: int
+    icon: str = ""
+
+
+class ChallengeEntryRead(BaseModel):
+    position: int
+    name: str
+    rating: str
+    score: int
+    max_score: int
+    stars: int
+    clear_time_seconds: int | None
+    challenged_at: datetime | None
+    boss_name: str
+    boss_icon: str
+    buffs: list[dict[str, Any]]
+    agents: list[ChallengeAgentRead]
+    bangboo_id: int | None
+
+    @classmethod
+    def from_entry(cls, entry: ChallengeRunEntry) -> ChallengeEntryRead:
+        return cls(
+            position=entry.position,
+            name=entry.name,
+            rating=entry.rating,
+            score=entry.score,
+            max_score=entry.max_score,
+            stars=entry.stars,
+            clear_time_seconds=entry.clear_time_seconds,
+            challenged_at=as_utc(entry.challenged_at),
+            boss_name=entry.boss_name,
+            boss_icon=entry.boss_icon,
+            buffs=[dict(buff) for buff in entry.buffs if isinstance(buff, dict)],
+            agents=[
+                ChallengeAgentRead(**agent) for agent in entry.agents if isinstance(agent, dict)
+            ],
+            bangboo_id=entry.bangboo_id,
+        )
+
+
+class ChallengeRunRead(BaseModel):
+    id: int
+    account_uid: str
+    mode: str
+    schedule_id: int
+    begin_time: datetime | None
+    end_time: datetime | None
+    rating: str
+    score: int
+    max_score: int
+    total_stars: int
+    rank_percent: float | None
+    clear_time_seconds: int | None
+    schema_version: str
+    synced_at: datetime | None
+    entries: list[ChallengeEntryRead]
+
+    @classmethod
+    def from_run(cls, run: ChallengeRun) -> ChallengeRunRead:
+        return cls(
+            id=run.id,
+            account_uid=run.account_uid,
+            mode=run.mode,
+            schedule_id=run.schedule_id,
+            begin_time=as_utc(run.begin_time),
+            end_time=as_utc(run.end_time),
+            rating=run.rating,
+            score=run.score,
+            max_score=run.max_score,
+            total_stars=run.total_stars,
+            rank_percent=None if run.rank_percent is None else run.rank_percent / 100,
+            clear_time_seconds=run.clear_time_seconds,
+            schema_version=run.schema_version,
+            synced_at=as_utc(run.synced_at),
+            entries=[ChallengeEntryRead.from_entry(entry) for entry in run.entries],
+        )
+
+
+class ChallengeRunListResponse(BaseModel):
+    items: list[ChallengeRunRead]
+
+
+class BangbooRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    game_id: int
+    name: str
+    level: int
+    rarity: int | None
+    star: int
+    icon: str
+
+
+class BangbooListResponse(BaseModel):
+    items: list[BangbooRead]
+
+
+class LostVoidRead(BaseModel):
+    account_uid: str
+    license_level: int
+    exploration_log: int
+    max_exploration_log: int
+    commissions_done: int
+    commissions_total: int
+    ultimate_challenge_score: int
+    ultimate_challenge_tier: str
+    data_collected: int
+    synced_at: datetime | None
+
+    @classmethod
+    def from_progress(cls, progress: LostVoidProgress) -> LostVoidRead:
+        return cls(
+            account_uid=progress.account_uid,
+            license_level=progress.license_level,
+            exploration_log=progress.exploration_log,
+            max_exploration_log=progress.max_exploration_log,
+            commissions_done=progress.commissions_done,
+            commissions_total=progress.commissions_total,
+            ultimate_challenge_score=progress.ultimate_challenge_score,
+            ultimate_challenge_tier=progress.ultimate_challenge_tier,
+            data_collected=progress.data_collected,
+            synced_at=as_utc(progress.synced_at),
+        )
+
+
+class ChronicleSyncResponse(BaseModel):
+    account_uid: str
+    skipped: bool
+    agents_synced: int
+    bangboos_synced: int
+    lost_void_synced: bool
+    unavailable_modes: list[str]
+    runs: list[ChallengeRunRead]
+
+    @classmethod
+    def from_report(cls, report: ChronicleSyncReport) -> ChronicleSyncResponse:
+        return cls(
+            account_uid=report.account.uid,
+            skipped=report.skipped,
+            agents_synced=report.agents_synced,
+            bangboos_synced=report.bangboos_synced,
+            lost_void_synced=report.lost_void_synced,
+            unavailable_modes=list(report.unavailable_modes),
+            runs=[ChallengeRunRead.from_run(run) for run in report.runs],
+        )

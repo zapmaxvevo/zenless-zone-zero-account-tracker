@@ -1,0 +1,135 @@
+{
+  "hadal_ver": "v2",
+  "hadal_info_v2": {
+    "zone_id": 3902,
+    "hadal_begin_time": 1781000000,
+    "hadal_end_time": 1782200000,
+    "pass_fifth_floor": true,
+    "brief": {
+      "score": 32450,
+      "max_score": 36000,
+      "rank_percent": 250,
+      "battle_time": 214,
+      "rating": "S+",
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 21,
+        "hour": 20,
+        "minute": 15,
+        "second": 0
+      }
+    },
+    "fourth_layer_detail": {
+      "rating": "S",
+      "buffer": [
+        { "title": "Nucleus Overload", "text": "Anomaly Buildup Rate increases by 25%." }
+      ],
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 20,
+        "hour": 21,
+        "minute": 5,
+        "second": 30
+      },
+      "layer_challenge_info_list": [
+        {
+          "layer_id": 41,
+          "rating": "S",
+          "score": 15200,
+          "max_score": 16000,
+          "battle_time": 96,
+          "monster_pic": "https://act-webstatic.hoyoverse.com/zzz/monster/3122.png",
+          "buffer": [
+            { "title": "Nucleus Overload", "text": "Anomaly Buildup Rate increases by 25%." }
+          ],
+          "buddy": {
+            "id": 53001,
+            "level": 60,
+            "rarity": "S",
+            "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53001.png"
+          },
+          "avatar_list": [
+            {
+              "id": 1041,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 201,
+              "avatar_profession": 1,
+              "rank": 6,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png"
+            },
+            {
+              "id": 1131,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 202,
+              "avatar_profession": 5,
+              "rank": 3,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1131.png"
+            },
+            {
+              "id": 1211,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 203,
+              "avatar_profession": 4,
+              "rank": 0,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+            }
+          ]
+        }
+      ]
+    },
+    "fitfh_layer_detail": {
+      "rating": "S+",
+      "buffer": [{ "title": "Void Hunger", "text": "Enemies take 15% more DMG while stunned." }],
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 21,
+        "hour": 20,
+        "minute": 15,
+        "second": 0
+      },
+      "layer_challenge_info_list": [
+        {
+          "layer_id": 51,
+          "rating": "S+",
+          "score": 17250,
+          "max_score": 20000,
+          "battle_time": 118,
+          "monster_pic": "https://act-webstatic.hoyoverse.com/zzz/monster/3401.png",
+          "buffer": [],
+          "buddy": {
+            "id": 53101,
+            "level": 45,
+            "rarity": "A",
+            "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53101.png"
+          },
+          "avatar_list": [
+            {
+              "id": 1241,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 205,
+              "avatar_profession": 2,
+              "rank": 1,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1241.png"
+            },
+            {
+              "id": 1211,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 203,
+              "avatar_profession": 4,
+              "rank": 0,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

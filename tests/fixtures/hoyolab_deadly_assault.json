@@ -1,0 +1,151 @@
+{
+  "zone_id": 2201,
+  "start_time": { "year": 2026, "month": 6, "day": 1, "hour": 4, "minute": 0, "second": 0 },
+  "end_time": { "year": 2026, "month": 6, "day": 22, "hour": 3, "minute": 59, "second": 59 },
+  "has_data": true,
+  "total_score": 21460,
+  "total_star": 8,
+  "rank_percent": 1200,
+  "nick_name": "Phaethon",
+  "avatar_icon": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png",
+  "list": [
+    {
+      "score": 8200,
+      "star": 3,
+      "total_star": 3,
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 3,
+        "hour": 19,
+        "minute": 22,
+        "second": 40
+      },
+      "boss": [
+        {
+          "icon": "https://act-webstatic.hoyoverse.com/zzz/boss/marionette.png",
+          "name": "Marionette Ritter",
+          "bg_icon": "https://act-webstatic.hoyoverse.com/zzz/boss/marionette_bg.png",
+          "race_icon": "https://act-webstatic.hoyoverse.com/zzz/boss/marionette_race.png"
+        }
+      ],
+      "buffer": [
+        {
+          "name": "Ferocious Assault",
+          "desc": "Squad members deal 20% more DMG to stunned enemies.",
+          "icon": "https://act-webstatic.hoyoverse.com/zzz/buff/ferocious.png"
+        },
+        {
+          "name": "Cold Front",
+          "desc": "Ice DMG increases by 15%.",
+          "icon": "https://act-webstatic.hoyoverse.com/zzz/buff/cold_front.png"
+        }
+      ],
+      "avatar_list": [
+        {
+          "id": 1191,
+          "level": 60,
+          "rarity": "S",
+          "element_type": 202,
+          "avatar_profession": 2,
+          "rank": 2,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1191.png"
+        },
+        {
+          "id": 1131,
+          "level": 60,
+          "rarity": "A",
+          "element_type": 202,
+          "avatar_profession": 5,
+          "rank": 3,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1131.png"
+        },
+        {
+          "id": 1261,
+          "level": 60,
+          "rarity": "S",
+          "element_type": 202,
+          "avatar_profession": 3,
+          "rank": 0,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1261.png"
+        }
+      ],
+      "buddy": {
+        "id": 53201,
+        "level": 50,
+        "rarity": "A",
+        "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53201.png"
+      }
+    },
+    {
+      "score": 7860,
+      "star": 3,
+      "total_star": 3,
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 5,
+        "hour": 20,
+        "minute": 8,
+        "second": 5
+      },
+      "boss": [
+        {
+          "icon": "https://act-webstatic.hoyoverse.com/zzz/boss/newt.png",
+          "name": "Pompey",
+          "bg_icon": "https://act-webstatic.hoyoverse.com/zzz/boss/newt_bg.png",
+          "race_icon": "https://act-webstatic.hoyoverse.com/zzz/boss/newt_race.png"
+        }
+      ],
+      "buffer": [
+        {
+          "name": "Static Charge",
+          "desc": "Electric DMG increases by 15%.",
+          "icon": "https://act-webstatic.hoyoverse.com/zzz/buff/static.png"
+        }
+      ],
+      "avatar_list": [
+        {
+          "id": 1241,
+          "level": 60,
+          "rarity": "S",
+          "element_type": 205,
+          "avatar_profession": 2,
+          "rank": 1,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1241.png"
+        },
+        {
+          "id": 1211,
+          "level": 60,
+          "rarity": "S",
+          "element_type": 203,
+          "avatar_profession": 4,
+          "rank": 0,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+        }
+      ],
+      "buddy": {
+        "id": 53001,
+        "level": 60,
+        "rarity": "S",
+        "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53001.png"
+      }
+    },
+    {
+      "score": 5400,
+      "star": 2,
+      "total_star": 3,
+      "challenge_time": 1780900000,
+      "avatar_list": [
+        {
+          "id": 1041,
+          "level": 60,
+          "rarity": "A",
+          "element_type": 201,
+          "rank": 6,
+          "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png"
+        }
+      ]
+    }
+  ]
+}

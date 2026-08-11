@@ -1,0 +1,19 @@
+{
+  "stats": {
+    "active_days": 210,
+    "avatar_num": 32,
+    "world_level_name": "Inter-Knot Level 55",
+    "cur_period_zone_layer_count": 7,
+    "buddy_num": 14,
+    "achievement_count": 180
+  },
+  "role": {
+    "nickname": "Phaethon",
+    "level": 55,
+    "region": "prod_gf_eu",
+    "avatar": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png"
+  },
+  "cur_head_icon_url": "https://act-webstatic.hoyoverse.com/zzz/head/2011.png",
+  "avatar_list": [],
+  "buddy_list": []
+}

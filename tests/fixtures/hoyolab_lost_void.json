@@ -1,0 +1,7 @@
+{
+  "license": { "level": 12, "name": "Class-B Investigator" },
+  "exploration_log": { "cur": 4200, "max": 5000 },
+  "commission_progress": { "cur": 7, "max": 10 },
+  "ultimate_challenge": { "score": 4180, "tier": "Tier V" },
+  "data_collected": { "cur": 86, "max": 120 }
+}

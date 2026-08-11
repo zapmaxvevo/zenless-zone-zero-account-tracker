@@ -15,20 +15,57 @@ from zzz_tracker.enka.mapper import (
     parse_profile,
 )
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.errors import ConflictError, NotFoundError, ValidationError
+from zzz_tracker.errors import (
+    CaptchaRequiredError,
+    ConflictError,
+    InvalidCredentialsError,
+    MissingCredentialsError,
+    NotFoundError,
+    RateLimitedError,
+    ValidationError,
+)
+from zzz_tracker.hoyolab.client import (
+    SCHEDULE_CURRENT,
+    SCHEDULE_PREVIOUS,
+    HoyolabClient,
+    HoyolabCredentials,
+)
+from zzz_tracker.hoyolab.mapper import (
+    ParsedBangboo,
+    ParsedChallengeRun,
+    ParsedLostVoid,
+    ParsedRosterAgent,
+    parse_bangboos,
+    parse_chronicle_account,
+    parse_deadly_assault,
+    parse_lost_void,
+    parse_roster_agents,
+    parse_shiyu_defense,
+)
+from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.models import (
+    CHINA_REGION,
     SOURCE_ENKA,
+    SOURCE_HOYOLAB,
     SOURCE_MANUAL,
     Account,
     Agent,
+    Bangboo,
+    ChallengeRun,
+    ChallengeRunEntry,
     DriveDisc,
+    HoyolabCredential,
+    LostVoidProgress,
     Team,
     TeamMember,
     WEngine,
+    region_for_uid,
     utc_now,
 )
 
 DEFAULT_SYNC_TTL_SECONDS = 60
+DEFAULT_CHRONICLE_TTL_SECONDS = 3600
+DEFAULT_CHRONICLE_BACKOFF_SECONDS = 900
 TEAM_SLOTS = 3
 DISC_SLOTS = 6
 
@@ -67,6 +104,17 @@ class TeamEdit:
     members: tuple[TeamMemberEdit, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True, slots=True)
+class ChronicleSyncReport:
+    account: Account
+    runs: tuple[ChallengeRun, ...] = field(default_factory=tuple)
+    agents_synced: int = 0
+    bangboos_synced: int = 0
+    lost_void_synced: bool = False
+    unavailable_modes: tuple[str, ...] = field(default_factory=tuple)
+    skipped: bool = False
+
+
 class TrackerService:
     """Use cases around tracked accounts: importing from Enka, editing by hand, reading back.
 
@@ -81,10 +129,18 @@ class TrackerService:
         session: Session,
         enka: EnkaClient,
         static: StaticData | None = None,
+        hoyolab: HoyolabClient | None = None,
+        cipher: CredentialCipher | None = None,
+        chronicle_ttl_seconds: int = DEFAULT_CHRONICLE_TTL_SECONDS,
+        chronicle_backoff_seconds: int = DEFAULT_CHRONICLE_BACKOFF_SECONDS,
     ) -> None:
         self._session = session
         self._enka = enka
         self._static = static
+        self._hoyolab = hoyolab
+        self._cipher = cipher
+        self._chronicle_ttl_seconds = chronicle_ttl_seconds
+        self._chronicle_backoff_seconds = chronicle_backoff_seconds
 
     def list_accounts(self) -> list[Account]:
         return list(self._session.scalars(select(Account).order_by(Account.uid)))
@@ -342,3 +398,332 @@ class TrackerService:
                 agent.discs.append(disc)
         for stale in by_slot.values():
             agent.discs.remove(stale)
+
+    def store_credentials(self, uid: str, ltuid_v2: str, ltoken_v2: str) -> HoyolabCredential:
+        account = self.get_account(uid)
+        cipher = self._require_cipher()
+        if not ltuid_v2.strip() or not ltoken_v2.strip():
+            raise ValidationError("Both ltuid_v2 and ltoken_v2 are needed")
+
+        credential = account.credential or HoyolabCredential(account_uid=account.uid)
+        credential.ltuid_v2 = ltuid_v2.strip()
+        credential.encrypted_ltoken = cipher.encrypt(ltoken_v2.strip())
+        credential.rejected_at = None
+        account.credential = credential
+
+        self._session.commit()
+        self._session.refresh(credential)
+        return credential
+
+    def delete_credentials(self, uid: str) -> None:
+        account = self.get_account(uid)
+        if account.credential is None:
+            raise NotFoundError(f"Account {uid} has no stored HoYoLAB credentials")
+        account.credential = None
+        self._session.commit()
+
+    def credentials_for(self, uid: str) -> HoyolabCredentials:
+        account = self.get_account(uid)
+        credential = account.credential
+        if credential is None:
+            raise MissingCredentialsError(
+                f"Account {uid} has no HoYoLAB cookies stored; add them before syncing"
+            )
+        if credential.is_rejected:
+            raise InvalidCredentialsError(
+                f"The cookies stored for {uid} were rejected by HoYoLAB; paste them again"
+            )
+        cipher = self._require_cipher()
+        return HoyolabCredentials(
+            ltuid_v2=credential.ltuid_v2,
+            ltoken_v2=cipher.decrypt(credential.encrypted_ltoken),
+        )
+
+    def list_challenge_runs(self, uid: str, mode: str | None = None) -> list[ChallengeRun]:
+        self.get_account(uid)
+        query = select(ChallengeRun).where(ChallengeRun.account_uid == uid)
+        if mode is not None:
+            query = query.where(ChallengeRun.mode == mode)
+        return list(
+            self._session.scalars(
+                query.order_by(ChallengeRun.mode, ChallengeRun.schedule_id.desc())
+            )
+        )
+
+    def find_lost_void(self, uid: str) -> LostVoidProgress | None:
+        self.get_account(uid)
+        return self._session.get(LostVoidProgress, uid)
+
+    def list_bangboos(self, uid: str) -> list[Bangboo]:
+        self.get_account(uid)
+        return list(
+            self._session.scalars(
+                select(Bangboo).where(Bangboo.account_uid == uid).order_by(Bangboo.game_id)
+            )
+        )
+
+    def sync_chronicle(
+        self,
+        uid: str,
+        force: bool = False,
+        include_previous: bool = True,
+    ) -> ChronicleSyncReport:
+        account = self.get_account(uid)
+        due = account.is_chronicle_sync_due(
+            self._chronicle_ttl_seconds, self._chronicle_backoff_seconds
+        )
+        if not force and not due:
+            return ChronicleSyncReport(account=account, skipped=True)
+
+        client = self._require_hoyolab()
+        region = self._region_for(account)
+        credentials = self.credentials_for(uid)
+
+        try:
+            return self._run_chronicle_sync(account, client, region, credentials, include_previous)
+        except InvalidCredentialsError:
+            self._mark_credentials_rejected(uid)
+            raise
+        except (RateLimitedError, CaptchaRequiredError):
+            self._mark_chronicle_failed(uid)
+            raise
+
+    def _run_chronicle_sync(
+        self,
+        account: Account,
+        client: HoyolabClient,
+        region: str,
+        credentials: HoyolabCredentials,
+        include_previous: bool,
+    ) -> ChronicleSyncReport:
+        uid = account.uid
+        unavailable: list[str] = []
+
+        parsed_account = parse_chronicle_account(client.fetch_profile(uid, region, credentials))
+        if parsed_account is not None:
+            account.nickname = parsed_account.nickname or account.nickname
+            account.level = parsed_account.level or account.level
+        account.region = region
+        account.chronicle_public = True
+
+        agents = parse_roster_agents(client.fetch_agents(uid, region, credentials))
+        agents_synced = sum(1 for parsed in agents if self._upsert_roster_agent(account, parsed))
+
+        bangboos = parse_bangboos(client.fetch_bangboos(uid, region, credentials))
+        for parsed_bangboo in bangboos:
+            self._upsert_bangboo(account, parsed_bangboo)
+
+        runs: list[ChallengeRun] = []
+        seen_seasons: set[tuple[str, int]] = set()
+        schedules = (
+            (SCHEDULE_CURRENT, SCHEDULE_PREVIOUS) if include_previous else (SCHEDULE_CURRENT,)
+        )
+        for schedule_type in schedules:
+            runs.extend(
+                self._sync_challenge_modes(
+                    account,
+                    client,
+                    region,
+                    credentials,
+                    schedule_type,
+                    unavailable,
+                    seen_seasons,
+                )
+            )
+
+        lost_void = parse_lost_void(client.fetch_lost_void(uid, region, credentials))
+        if lost_void is not None:
+            self._upsert_lost_void(account, lost_void)
+
+        account.chronicle_synced_at = utc_now()
+        account.chronicle_failed_at = None
+        self._touch_credentials(account)
+
+        self._session.commit()
+        self._session.refresh(account)
+        return ChronicleSyncReport(
+            account=account,
+            runs=tuple(runs),
+            agents_synced=agents_synced,
+            bangboos_synced=len(bangboos),
+            lost_void_synced=lost_void is not None,
+            unavailable_modes=tuple(dict.fromkeys(unavailable)),
+        )
+
+    def _sync_challenge_modes(
+        self,
+        account: Account,
+        client: HoyolabClient,
+        region: str,
+        credentials: HoyolabCredentials,
+        schedule_type: int,
+        unavailable: list[str],
+        seen_seasons: set[tuple[str, int]],
+    ) -> list[ChallengeRun]:
+        fetchers = (
+            (client.fetch_shiyu_defense, parse_shiyu_defense),
+            (client.fetch_deadly_assault, parse_deadly_assault),
+        )
+        runs: list[ChallengeRun] = []
+        for fetch, parse in fetchers:
+            payload = fetch(account.uid, region, credentials, schedule_type)
+            parsed = parse(payload)
+            if parsed is None:
+                continue
+            season = (parsed.mode, parsed.schedule_id)
+            if season in seen_seasons:
+                continue
+            seen_seasons.add(season)
+            if not parsed.has_data:
+                unavailable.append(parsed.mode)
+                continue
+            runs.append(self._upsert_challenge_run(account, parsed))
+        return runs
+
+    def _upsert_challenge_run(self, account: Account, parsed: ParsedChallengeRun) -> ChallengeRun:
+        run = self._session.scalars(
+            select(ChallengeRun).where(
+                ChallengeRun.account_uid == account.uid,
+                ChallengeRun.mode == parsed.mode,
+                ChallengeRun.schedule_id == parsed.schedule_id,
+            )
+        ).one_or_none()
+        if run is None:
+            run = ChallengeRun(
+                account_uid=account.uid,
+                mode=parsed.mode,
+                schedule_id=parsed.schedule_id,
+            )
+            self._session.add(run)
+
+        run.begin_time = parsed.begin_time
+        run.end_time = parsed.end_time
+        run.has_data = parsed.has_data
+        run.rating = parsed.rating
+        run.score = parsed.score
+        run.max_score = parsed.max_score
+        run.total_stars = parsed.total_stars
+        run.rank_percent = parsed.rank_percent
+        run.clear_time_seconds = parsed.clear_time_seconds
+        run.schema_version = parsed.schema_version
+        run.raw = parsed.raw
+        run.synced_at = utc_now()
+        self._session.flush()
+
+        run.entries.clear()
+        self._session.flush()
+        for parsed_entry in parsed.entries:
+            run.entries.append(
+                ChallengeRunEntry(
+                    position=parsed_entry.position,
+                    name=parsed_entry.name,
+                    rating=parsed_entry.rating,
+                    score=parsed_entry.score,
+                    max_score=parsed_entry.max_score,
+                    stars=parsed_entry.stars,
+                    clear_time_seconds=parsed_entry.clear_time_seconds,
+                    challenged_at=parsed_entry.challenged_at,
+                    boss_name=parsed_entry.boss_name,
+                    boss_icon=parsed_entry.boss_icon,
+                    buffs=[dict(buff) for buff in parsed_entry.buffs],
+                    agents=[agent.as_snapshot() for agent in parsed_entry.agents],
+                    bangboo_id=parsed_entry.bangboo_id,
+                )
+            )
+        self._session.flush()
+        return run
+
+    def _upsert_roster_agent(self, account: Account, parsed: ParsedRosterAgent) -> bool:
+        agent = self._find_agent(account.uid, parsed.game_id)
+        if agent is not None and agent.is_manual:
+            return False
+
+        if agent is None:
+            agent = Agent(
+                account_uid=account.uid,
+                game_id=parsed.game_id,
+                source=SOURCE_HOYOLAB,
+            )
+            self._session.add(agent)
+
+        agent.level = parsed.level
+        agent.mindscape_level = parsed.mindscape_level
+        self._session.flush()
+        return True
+
+    def _upsert_bangboo(self, account: Account, parsed: ParsedBangboo) -> Bangboo:
+        bangboo = self._session.scalars(
+            select(Bangboo).where(
+                Bangboo.account_uid == account.uid, Bangboo.game_id == parsed.game_id
+            )
+        ).one_or_none()
+        if bangboo is None:
+            bangboo = Bangboo(account_uid=account.uid, game_id=parsed.game_id)
+            self._session.add(bangboo)
+
+        bangboo.name = parsed.name
+        bangboo.level = parsed.level
+        bangboo.rarity = parsed.rarity
+        bangboo.star = parsed.star
+        bangboo.icon = parsed.icon
+        self._session.flush()
+        return bangboo
+
+    def _upsert_lost_void(self, account: Account, parsed: ParsedLostVoid) -> LostVoidProgress:
+        progress = self._session.get(LostVoidProgress, account.uid)
+        if progress is None:
+            progress = LostVoidProgress(account_uid=account.uid)
+            self._session.add(progress)
+
+        progress.license_level = parsed.license_level
+        progress.exploration_log = parsed.exploration_log
+        progress.max_exploration_log = parsed.max_exploration_log
+        progress.commissions_done = parsed.commissions_done
+        progress.commissions_total = parsed.commissions_total
+        progress.ultimate_challenge_score = parsed.ultimate_challenge_score
+        progress.ultimate_challenge_tier = parsed.ultimate_challenge_tier
+        progress.data_collected = parsed.data_collected
+        progress.raw = parsed.raw
+        progress.synced_at = utc_now()
+        self._session.flush()
+        return progress
+
+    def _region_for(self, account: Account) -> str:
+        region = account.region or region_for_uid(account.uid)
+        if region == CHINA_REGION:
+            raise ValidationError(
+                f"UID {account.uid} belongs to the Chinese client, which this tracker "
+                "cannot read from HoYoLAB"
+            )
+        return region
+
+    def _touch_credentials(self, account: Account) -> None:
+        if account.credential is not None:
+            account.credential.last_used_at = utc_now()
+
+    def _mark_credentials_rejected(self, uid: str) -> None:
+        self._session.rollback()
+        account = self.find_account(uid)
+        if account is None or account.credential is None:
+            return
+        if account.credential.rejected_at is None:
+            account.credential.rejected_at = utc_now()
+        self._session.commit()
+
+    def _mark_chronicle_failed(self, uid: str) -> None:
+        self._session.rollback()
+        account = self.find_account(uid)
+        if account is None:
+            return
+        account.chronicle_failed_at = utc_now()
+        self._session.commit()
+
+    def _require_hoyolab(self) -> HoyolabClient:
+        if self._hoyolab is None:
+            raise ValidationError("The HoYoLAB integration is not configured")
+        return self._hoyolab
+
+    def _require_cipher(self) -> CredentialCipher:
+        if self._cipher is None:
+            raise ValidationError("Storing HoYoLAB credentials needs ZZZ_CREDENTIALS_KEY to be set")
+        return self._cipher

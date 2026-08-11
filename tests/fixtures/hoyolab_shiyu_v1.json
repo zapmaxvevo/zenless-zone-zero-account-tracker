@@ -1,0 +1,147 @@
+{
+  "hadal_ver": "v1",
+  "hadal_info_v1": {
+    "schedule_id": 3901,
+    "hadal_begin_time": { "year": 2026, "month": 6, "day": 1, "hour": 4, "minute": 0, "second": 0 },
+    "hadal_end_time": {
+      "year": 2026,
+      "month": 6,
+      "day": 15,
+      "hour": 3,
+      "minute": 59,
+      "second": 59
+    },
+    "has_data": true,
+    "rating_list": [
+      { "rating": "S", "times": 6 },
+      { "rating": "A", "times": 1 },
+      { "rating": "B", "times": 0 }
+    ],
+    "fast_layer_time": 118,
+    "max_layer": 7,
+    "all_floor_detail": [
+      {
+        "layer_index": 7,
+        "layer_id": 7,
+        "rating": "S",
+        "zone_name": "Corrupted District",
+        "floor_challenge_time": {
+          "year": 2026,
+          "month": 6,
+          "day": 8,
+          "hour": 22,
+          "minute": 41,
+          "second": 12
+        },
+        "buffs": [
+          {
+            "title": "Chaotic Resonance",
+            "text": "Ether DMG dealt by squad members increases by 30%."
+          },
+          { "title": "Frozen Ground", "text": "Attacks apply Freeze to enemies more easily." }
+        ],
+        "node_1": {
+          "avatars": [
+            {
+              "id": 1041,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 201,
+              "avatar_profession": 1,
+              "rank": 6,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png"
+            },
+            {
+              "id": 1131,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 202,
+              "avatar_profession": 5,
+              "rank": 3,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1131.png"
+            },
+            {
+              "id": 1211,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 203,
+              "avatar_profession": 4,
+              "rank": 0,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+            }
+          ],
+          "buddy": {
+            "id": 53001,
+            "level": 60,
+            "rarity": "S",
+            "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53001.png"
+          },
+          "element_type_list": [201, 202, 203],
+          "monster_info": {
+            "level": 60,
+            "list": [{ "id": 3122, "name": "Typhon Slugger", "weak_element_type": [202] }]
+          },
+          "battle_time": 61
+        },
+        "node_2": {
+          "avatars": [
+            {
+              "id": 1241,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 205,
+              "avatar_profession": 2,
+              "rank": 1,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1241.png"
+            },
+            {
+              "id": 1211,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 203,
+              "avatar_profession": 4,
+              "rank": 0,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+            }
+          ],
+          "buddy": {
+            "id": 53101,
+            "level": 45,
+            "rarity": "A",
+            "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53101.png"
+          },
+          "element_type_list": [205, 203],
+          "monster_info": {
+            "level": 60,
+            "list": [{ "id": 3401, "name": "Doppelganger: Marionette", "weak_element_type": [] }]
+          },
+          "battle_time": 57
+        }
+      },
+      {
+        "layer_index": 6,
+        "layer_id": 6,
+        "rating": "A",
+        "zone_name": "Withering Garden",
+        "floor_challenge_time": 1780900000,
+        "buffs": [],
+        "node_1": {
+          "avatars": [
+            {
+              "id": 1191,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 202,
+              "avatar_profession": 2,
+              "rank": 2,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1191.png"
+            }
+          ],
+          "buddy": null,
+          "battle_time": 94
+        },
+        "node_2": {}
+      }
+    ]
+  }
+}
