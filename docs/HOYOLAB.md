@@ -254,7 +254,7 @@ descartan los elementos que no se pudieron parsear en vez de fallar enteras.
 |---|---|---|
 | Id de temporada | `schedule_id` | **`zone_id`** |
 | Ventana | `hadal_begin_time` / `hadal_end_time` como **dict de partes** (`year`, `month`, …) | los mismos campos como **epoch en segundos** |
-| Intentos | `all_floor_detail[]`, cada piso con `node_1` / `node_2` | `fourth_layer_detail` + **`fitfh_layer_detail`** (sic), cada uno con `layer_challenge_info_list[]` |
+| Intentos | `all_floor_detail[]`, cada piso con `node_1` / `node_2` | una clave `*_layer_detail` por capa, cada una con `layer_challenge_info_list[]` |
 | Agentes | `node_N.avatars` | `avatar_list` |
 | Puntaje global | no hay: `score` y `max_score` quedan en `0` | `brief` (`score`, `max_score`, `rank_percent`, `battle_time`, `rating`) |
 | Rating global | mejor rating de `rating_list` con `times > 0` | `brief.rating` |
@@ -264,6 +264,30 @@ descartan los elementos que no se pudieron parsear en vez de fallar enteras.
 
 `fitfh_layer_detail` es la errata literal de HoYoLAB (por "fifth"); el mapper la lee pero
 acepta también `fifth_layer_detail` por si algún día la arreglan.
+
+#### Las capas se descubren, no se enumeran
+
+Shiyu no es solo el Nodo Inestable. Sus tres nodos —Estable, Disputado e Inestable— llegan en
+el **mismo** payload, repartidos entre las capas, y una versión anterior de este mapper leía
+únicamente `fourth_layer_detail` y `fitfh_layer_detail`: todo lo jugado en las capas bajas se
+tiraba en silencio.
+
+`_shiyu_v2_layers` ya no enumera dos claves. Recorre `LAYER_ORDINALS` (`first` … `seventh`,
+con la variante `fitfh`/`fifth`) y después **barre la sección buscando cualquier clave que
+termine en `_layer_detail`** que no haya visto. Una capa con un ordinal que no conocemos entra
+igual, al final y con `layer_index` en `None`. La idea es que agregar una capa del lado de
+HoYoLAB no vuelva a costarnos datos.
+
+Cada intento guarda de qué capa salió:
+
+| Campo | V1 | V2 | Para qué |
+|---|---|---|---|
+| `layer_index` | `layer_index` (o `floor_index`) del piso | el ordinal de la clave (`third_layer_detail` → `3`) | agrupar los intentos por nodo |
+| `layer_id` | `layer_id` del piso | `layer_id` del intento | el id crudo tal como llega |
+
+`layer_index` en V2 es **derivado del nombre de la clave**, no un campo observado; `layer_id`
+sí viene en el payload. Ninguno de los dos define a qué nodo pertenece la capa: eso es un
+mapeo capa→nodo que todavía no tenemos confirmado y que por ahora no se inventa.
 
 **En V2 el intento hereda de su capa lo que no trae.** No todos los campos vienen repetidos en
 cada elemento de `layer_challenge_info_list`: algunos los declara una sola vez el
@@ -283,7 +307,7 @@ Cae al layer solo cuando el item deja el valor **vacío**, no cuando trae algo d
 intento siempre gana si dice algo.
 
 En V2 la `position` de los intentos es **correlativa entre capas**: se numera 1..N recorriendo
-primero la cuarta y después la quinta, sin reiniciar por capa. Los agentes de un intento se
+las capas en orden de ordinal, sin reiniciar por capa. Los agentes de un intento se
 **deduplican por `game_id`**, lo que importa sobre todo en V1, donde los dos nodos repiten
 gente.
 
@@ -354,7 +378,7 @@ Tablas de la migración `20260808_0002_hoyolab_chronicle` (revisión `0002`, sob
 | `hoyolab_credentials` | `HoyolabCredential` | 1:1 con `Account` (índice único en `account_uid`); `ltuid_v2` + `encrypted_ltoken`, `last_used_at`, `rejected_at` |
 | `bangboos` | `Bangboo` | N por cuenta, único por `(account_uid, game_id)` |
 | `challenge_runs` | `ChallengeRun` | una temporada de un modo; único por `(account_uid, mode, schedule_id)` |
-| `challenge_run_entries` | `ChallengeRunEntry` | un intento dentro de la temporada; único por `(run_id, position)` |
+| `challenge_run_entries` | `ChallengeRunEntry` | un intento dentro de la temporada; único por `(run_id, position)`, con `layer_index` / `layer_id` para saber de qué capa salió |
 | `lost_void_progress` | `LostVoidProgress` | PK = `account_uid`: fila única por cuenta (es un acumulado, no una temporada) |
 
 Todas cuelgan de `accounts.uid` con `ON DELETE CASCADE`. `Account` suma cuatro columnas:
@@ -720,6 +744,8 @@ Lo que **no** está verificado, ordenado por cuánto puede doler:
 |---|---|---|
 | Nombres de campo de **Shiyu V2** (`fitfh_layer_detail`, `layer_challenge_info_list`, `monster_pic`, `brief.*`) | es el esquema más nuevo y el que menos rastro público tiene | la run se guarda con ceros, o `parse_shiyu_defense` cae al camino V1 |
 | Si `name` / `boss_name` / `boss_icon` viven en el item o en el layer | el fallback a la capa se escribió sin saberlo | nada, si están en alguno de los dos; el fallback cubre ambos casos |
+| Cómo se llaman las **capas bajas** de Shiyu V2 (`first_layer_detail` … `third_layer_detail`) | son conjetura por analogía con `fourth`/`fitfh`, las únicas dos con rastro público | poco: el barrido de `*_layer_detail` las levanta igual, solo que sin `layer_index`. Se pierden únicamente si la clave no termina en `_layer_detail` |
+| Qué **capa pertenece a qué nodo** (Estable / Disputado / Inestable) | es lo que haría falta para separar los nodos en la UI | nada hoy: no se infiere. Sin esto, la UI solo puede agrupar por capa |
 | **Ausencia de rating en Deadly Assault** | ver arriba | nada: el mapper lo levantaría solo |
 | **Lectura del Chronicle de terceros** | razonada sobre la app oficial; el cliente nunca manda `isHost` | `retcode 10102`, o datos de la cuenta propia en vez de la ajena |
 | `rank_percent` en **centésimas** (`250` = 2,5 %) | la división por 100 está cableada en `ChallengeRunRead.from_run` | porcentajes 100× mal en toda la UI |
@@ -738,6 +764,9 @@ En orden, parando en el primero que falle:
    valioso de toda la sesión: convierte las siete fixtures inventadas en fixtures reales.
 3. **Shiyu V2.** Chequear `hadal_ver`, si la errata `fitfh_layer_detail` sigue viva, y si
    `name` / `boss_name` / `boss_icon` llegan en el item, en el layer, o en ninguno.
+   **Listar todas las claves que terminan en `_layer_detail`**: confirma cómo se llaman las
+   capas bajas y si el barrido las está agarrando. Con esas capas a la vista, anotar cuál cae
+   en qué nodo — es el dato que falta para separar Estable, Disputado e Inestable en la UI.
 4. **Deadly Assault.** Buscar cualquier clave de rating. Si aparece, actualizar la fixture y
    borrar la sección de arriba.
 5. **`rank_percent`.** Comparar el número crudo con el porcentaje que muestra la app oficial:

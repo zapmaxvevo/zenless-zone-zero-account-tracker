@@ -20,6 +20,108 @@
         "second": 0
       }
     },
+    "first_layer_detail": {
+      "rating": "S",
+      "buffer": [],
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 18,
+        "hour": 19,
+        "minute": 2,
+        "second": 10
+      },
+      "layer_challenge_info_list": [
+        {
+          "layer_id": 11,
+          "rating": "S",
+          "score": 8000,
+          "max_score": 8000,
+          "battle_time": 42,
+          "monster_pic": "https://act-webstatic.hoyoverse.com/zzz/monster/3011.png",
+          "buffer": [],
+          "avatar_list": [
+            {
+              "id": 1041,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 201,
+              "avatar_profession": 1,
+              "rank": 6,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png"
+            }
+          ]
+        }
+      ]
+    },
+    "second_layer_detail": {
+      "rating": "S",
+      "buffer": [],
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 18,
+        "hour": 19,
+        "minute": 20,
+        "second": 44
+      },
+      "layer_challenge_info_list": [
+        {
+          "layer_id": 21,
+          "rating": "S",
+          "score": 9100,
+          "max_score": 10000,
+          "battle_time": 55,
+          "monster_pic": "https://act-webstatic.hoyoverse.com/zzz/monster/3044.png",
+          "buffer": [],
+          "avatar_list": [
+            {
+              "id": 1131,
+              "level": 60,
+              "rarity": "A",
+              "element_type": 202,
+              "avatar_profession": 5,
+              "rank": 3,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1131.png"
+            }
+          ]
+        }
+      ]
+    },
+    "third_layer_detail": {
+      "rating": "A",
+      "buffer": [],
+      "challenge_time": {
+        "year": 2026,
+        "month": 6,
+        "day": 19,
+        "hour": 18,
+        "minute": 41,
+        "second": 3
+      },
+      "layer_challenge_info_list": [
+        {
+          "layer_id": 31,
+          "rating": "A",
+          "score": 9800,
+          "max_score": 12000,
+          "battle_time": 73,
+          "monster_pic": "https://act-webstatic.hoyoverse.com/zzz/monster/3098.png",
+          "buffer": [],
+          "avatar_list": [
+            {
+              "id": 1211,
+              "level": 60,
+              "rarity": "S",
+              "element_type": 203,
+              "avatar_profession": 4,
+              "rank": 0,
+              "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png"
+            }
+          ]
+        }
+      ]
+    },
     "fourth_layer_detail": {
       "rating": "S",
       "buffer": [

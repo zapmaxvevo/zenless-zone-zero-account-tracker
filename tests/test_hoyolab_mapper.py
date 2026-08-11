@@ -60,6 +60,8 @@ def test_a_v1_shiyu_season_becomes_a_run_with_one_entry_per_cleared_floor() -> N
     assert top_floor.clear_time_seconds == 118
     assert top_floor.challenged_at == datetime(2026, 6, 8, 22, 41, 12, tzinfo=UTC)
     assert top_floor.bangboo_id == 53001
+    assert top_floor.layer_index == 7
+    assert top_floor.layer_id == 7
     assert top_floor.buffs[0] == {
         "title": "Chaotic Resonance",
         "text": "Ether DMG dealt by squad members increases by 30%.",
@@ -90,10 +92,10 @@ def test_a_v2_shiyu_season_is_normalised_into_the_same_run_as_v1() -> None:
     assert run.max_score == 36000
     assert run.rank_percent == 250
     assert run.clear_time_seconds == 214
-    assert run.total_stars == 6
+    assert run.total_stars == 14
 
-    fourth, fifth = run.entries
-    assert [entry.position for entry in run.entries] == [1, 2]
+    fourth, fifth = run.entries[3], run.entries[4]
+    assert [entry.position for entry in run.entries] == [1, 2, 3, 4, 5]
     assert fourth.rating == "S"
     assert fourth.score == 15200
     assert fourth.max_score == 16000
@@ -110,6 +112,37 @@ def test_a_v2_shiyu_season_is_normalised_into_the_same_run_as_v1() -> None:
     assert fifth.challenged_at == datetime(2026, 6, 21, 20, 15, 0, tzinfo=UTC)
     assert [buff["title"] for buff in fifth.buffs] == ["Void Hunger"]
     assert [agent.game_id for agent in fifth.agents] == [1241, 1211]
+
+
+def test_a_v2_season_keeps_every_layer_and_not_only_the_two_of_the_critical_node() -> None:
+    run = parse_shiyu_defense(hoyolab_payload("shiyu_v2"))
+
+    assert run is not None
+    assert [entry.layer_index for entry in run.entries] == [1, 2, 3, 4, 5]
+    assert [entry.layer_id for entry in run.entries] == [11, 21, 31, 41, 51]
+    assert [entry.rating for entry in run.entries] == ["S", "S", "A", "S", "S+"]
+
+
+def test_a_v2_layer_named_with_an_unknown_ordinal_is_read_without_a_layer_index() -> None:
+    run = parse_shiyu_defense(
+        {
+            "hadal_ver": "v2",
+            "hadal_info_v2": {
+                "zone_id": 3904,
+                "eighth_layer_detail": {
+                    "rating": "A",
+                    "layer_challenge_info_list": [{"layer_id": 81, "rating": "A", "score": 900}],
+                },
+            },
+        }
+    )
+
+    assert run is not None
+    entry = run.entries[0]
+    assert entry.position == 1
+    assert entry.layer_index is None
+    assert entry.layer_id == 81
+    assert entry.score == 900
 
 
 def test_a_v2_attempt_reads_the_zone_and_the_boss_its_layer_names_when_it_names_neither() -> None:

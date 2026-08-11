@@ -564,6 +564,8 @@ class ChallengeAgentRead(BaseModel):
 
 class ChallengeEntryRead(BaseModel):
     position: int
+    layer_index: int | None
+    layer_id: int | None
     name: str
     rating: str
     score: int
@@ -581,6 +583,8 @@ class ChallengeEntryRead(BaseModel):
     def from_entry(cls, entry: ChallengeRunEntry) -> ChallengeEntryRead:
         return cls(
             position=entry.position,
+            layer_index=entry.layer_index,
+            layer_id=entry.layer_id,
             name=entry.name,
             rating=entry.rating,
             score=entry.score,

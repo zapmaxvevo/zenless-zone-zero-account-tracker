@@ -616,6 +616,8 @@ class TrackerService:
             run.entries.append(
                 ChallengeRunEntry(
                     position=parsed_entry.position,
+                    layer_index=parsed_entry.layer_index,
+                    layer_id=parsed_entry.layer_id,
                     name=parsed_entry.name,
                     rating=parsed_entry.rating,
                     score=parsed_entry.score,

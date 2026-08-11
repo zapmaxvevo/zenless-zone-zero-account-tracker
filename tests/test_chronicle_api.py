@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import httpx
 from fastapi.testclient import TestClient
 
-from zzz_tracker.hoyolab.client import SCHEDULE_PREVIOUS
+from zzz_tracker.hoyolab.client import SCHEDULE_CURRENT, SCHEDULE_PREVIOUS
 from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
 
 from .conftest import (
@@ -17,6 +17,7 @@ from .conftest import (
     UNKNOWN_UID,
     FakeHoyolab,
     shiyu_season_never_played,
+    shiyu_season_with_every_layer,
 )
 
 LTUID = "224466880"
@@ -335,6 +336,30 @@ def test_shiyu_layers_are_served_nameless_because_hoyolab_does_not_name_them(
     assert [entry["name"] for entry in current["entries"]] == ["", ""]
     assert [entry["boss_name"] for entry in current["entries"]] == ["", ""]
     assert all(entry["boss_icon"] for entry in current["entries"])
+
+
+def test_a_shiyu_season_played_on_every_layer_is_served_whole_with_each_layer_identified(
+    chronicle_client: TestClient, hoyolab: FakeHoyolab
+) -> None:
+    hoyolab.serves_shiyu(SCHEDULE_CURRENT, shiyu_season_with_every_layer(CURRENT_SHIYU_SEASON))
+
+    synced_account(chronicle_client)
+
+    response = chronicle_client.get(
+        f"/accounts/{TRACKED_UID}/challenges", params={"mode": MODE_SHIYU_DEFENSE}
+    )
+
+    current = response.json()["items"][0]
+    assert [entry["position"] for entry in current["entries"]] == [1, 2, 3, 4, 5]
+    assert [entry["layer_index"] for entry in current["entries"]] == [1, 2, 3, 4, 5]
+    assert [entry["layer_id"] for entry in current["entries"]] == [11, 21, 31, 41, 51]
+    assert [entry["name"] for entry in current["entries"]] == [
+        "Layer 1",
+        "Layer 2",
+        "Layer 3",
+        "Layer 4",
+        "Layer 5",
+    ]
 
 
 def test_listing_the_challenges_by_mode_only_returns_that_mode(

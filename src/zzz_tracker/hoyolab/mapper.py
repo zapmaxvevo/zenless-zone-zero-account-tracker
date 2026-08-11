@@ -21,6 +21,17 @@ AGENT_ICON_KEYS = ("role_square_url", "square_icon", "avatar_icon", "icon", "ver
 AGENT_NAME_KEYS = ("name_mi18n", "full_name_mi18n", "name")
 BANGBOO_ICON_KEYS = ("bangboo_rectangle_url", "square_icon", "role_square_url", "icon")
 
+LAYER_DETAIL_SUFFIX = "_layer_detail"
+LAYER_ORDINALS: tuple[tuple[str, ...], ...] = (
+    ("first",),
+    ("second",),
+    ("third",),
+    ("fourth",),
+    ("fitfh", "fifth"),
+    ("sixth",),
+    ("seventh",),
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ParsedChallengeAgent:
@@ -57,6 +68,8 @@ class ParsedChallengeEntry:
     buffs: tuple[dict[str, str], ...]
     agents: tuple[ParsedChallengeAgent, ...]
     bangboo_id: int | None
+    layer_index: int | None = None
+    layer_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,6 +320,8 @@ def _parse_shiyu_v1_entry(position: int, raw: Any) -> ParsedChallengeEntry:
         buffs=_parse_buffs(_first_present(floor, "buffs", "buffer")),
         agents=_parse_challenge_agents(first_node.get("avatars"), second_node.get("avatars")),
         bangboo_id=_first_bangboo_id(first_node.get("buddy"), second_node.get("buddy")),
+        layer_index=_as_optional_int(_first_present(floor, "layer_index", "floor_index")),
+        layer_id=_as_optional_int(floor.get("layer_id")),
     )
 
 
@@ -355,7 +370,9 @@ def _layered_str(info: dict[str, Any], layer: dict[str, Any], *keys: str) -> str
     return _as_str(_first_present(info, *keys)) or _as_str(_first_present(layer, *keys))
 
 
-def _parse_shiyu_v2_entry(position: int, raw: Any, layer: dict[str, Any]) -> ParsedChallengeEntry:
+def _parse_shiyu_v2_entry(
+    position: int, raw: Any, layer: dict[str, Any], layer_index: int | None
+) -> ParsedChallengeEntry:
     info = _as_dict(raw)
     rating = (_as_str(info.get("rating")) or _as_str(layer.get("rating"))).upper()
     challenged_at = _to_datetime(info.get("challenge_time")) or _to_datetime(
@@ -375,15 +392,27 @@ def _parse_shiyu_v2_entry(position: int, raw: Any, layer: dict[str, Any]) -> Par
         buffs=_parse_buffs(info.get("buffer")) or _parse_buffs(layer.get("buffer")),
         agents=_parse_challenge_agents(_first_present(info, "avatar_list", "avatars")),
         bangboo_id=_first_bangboo_id(info.get("buddy")),
+        layer_index=layer_index,
+        layer_id=_as_optional_int(info.get("layer_id")),
     )
 
 
-def _shiyu_v2_layers(section: dict[str, Any]) -> list[dict[str, Any]]:
-    candidates = (
-        _as_dict(section.get("fourth_layer_detail")),
-        _as_dict(_first_present(section, "fitfh_layer_detail", "fifth_layer_detail")),
-    )
-    return [layer for layer in candidates if layer]
+def _shiyu_v2_layers(section: dict[str, Any]) -> list[tuple[int | None, dict[str, Any]]]:
+    layers: list[tuple[int | None, dict[str, Any]]] = []
+    known: set[str] = set()
+    for index, names in enumerate(LAYER_ORDINALS, start=1):
+        keys = tuple(f"{name}{LAYER_DETAIL_SUFFIX}" for name in names)
+        known.update(keys)
+        layer = _as_dict(_first_present(section, *keys))
+        if layer:
+            layers.append((index, layer))
+    for key, value in section.items():
+        if not key.endswith(LAYER_DETAIL_SUFFIX) or key in known:
+            continue
+        layer = _as_dict(value)
+        if layer:
+            layers.append((None, layer))
+    return layers
 
 
 def _parse_shiyu_v2(
@@ -394,9 +423,9 @@ def _parse_shiyu_v2(
         return None
 
     entries: list[ParsedChallengeEntry] = []
-    for layer in _shiyu_v2_layers(section):
+    for layer_index, layer in _shiyu_v2_layers(section):
         for item in _as_list(layer.get("layer_challenge_info_list")):
-            entries.append(_parse_shiyu_v2_entry(len(entries) + 1, item, layer))
+            entries.append(_parse_shiyu_v2_entry(len(entries) + 1, item, layer, layer_index))
     frozen_entries = tuple(entries)
 
     brief = _as_dict(section.get("brief"))

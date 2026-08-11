@@ -164,10 +164,15 @@ SHIYU_MONSTER_NAME = "Doppelganger: Marionette"
 
 
 def _shiyu_layer(
-    zone_name: str, rating: str, score: int, battle_time: int, with_names: bool
+    zone_name: str,
+    rating: str,
+    score: int,
+    battle_time: int,
+    with_names: bool,
+    layer_id: int = 41,
 ) -> dict[str, Any]:
     challenge_info: dict[str, Any] = {
-        "layer_id": 41,
+        "layer_id": layer_id,
         "rating": rating,
         "score": score,
         "max_score": 20000,
@@ -210,6 +215,29 @@ def shiyu_season(
     }
     for key, zone_name in zip(layer_keys, zone_names, strict=False):
         season[key] = _shiyu_layer(zone_name, rating, score // 2, 96, with_names)
+    return {"hadal_ver": "v2", "hadal_info_v2": season}
+
+
+SHIYU_EVERY_LAYER_KEY = (
+    "first_layer_detail",
+    "second_layer_detail",
+    "third_layer_detail",
+    "fourth_layer_detail",
+    "fitfh_layer_detail",
+)
+
+
+def shiyu_season_with_every_layer(zone_id: int) -> dict[str, Any]:
+    season: dict[str, Any] = {
+        "zone_id": zone_id,
+        "hadal_begin_time": 1781000000,
+        "hadal_end_time": 1782200000,
+        "brief": {"score": 32450, "max_score": 36000, "rating": "S+"},
+    }
+    for index, key in enumerate(SHIYU_EVERY_LAYER_KEY, start=1):
+        season[key] = _shiyu_layer(
+            f"Layer {index}", "S", 8000, 60, with_names=True, layer_id=index * 10 + 1
+        )
     return {"hadal_ver": "v2", "hadal_info_v2": season}
 
 

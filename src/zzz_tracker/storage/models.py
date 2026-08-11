@@ -245,6 +245,8 @@ class ChallengeRunEntry(Base):
         ForeignKey("challenge_runs.id", ondelete="CASCADE"), index=True
     )
     position: Mapped[int] = mapped_column(Integer)
+    layer_index: Mapped[int | None] = mapped_column(Integer, default=None)
+    layer_id: Mapped[int | None] = mapped_column(Integer, default=None)
 
     name: Mapped[str] = mapped_column(String(128), default="")
     rating: Mapped[str] = mapped_column(String(4), default="")
