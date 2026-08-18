@@ -65,10 +65,10 @@
                   { "PropertyId": 11103, "PropertyValue": 550, "PropertyLevel": 1 }
                 ],
                 "RandomPropertyList": [
-                  { "PropertyId": 20103, "PropertyValue": 24, "PropertyLevel": 3 },
-                  { "PropertyId": 21103, "PropertyValue": 48, "PropertyLevel": 1 },
+                  { "PropertyId": 20103, "PropertyValue": 240, "PropertyLevel": 3 },
+                  { "PropertyId": 21103, "PropertyValue": 480, "PropertyLevel": 2 },
                   { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 },
-                  { "PropertyId": 13103, "PropertyValue": 15, "PropertyLevel": 1 }
+                  { "PropertyId": 13103, "PropertyValue": 15, "PropertyLevel": 2 }
                 ]
               }
             },
@@ -87,9 +87,10 @@
                   { "PropertyId": 12103, "PropertyValue": 79, "PropertyLevel": 1 }
                 ],
                 "RandomPropertyList": [
-                  { "PropertyId": 20103, "PropertyValue": 24, "PropertyLevel": 2 },
-                  { "PropertyId": 21103, "PropertyValue": 48, "PropertyLevel": 4 },
-                  { "PropertyId": 31203, "PropertyValue": 9, "PropertyLevel": 1 }
+                  { "PropertyId": 20103, "PropertyValue": 240, "PropertyLevel": 2 },
+                  { "PropertyId": 21103, "PropertyValue": 480, "PropertyLevel": 4 },
+                  { "PropertyId": 31203, "PropertyValue": 9, "PropertyLevel": 2 },
+                  { "PropertyId": 11103, "PropertyValue": 112, "PropertyLevel": 1 }
                 ]
               }
             },
@@ -109,7 +110,9 @@
                 ],
                 "RandomPropertyList": [
                   { "PropertyId": 12102, "PropertyValue": 300, "PropertyLevel": 2 },
-                  { "PropertyId": 20103, "PropertyValue": 24, "PropertyLevel": 1 }
+                  { "PropertyId": 20103, "PropertyValue": 240, "PropertyLevel": 2 },
+                  { "PropertyId": 11103, "PropertyValue": 112, "PropertyLevel": 2 },
+                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 }
                 ]
               }
             },
@@ -125,12 +128,13 @@
                 "IsAvailable": true,
                 "IsTrash": false,
                 "MainStatList": [
-                  { "PropertyId": 21103, "PropertyValue": 4800, "PropertyLevel": 1 }
+                  { "PropertyId": 21103, "PropertyValue": 1200, "PropertyLevel": 1 }
                 ],
                 "RandomPropertyList": [
                   { "PropertyId": 12102, "PropertyValue": 300, "PropertyLevel": 3 },
-                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 1 },
-                  { "PropertyId": 31203, "PropertyValue": 9, "PropertyLevel": 2 }
+                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 },
+                  { "PropertyId": 31203, "PropertyValue": 9, "PropertyLevel": 2 },
+                  { "PropertyId": 11103, "PropertyValue": 112, "PropertyLevel": 2 }
                 ]
               }
             },
@@ -146,11 +150,13 @@
                 "IsAvailable": true,
                 "IsTrash": false,
                 "MainStatList": [
-                  { "PropertyId": 31903, "PropertyValue": 3000, "PropertyLevel": 1 }
+                  { "PropertyId": 31903, "PropertyValue": 750, "PropertyLevel": 1 }
                 ],
                 "RandomPropertyList": [
-                  { "PropertyId": 20103, "PropertyValue": 24, "PropertyLevel": 4 },
-                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 }
+                  { "PropertyId": 20103, "PropertyValue": 240, "PropertyLevel": 4 },
+                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 },
+                  { "PropertyId": 11103, "PropertyValue": 112, "PropertyLevel": 2 },
+                  { "PropertyId": 12102, "PropertyValue": 300, "PropertyLevel": 1 }
                 ]
               }
             },
@@ -166,11 +172,13 @@
                 "IsAvailable": true,
                 "IsTrash": false,
                 "MainStatList": [
-                  { "PropertyId": 12102, "PropertyValue": 3000, "PropertyLevel": 1 }
+                  { "PropertyId": 12102, "PropertyValue": 750, "PropertyLevel": 1 }
                 ],
                 "RandomPropertyList": [
-                  { "PropertyId": 21103, "PropertyValue": 48, "PropertyLevel": 3 },
-                  { "PropertyId": 13103, "PropertyValue": 15, "PropertyLevel": 1 }
+                  { "PropertyId": 21103, "PropertyValue": 480, "PropertyLevel": 3 },
+                  { "PropertyId": 13103, "PropertyValue": 15, "PropertyLevel": 2 },
+                  { "PropertyId": 11103, "PropertyValue": 112, "PropertyLevel": 2 },
+                  { "PropertyId": 12103, "PropertyValue": 19, "PropertyLevel": 2 }
                 ]
               }
             }

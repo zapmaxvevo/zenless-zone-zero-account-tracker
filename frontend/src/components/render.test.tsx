@@ -42,10 +42,17 @@ const DISC: DriveDiscRead = {
   rarity: 4,
   level: 15,
   roll_count: 5,
-  main_stat: { prop_id: 11103, name: 'HP', format: '{0:0}', value: 2200, rolls: 0 },
+  main_stat: {
+    prop_id: 11103,
+    name: 'HP',
+    format: '{0:0}',
+    value: 550,
+    rolls: 0,
+    total: 2200,
+  },
   substats: [
-    { prop_id: 20103, name: 'CRIT Rate', format: '{0:0.#%}', value: 480, rolls: 3 },
-    { prop_id: 12103, name: 'ATK', format: '{0:0.#}', value: 79, rolls: 1 },
+    { prop_id: 20103, name: 'CRIT Rate', format: '{0:0.#%}', value: 240, rolls: 3, total: 720 },
+    { prop_id: 12103, name: 'ATK', format: '{0:0.#}', value: 19, rolls: 1, total: 19 },
   ],
 };
 
@@ -80,10 +87,12 @@ describe('DiscCard', () => {
     const html = render(<DiscCard disc={DISC} />);
 
     expect(html).toContain('Woodpecker Electro');
+    // Lo que muestra el juego, no la base que manda Enka: 550 escalado a nivel 15 y tres
+    // rolls de 2,4% de CRIT Rate.
     expect(html).toContain('2.200');
-    expect(html).toContain('4,8%');
+    expect(html).toContain('7,2%');
     expect(html).toContain('+3');
-    expect(html).toContain('79');
+    expect(html).toContain('19');
   });
 
   it('renderiza un disco sin set ni stats resueltos', () => {

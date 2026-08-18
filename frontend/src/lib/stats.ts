@@ -37,9 +37,16 @@ export function formatStatValue(value: number, format: string | null | undefined
   return spec.percent ? `${text}%` : text;
 }
 
-/** El valor de un stat ya resuelto por el backend. */
+/**
+ * El valor que muestra el juego, que es `total`, no `value`.
+ *
+ * Enka manda bases: en un substat hay que multiplicar por los rolls y en un stat principal
+ * escalar por el nivel del disco. El backend ya hizo esa cuenta. `total` solo viene en `null`
+ * cuando falta la rareza para escalar un stat principal — sin datos estáticos — y ahí se cae a
+ * la base, que es lo único que Enka mandó.
+ */
 export function formatStat(stat: StatRead): string {
-  return formatStatValue(stat.value, stat.format);
+  return formatStatValue(stat.total ?? stat.value, stat.format);
 }
 
 /** El nombre del stat, o su prop id crudo si los datos estáticos no lo resolvieron. */

@@ -53,11 +53,27 @@ describe('formatStatValue', () => {
 });
 
 describe('formatStat', () => {
-  it('formatea un stat tal como lo manda el backend', () => {
-    const critRate = { prop_id: 20103, name: 'CRIT Rate', format: '{0:0.#%}', value: 24, rolls: 3 };
-    const hp = { prop_id: 11103, name: 'HP', format: '{0:0}', value: 550, rolls: 0 };
+  it('usa el total, no la base por roll', () => {
+    // 240 es la base de un roll de CRIT Rate (2,4%); con tres rolls el juego muestra 7,2%.
+    const critRate = {
+      prop_id: 20103,
+      name: 'CRIT Rate',
+      format: '{0:0.#%}',
+      value: 240,
+      rolls: 3,
+      total: 720,
+    };
+    // Un stat principal de 550 en un disco S nivel 15 se lee 2200, no 550.
+    const hp = { prop_id: 11103, name: 'HP', format: '{0:0}', value: 550, rolls: 0, total: 2200 };
 
-    expect(formatStat(critRate)).toBe('0,2%');
+    expect(formatStat(critRate)).toBe('7,2%');
+    expect(formatStat(hp)).toBe('2.200');
+  });
+
+  it('sin total cae a la base cruda', () => {
+    // Pasa cuando falta la rareza del disco y el stat principal no se puede escalar.
+    const hp = { prop_id: 11103, name: null, format: null, value: 550, rolls: 0, total: null };
+
     expect(formatStat(hp)).toBe('550');
   });
 });

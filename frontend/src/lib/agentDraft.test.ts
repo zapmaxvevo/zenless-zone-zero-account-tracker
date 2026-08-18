@@ -49,8 +49,24 @@ const AGENT: AgentDetailRead = {
       rarity: 4,
       level: 15,
       roll_count: 5,
-      main_stat: { prop_id: 11103, name: 'HP', format: '{0:0}', value: 2200, rolls: 0 },
-      substats: [{ prop_id: 20103, name: 'CRIT Rate', format: '{0:0.#%}', value: 480, rolls: 3 }],
+      main_stat: {
+        prop_id: 11103,
+        name: 'HP',
+        format: '{0:0}',
+        value: 550,
+        rolls: 0,
+        total: 2200,
+      },
+      substats: [
+        {
+          prop_id: 20103,
+          name: 'CRIT Rate',
+          format: '{0:0.#%}',
+          value: 240,
+          rolls: 3,
+          total: 720,
+        },
+      ],
     },
   ],
   equipped_sets: [],
@@ -97,8 +113,8 @@ describe('toAgentUpdate', () => {
       level: 12,
       roll_count: 5,
       main_stat_id: 11103,
-      main_stat_value: 2200,
-      substats: [{ prop_id: 20103, value: 480, rolls: 3 }],
+      main_stat_value: 550,
+      substats: [{ prop_id: 20103, value: 240, rolls: 3 }],
     });
   });
 

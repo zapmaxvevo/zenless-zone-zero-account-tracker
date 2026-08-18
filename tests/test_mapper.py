@@ -61,12 +61,15 @@ def test_each_disc_carries_its_slot_stats_and_the_set_it_completes(
     assert first.main_stat is not None
     assert first.main_stat.prop_id == 11103
     assert first.main_stat.value == 550
+    # Enka sends the per-roll base, not the total: 240 is 2.4% of CRIT Rate for each of the
+    # three rolls. The four levels add up to the four the disc dropped with plus its five procs.
     assert [stat.as_substat() for stat in first.substats] == [
-        {"prop_id": 20103, "value": 24, "rolls": 3},
-        {"prop_id": 21103, "value": 48, "rolls": 1},
+        {"prop_id": 20103, "value": 240, "rolls": 3},
+        {"prop_id": 21103, "value": 480, "rolls": 2},
         {"prop_id": 12103, "value": 19, "rolls": 2},
-        {"prop_id": 13103, "value": 15, "rolls": 1},
+        {"prop_id": 13103, "value": 15, "rolls": 2},
     ]
+    assert sum(stat.rolls for stat in first.substats) == 4 + first.roll_count
 
 
 def test_an_agent_showcased_without_discs_still_maps_with_its_wengine(

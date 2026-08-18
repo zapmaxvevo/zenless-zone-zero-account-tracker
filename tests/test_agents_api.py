@@ -148,19 +148,23 @@ def test_the_detail_of_an_agent_resolves_its_whole_build(client: TestClient) -> 
     assert first["rarity"] == 4
     assert first["level"] == 15
     assert first["roll_count"] == 5
+    # `value` is Enka's base and `total` what the game shows: a 550 main stat on an S disc at
+    # level 15 reads 2200, and three rolls of 2.4% CRIT Rate read 7.2%.
     assert first["main_stat"] == {
         "prop_id": 11103,
         "name": "HP",
         "format": "{0:0}",
         "value": 550,
         "rolls": 0,
+        "total": 2200,
     }
     assert first["substats"][0] == {
         "prop_id": 20103,
         "name": "CRIT Rate",
         "format": "{0:0.#%}",
-        "value": 24,
+        "value": 240,
         "rolls": 3,
+        "total": 720,
     }
 
     assert build["equipped_sets"] == [
@@ -215,11 +219,14 @@ def test_without_the_static_data_the_roster_and_the_build_still_answer_with_raw_
     }
     assert build["discs"][0]["game_id"] == 31041
     assert build["discs"][0]["set_name"] is None
+    # Without the static data the disc has no known rarity, so the main stat cannot be scaled:
+    # better an absent total than the level-0 base passed off as the value the game shows.
     assert build["discs"][0]["main_stat"] == {
         "prop_id": 11103,
         "name": None,
         "format": None,
         "value": 550,
         "rolls": 0,
+        "total": None,
     }
     assert build["equipped_sets"] == []

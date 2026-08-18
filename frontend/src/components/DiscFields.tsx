@@ -91,8 +91,8 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
               <input
                 id={`disc-${disc.slot}-rolls`}
                 type="number"
-                min={LIMITS.rollCount[0]}
-                max={LIMITS.rollCount[1]}
+                min={LIMITS.discProcs[0]}
+                max={LIMITS.discProcs[1]}
                 value={disc.roll_count}
                 onChange={(event) => patch({ roll_count: event.target.value })}
               />
@@ -162,8 +162,8 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
                   <input
                     aria-label={`Rolls del substat ${index + 1} del disco ${disc.slot}`}
                     type="number"
-                    min={LIMITS.rollCount[0]}
-                    max={LIMITS.rollCount[1]}
+                    min={LIMITS.substatRolls[0]}
+                    max={LIMITS.substatRolls[1]}
                     value={substat.rolls}
                     onChange={(event) => patchSubstat(index, { rolls: event.target.value })}
                   />

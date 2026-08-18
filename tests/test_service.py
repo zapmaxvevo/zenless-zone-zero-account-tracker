@@ -57,7 +57,7 @@ def test_importing_a_uid_stores_the_profile_with_its_agents_and_their_builds(
     assert soldier.discs[0].rarity == 4
     assert soldier.discs[0].main_stat_id == 11103
     assert soldier.discs[0].main_stat_value == 550
-    assert soldier.discs[0].substats[0] == {"prop_id": 20103, "value": 24, "rolls": 3}
+    assert soldier.discs[0].substats[0] == {"prop_id": 20103, "value": 240, "rolls": 3}
 
 
 def test_a_second_import_within_the_ttl_reuses_what_was_already_stored(

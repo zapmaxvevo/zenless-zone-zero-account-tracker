@@ -17,7 +17,10 @@ export const LIMITS = {
   modification_level: [0, 5],
   phase: [1, 5],
   discLevel: [0, 15],
-  rollCount: [0, 5],
+  /** Procs que recibe el disco entero: 5 en un S. Es el `BreakLevel` de Enka. */
+  discProcs: [0, 5],
+  /** Rolls de un substat suelto: 1 inicial más los 5 procs, si se los lleva todos. */
+  substatRolls: [0, 6],
   skillLevel: [0, 12],
 } as const;
 
@@ -193,14 +196,14 @@ export function agentDraftErrors(draft: AgentDraft, options: DraftErrorOptions =
       errors.push(`${label}: elegí un set.`);
     }
     checkRange(errors, `${label}: el nivel`, disc.level, LIMITS.discLevel);
-    checkRange(errors, `${label}: los rolls`, disc.roll_count, LIMITS.rollCount);
+    checkRange(errors, `${label}: los rolls`, disc.roll_count, LIMITS.discProcs);
     if (disc.main_stat_id && parseInt(disc.main_stat_value, 10) < 0) {
       errors.push(`${label}: el valor del stat principal no puede ser negativo.`);
     }
 
     for (const substat of disc.substats) {
       if (!parseId(substat.prop_id)) errors.push(`${label}: hay un substat sin elegir.`);
-      checkRange(errors, `${label}: los rolls de un substat`, substat.rolls, LIMITS.rollCount);
+      checkRange(errors, `${label}: los rolls de un substat`, substat.rolls, LIMITS.substatRolls);
     }
 
     const props = disc.substats.map((substat) => substat.prop_id).filter(Boolean);

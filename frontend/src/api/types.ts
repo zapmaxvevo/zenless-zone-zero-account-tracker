@@ -27,8 +27,11 @@ export interface StatRead {
   name: string | null;
   /** Formato .NET de Enka (`{0:0}`, `{0:0.#}`, `{0:0.#%}`); ver `lib/stats.ts`. */
   format: string | null;
+  /** Base cruda de Enka: por roll en un substat, sin escalar por nivel en un stat principal. */
   value: number;
   rolls: number;
+  /** Lo que muestra el juego. `null` si es un stat principal de un disco sin rareza conocida. */
+  total: number | null;
 }
 
 export interface WEngineRead {

@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from zzz_tracker.discs.values import MAX_SUBSTAT_ROLLS, main_stat_total, substat_total
 from zzz_tracker.enka.mapper import ParsedAgent, ParsedDisc, ParsedStat, ParsedWEngine
 from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.storage.models import Account, Agent, DriveDisc, Team, WEngine, as_utc
@@ -28,7 +29,10 @@ MAX_MODIFICATION_LEVEL = 5
 MAX_PHASE = 5
 MAX_RARITY = 5
 MAX_DISC_LEVEL = 15
-MAX_DISC_ROLLS = 5
+# Procs the disc itself receives -- Enka's BreakLevel -- against the roll count of one substat.
+# They are not the same number: an S disc gets 5 procs, but a substat that soaks up every one of
+# them on top of its initial roll reads 6.
+MAX_DISC_PROCS = 5
 
 
 class ErrorResponse(BaseModel):
@@ -84,17 +88,23 @@ class AccountListResponse(BaseModel):
 
 
 class StatRead(BaseModel):
-    """A stat as Enka reports it, with the name and display format resolved when possible."""
+    """A stat as Enka reports it, with the name, display format and in-game value resolved.
+
+    Enka sends bases, not what the player reads: `value` is that base and `total` is the number
+    the game shows, once the roll count or the disc level has been applied. `total` is None only
+    when a main stat cannot be scaled because the disc's rarity or level are unknown.
+    """
 
     prop_id: int
     name: str | None
     format: str | None
     value: int
     rolls: int = 0
+    total: int | None = None
 
     @classmethod
     def from_parts(
-        cls, prop_id: int, value: int, rolls: int, static: StaticData | None
+        cls, prop_id: int, value: int, rolls: int, total: int | None, static: StaticData | None
     ) -> StatRead:
         info = static.property(prop_id) if static else None
         return cls(
@@ -103,16 +113,32 @@ class StatRead(BaseModel):
             format=info.format if info else None,
             value=value,
             rolls=rolls,
+            total=total,
+        )
+
+    @classmethod
+    def from_main_stat(
+        cls, prop_id: int, value: int, rarity: int | None, level: int, static: StaticData | None
+    ) -> StatRead:
+        return cls.from_parts(
+            prop_id=prop_id,
+            value=value,
+            rolls=0,
+            total=main_stat_total(value, rarity, level),
+            static=static,
         )
 
     @classmethod
     def from_substat(cls, raw: Any, static: StaticData | None) -> StatRead | None:
         if not isinstance(raw, dict) or not isinstance(raw.get("prop_id"), int):
             return None
+        value = int(raw.get("value", 0))
+        rolls = int(raw.get("rolls", 0))
         return cls.from_parts(
             prop_id=raw["prop_id"],
-            value=int(raw.get("value", 0)),
-            rolls=int(raw.get("rolls", 0)),
+            value=value,
+            rolls=rolls,
+            total=substat_total(value, rolls),
             static=static,
         )
 
@@ -157,7 +183,9 @@ class DriveDiscRead(BaseModel):
         disc_set = static.disc_set(disc.set_id) if static and disc.set_id else None
         substats = [StatRead.from_substat(raw, static) for raw in disc.substats]
         main_stat = (
-            StatRead.from_parts(disc.main_stat_id, disc.main_stat_value, 0, static)
+            StatRead.from_main_stat(
+                disc.main_stat_id, disc.main_stat_value, disc.rarity, disc.level, static
+            )
             if disc.main_stat_id is not None
             else None
         )
@@ -270,8 +298,8 @@ class AgentListResponse(BaseModel):
 
 class SubstatWrite(BaseModel):
     prop_id: int = Field(ge=1, description="Enka property id, as served by /catalog/properties")
-    value: int = Field(default=0, ge=0, description="Raw value, in the property's own scale")
-    rolls: int = Field(default=0, ge=0)
+    value: int = Field(default=0, ge=0, description="Raw base value, per roll, not the total")
+    rolls: int = Field(default=0, ge=0, le=MAX_SUBSTAT_ROLLS)
 
 
 class WEngineWrite(BaseModel):
@@ -298,7 +326,7 @@ class DriveDiscWrite(BaseModel):
     set_id: int | None = None
     rarity: int | None = Field(default=None, ge=1, le=MAX_RARITY)
     level: int = Field(default=0, ge=0, le=MAX_DISC_LEVEL)
-    roll_count: int = Field(default=0, ge=0, le=MAX_DISC_ROLLS)
+    roll_count: int = Field(default=0, ge=0, le=MAX_DISC_PROCS)
     main_stat_id: int | None = None
     main_stat_value: int = Field(default=0, ge=0)
     substats: list[SubstatWrite] = Field(default_factory=list)

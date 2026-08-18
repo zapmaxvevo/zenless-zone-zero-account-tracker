@@ -28,8 +28,10 @@ def disc(slot: int, game_id: int = WOODPECKER_PIECE, **overrides: Any) -> dict[s
         "level": 15,
         "roll_count": 5,
         "main_stat_id": 11103,
-        "main_stat_value": 2200,
-        "substats": [{"prop_id": 20103, "value": 24, "rolls": 3}],
+        # Bases, the same scale Enka uses: 550 reads 2200 at level 15, and each CRIT Rate roll
+        # is 2.4%. The write contract never takes the value shown in game.
+        "main_stat_value": 550,
+        "substats": [{"prop_id": 20103, "value": 240, "rolls": 3}],
     }
     payload.update(overrides)
     return payload
@@ -78,8 +80,9 @@ def test_an_agent_typed_in_by_hand_is_stored_with_its_whole_build(client: TestCl
         "prop_id": 11103,
         "name": "HP",
         "format": "{0:0}",
-        "value": 2200,
+        "value": 550,
         "rolls": 0,
+        "total": 2200,
     }
     assert agent["equipped_sets"] == [
         {
