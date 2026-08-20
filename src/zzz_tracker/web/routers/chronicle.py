@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from zzz_tracker.errors import NotFoundError
 from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
-from zzz_tracker.web.deps import TrackerServiceDep
+from zzz_tracker.web.deps import TrackerServiceDep, require_api_token
 from zzz_tracker.web.schemas import (
     UID_PATTERN,
     BangbooListResponse,
     BangbooRead,
     ChallengeRunListResponse,
     ChallengeRunRead,
+    ChronicleImportResponse,
+    ChronicleImportWrite,
     ChronicleSyncResponse,
     CredentialRead,
     CredentialWrite,
@@ -54,6 +56,19 @@ def sync_chronicle(
 ) -> ChronicleSyncResponse:
     report = service.sync_chronicle(uid, force=force, include_previous=previous)
     return ChronicleSyncResponse.from_report(report)
+
+
+@router.post(
+    "/{uid}/chronicle/import",
+    response_model=ChronicleImportResponse,
+    dependencies=[Depends(require_api_token)],
+)
+def import_chronicle(
+    uid: UidPath, payload: ChronicleImportWrite, service: TrackerServiceDep
+) -> ChronicleImportResponse:
+    """Store a chronicle bundle captured in the browser, tracking the account if it is new."""
+    report = service.import_chronicle(uid, payload.payloads, region=payload.region)
+    return ChronicleImportResponse.from_report(report)
 
 
 @router.get("/{uid}/challenges", response_model=ChallengeRunListResponse)

@@ -67,6 +67,16 @@ class CaptchaRequiredError(ExternalServiceError):
     default_detail = "HoYoLAB is asking for a captcha; try again later"
 
 
+class UnauthorizedError(ZZZTrackerError):
+    status_code = 401
+    default_detail = "The request is missing a valid API token"
+
+
+class ImportDisabledError(ZZZTrackerError):
+    status_code = 503
+    default_detail = "The import endpoint is disabled until ZZZ_API_TOKEN is set"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ZZZTrackerError)
     async def handle_tracker_error(request: Request, exc: Exception) -> JSONResponse:

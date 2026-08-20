@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from zzz_tracker.enka.client import EnkaClient
@@ -37,6 +39,7 @@ from zzz_tracker.hoyolab.mapper import (
     ParsedRosterAgent,
     parse_bangboos,
     parse_chronicle_account,
+    parse_chronicle_uid,
     parse_deadly_assault,
     parse_lost_void,
     parse_roster_agents,
@@ -45,6 +48,8 @@ from zzz_tracker.hoyolab.mapper import (
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.models import (
     CHINA_REGION,
+    CHRONICLE_SOURCE_EXTENSION,
+    CHRONICLE_SOURCE_SERVER,
     SOURCE_ENKA,
     SOURCE_HOYOLAB,
     SOURCE_MANUAL,
@@ -68,6 +73,14 @@ DEFAULT_CHRONICLE_TTL_SECONDS = 3600
 DEFAULT_CHRONICLE_BACKOFF_SECONDS = 900
 TEAM_SLOTS = 3
 DISC_SLOTS = 6
+
+SECTION_INDEX = "index"
+SECTION_AVATAR_BASIC = "avatar_basic"
+SECTION_AVATAR_INFO = "avatar_info"
+SECTION_BUDDY_INFO = "buddy_info"
+SECTION_SHIYU_DEFENSE = "shiyu_defense"
+SECTION_DEADLY_ASSAULT = "deadly_assault"
+SECTION_LOST_VOID = "lost_void"
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,13 +118,63 @@ class TeamEdit:
 
 
 @dataclass(frozen=True, slots=True)
+class ChroniclePayloads:
+    """The raw `data` of every Battle Chronicle endpoint, however it was obtained.
+
+    The server-side sync and the extension import both end up here, so persistence has a
+    single path; `source` records which of the two brought the bundle. `index` is the only
+    mandatory section; a `None` (or an empty season map) means that section was not
+    available and gets skipped, not refused. `avatar_info` is accepted but not persisted yet.
+    """
+
+    region: str
+    source: str
+    index: dict[str, Any]
+    avatar_basic: dict[str, Any] | None = None
+    buddy_info: dict[str, Any] | None = None
+    shiyu_defense: dict[int, dict[str, Any]] = field(default_factory=dict)
+    deadly_assault: dict[int, dict[str, Any]] = field(default_factory=dict)
+    lost_void: dict[str, Any] | None = None
+    avatar_info: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+
+
+def _import_section(payloads: dict[str, Any], key: str) -> dict[str, Any] | None:
+    section = payloads.get(key)
+    return section if isinstance(section, dict) else None
+
+
+def _import_seasons(payloads: dict[str, Any], key: str) -> dict[int, dict[str, Any]]:
+    section = payloads.get(key)
+    if not isinstance(section, dict):
+        return {}
+    seasons: dict[int, dict[str, Any]] = {}
+    for raw_schedule, season in section.items():
+        if not isinstance(season, dict):
+            continue
+        try:
+            schedule_type = int(raw_schedule)
+        except (TypeError, ValueError):
+            continue
+        seasons[schedule_type] = season
+    return seasons
+
+
+def _import_builds(payloads: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    section = payloads.get(SECTION_AVATAR_INFO)
+    items = section if isinstance(section, list) else [section]
+    return tuple(item for item in items if isinstance(item, dict))
+
+
+@dataclass(frozen=True, slots=True)
 class ChronicleSyncReport:
     account: Account
     runs: tuple[ChallengeRun, ...] = field(default_factory=tuple)
     agents_synced: int = 0
     bangboos_synced: int = 0
+    builds_synced: int = 0
     lost_void_synced: bool = False
     unavailable_modes: tuple[str, ...] = field(default_factory=tuple)
+    skipped_sections: tuple[str, ...] = field(default_factory=tuple)
     skipped: bool = False
 
 
@@ -480,7 +543,7 @@ class TrackerService:
         credentials = self.credentials_for(uid)
 
         try:
-            return self._run_chronicle_sync(account, client, region, credentials, include_previous)
+            payloads = self._fetch_chronicle(client, uid, region, credentials, include_previous)
         except InvalidCredentialsError:
             self._mark_credentials_rejected(uid)
             raise
@@ -488,56 +551,143 @@ class TrackerService:
             self._mark_chronicle_failed(uid)
             raise
 
-    def _run_chronicle_sync(
+        self._touch_credentials(account)
+        return self._persist_chronicle(account, payloads)
+
+    def import_chronicle(
+        self, uid: str, payloads: dict[str, Any], region: str = ""
+    ) -> ChronicleSyncReport:
+        """Store a chronicle bundle captured in the user's browser, tracking the UID if new.
+
+        The bundle carries the raw `data` of each endpoint, so it persists through the same
+        path as the server-side sync. Only `index` is mandatory: it confirms the UID the
+        bundle belongs to, and any other absent or null section is skipped and reported.
+        Credentials, ttl and backoff stay untouched — no request left this backend.
+        """
+        index = _import_section(payloads, SECTION_INDEX)
+        if not index:
+            raise ValidationError("A chronicle import needs at least the index payload")
+        claimed_uid = parse_chronicle_uid(index)
+        if claimed_uid and claimed_uid != uid:
+            raise ValidationError(
+                f"The imported chronicle belongs to UID {claimed_uid}, not to {uid}"
+            )
+
+        account = self._find_or_create_account(uid)
+
+        bundle = ChroniclePayloads(
+            region=region or self._region_for(account),
+            source=CHRONICLE_SOURCE_EXTENSION,
+            index=index,
+            avatar_basic=_import_section(payloads, SECTION_AVATAR_BASIC),
+            buddy_info=_import_section(payloads, SECTION_BUDDY_INFO),
+            shiyu_defense=_import_seasons(payloads, SECTION_SHIYU_DEFENSE),
+            deadly_assault=_import_seasons(payloads, SECTION_DEADLY_ASSAULT),
+            lost_void=_import_section(payloads, SECTION_LOST_VOID),
+            avatar_info=_import_builds(payloads),
+        )
+        return self._persist_chronicle(account, bundle)
+
+    def _find_or_create_account(self, uid: str) -> Account:
+        """Track the UID if it is new, surviving the race of two imports creating it at once."""
+        account = self.find_account(uid)
+        if account is not None:
+            return account
+        account = Account(uid=uid)
+        self._session.add(account)
+        try:
+            self._session.flush()
+        except IntegrityError:
+            self._session.rollback()
+            existing = self.find_account(uid)
+            if existing is None:
+                raise
+            return existing
+        return account
+
+    def _fetch_chronicle(
         self,
-        account: Account,
         client: HoyolabClient,
+        uid: str,
         region: str,
         credentials: HoyolabCredentials,
         include_previous: bool,
-    ) -> ChronicleSyncReport:
-        uid = account.uid
-        unavailable: list[str] = []
+    ) -> ChroniclePayloads:
+        index = client.fetch_profile(uid, region, credentials)
+        avatar_basic = client.fetch_agents(uid, region, credentials)
+        buddy_info = client.fetch_bangboos(uid, region, credentials)
 
-        parsed_account = parse_chronicle_account(client.fetch_profile(uid, region, credentials))
-        if parsed_account is not None:
-            account.nickname = parsed_account.nickname or account.nickname
-            account.level = parsed_account.level or account.level
-        account.region = region
-        account.chronicle_public = True
-
-        agents = parse_roster_agents(client.fetch_agents(uid, region, credentials))
-        agents_synced = sum(1 for parsed in agents if self._upsert_roster_agent(account, parsed))
-
-        bangboos = parse_bangboos(client.fetch_bangboos(uid, region, credentials))
-        for parsed_bangboo in bangboos:
-            self._upsert_bangboo(account, parsed_bangboo)
-
-        runs: list[ChallengeRun] = []
-        seen_seasons: set[tuple[str, int]] = set()
+        shiyu_defense: dict[int, dict[str, Any]] = {}
+        deadly_assault: dict[int, dict[str, Any]] = {}
         schedules = (
             (SCHEDULE_CURRENT, SCHEDULE_PREVIOUS) if include_previous else (SCHEDULE_CURRENT,)
         )
         for schedule_type in schedules:
-            runs.extend(
-                self._sync_challenge_modes(
-                    account,
-                    client,
-                    region,
-                    credentials,
-                    schedule_type,
-                    unavailable,
-                    seen_seasons,
-                )
+            shiyu_defense[schedule_type] = client.fetch_shiyu_defense(
+                uid, region, credentials, schedule_type
+            )
+            deadly_assault[schedule_type] = client.fetch_deadly_assault(
+                uid, region, credentials, schedule_type
             )
 
-        lost_void = parse_lost_void(client.fetch_lost_void(uid, region, credentials))
-        if lost_void is not None:
-            self._upsert_lost_void(account, lost_void)
+        return ChroniclePayloads(
+            region=region,
+            source=CHRONICLE_SOURCE_SERVER,
+            index=index,
+            avatar_basic=avatar_basic,
+            buddy_info=buddy_info,
+            shiyu_defense=shiyu_defense,
+            deadly_assault=deadly_assault,
+            lost_void=client.fetch_lost_void(uid, region, credentials),
+        )
+
+    def _persist_chronicle(
+        self, account: Account, payloads: ChroniclePayloads
+    ) -> ChronicleSyncReport:
+        skipped_sections: list[str] = []
+
+        parsed_account = parse_chronicle_account(payloads.index)
+        if parsed_account is not None:
+            account.nickname = parsed_account.nickname or account.nickname
+            account.level = parsed_account.level or account.level
+        account.region = payloads.region
+        account.chronicle_public = True
+
+        agents_synced = 0
+        if payloads.avatar_basic is None:
+            skipped_sections.append(SECTION_AVATAR_BASIC)
+        else:
+            agents = parse_roster_agents(payloads.avatar_basic)
+            agents_synced = sum(
+                1 for parsed in agents if self._upsert_roster_agent(account, parsed)
+            )
+
+        bangboos_synced = 0
+        if payloads.buddy_info is None:
+            skipped_sections.append(SECTION_BUDDY_INFO)
+        else:
+            bangboos = parse_bangboos(payloads.buddy_info)
+            for parsed_bangboo in bangboos:
+                self._upsert_bangboo(account, parsed_bangboo)
+            bangboos_synced = len(bangboos)
+
+        unavailable: list[str] = []
+        runs = self._persist_challenge_runs(account, payloads, unavailable, skipped_sections)
+
+        lost_void = None
+        if payloads.lost_void is None:
+            skipped_sections.append(SECTION_LOST_VOID)
+        else:
+            lost_void = parse_lost_void(payloads.lost_void)
+            if lost_void is not None:
+                self._upsert_lost_void(account, lost_void)
+
+        if payloads.avatar_info:
+            skipped_sections.append(SECTION_AVATAR_INFO)
 
         account.chronicle_synced_at = utc_now()
+        account.chronicle_import_source = payloads.source
         account.chronicle_failed_at = None
-        self._touch_credentials(account)
 
         self._session.commit()
         self._session.refresh(account)
@@ -545,39 +695,44 @@ class TrackerService:
             account=account,
             runs=tuple(runs),
             agents_synced=agents_synced,
-            bangboos_synced=len(bangboos),
+            bangboos_synced=bangboos_synced,
             lost_void_synced=lost_void is not None,
             unavailable_modes=tuple(dict.fromkeys(unavailable)),
+            skipped_sections=tuple(skipped_sections),
         )
 
-    def _sync_challenge_modes(
+    def _persist_challenge_runs(
         self,
         account: Account,
-        client: HoyolabClient,
-        region: str,
-        credentials: HoyolabCredentials,
-        schedule_type: int,
+        payloads: ChroniclePayloads,
         unavailable: list[str],
-        seen_seasons: set[tuple[str, int]],
+        skipped_sections: list[str],
     ) -> list[ChallengeRun]:
-        fetchers = (
-            (client.fetch_shiyu_defense, parse_shiyu_defense),
-            (client.fetch_deadly_assault, parse_deadly_assault),
+        sections = (
+            (SECTION_SHIYU_DEFENSE, payloads.shiyu_defense, parse_shiyu_defense),
+            (SECTION_DEADLY_ASSAULT, payloads.deadly_assault, parse_deadly_assault),
         )
         runs: list[ChallengeRun] = []
-        for fetch, parse in fetchers:
-            payload = fetch(account.uid, region, credentials, schedule_type)
-            parsed = parse(payload)
-            if parsed is None:
-                continue
-            season = (parsed.mode, parsed.schedule_id)
-            if season in seen_seasons:
-                continue
-            seen_seasons.add(season)
-            if not parsed.has_data:
-                unavailable.append(parsed.mode)
-                continue
-            runs.append(self._upsert_challenge_run(account, parsed))
+        seen_seasons: set[tuple[str, int]] = set()
+        for schedule_type in sorted({*payloads.shiyu_defense, *payloads.deadly_assault}):
+            for _, seasons, parse in sections:
+                payload = seasons.get(schedule_type)
+                if payload is None:
+                    continue
+                parsed = parse(payload)
+                if parsed is None:
+                    continue
+                season = (parsed.mode, parsed.schedule_id)
+                if season in seen_seasons:
+                    continue
+                seen_seasons.add(season)
+                if not parsed.has_data:
+                    unavailable.append(parsed.mode)
+                    continue
+                runs.append(self._upsert_challenge_run(account, parsed))
+        for name, seasons, _ in sections:
+            if not seasons:
+                skipped_sections.append(name)
         return runs
 
     def _upsert_challenge_run(self, account: Account, parsed: ParsedChallengeRun) -> ChallengeRun:

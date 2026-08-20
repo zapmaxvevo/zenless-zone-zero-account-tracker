@@ -76,6 +76,8 @@ class AccountRead(BaseModel):
     region: str
     chronicle_public: bool
     chronicle_synced_at: datetime | None
+    chronicle_import_source: str | None
+    has_hoyolab_credentials: bool
     agent_count: int
 
     @classmethod
@@ -94,6 +96,8 @@ class AccountRead(BaseModel):
             region=account.region or region_for_uid(account.uid),
             chronicle_public=account.chronicle_public,
             chronicle_synced_at=as_utc(account.chronicle_synced_at),
+            chronicle_import_source=account.chronicle_import_source,
+            has_hoyolab_credentials=account.credential is not None,
             agent_count=len(account.agents),
         )
 
@@ -706,4 +710,36 @@ class ChronicleSyncResponse(BaseModel):
             lost_void_synced=report.lost_void_synced,
             unavailable_modes=list(report.unavailable_modes),
             runs=[ChallengeRunRead.from_run(run) for run in report.runs],
+        )
+
+
+class ChronicleImportWrite(BaseModel):
+    """A chronicle bundle captured in the user's browser: the raw `data` of each endpoint.
+
+    Every key of `payloads` is optional except `index`, which confirms the UID; a section
+    the browser could not fetch comes absent or `null` and is skipped, not refused. Unknown
+    keys anywhere are ignored so the extension can evolve ahead of the backend.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    source: str = "extension"
+    extension_version: str = ""
+    captured_at: datetime | None = None
+    region: str = ""
+    language: str = ""
+    payloads: dict[str, Any]
+
+
+class ChronicleImportResponse(ChronicleSyncResponse):
+    builds_synced: int
+    skipped_sections: list[str]
+
+    @classmethod
+    def from_report(cls, report: ChronicleSyncReport) -> ChronicleImportResponse:
+        base = ChronicleSyncResponse.from_report(report)
+        return cls(
+            **base.model_dump(),
+            builds_synced=report.builds_synced,
+            skipped_sections=list(report.skipped_sections),
         )

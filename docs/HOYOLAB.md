@@ -381,10 +381,11 @@ Tablas de la migración `20260808_0002_hoyolab_chronicle` (revisión `0002`, sob
 | `challenge_run_entries` | `ChallengeRunEntry` | un intento dentro de la temporada; único por `(run_id, position)`, con `layer_index` / `layer_id` para saber de qué capa salió |
 | `lost_void_progress` | `LostVoidProgress` | PK = `account_uid`: fila única por cuenta (es un acumulado, no una temporada) |
 
-Todas cuelgan de `accounts.uid` con `ON DELETE CASCADE`. `Account` suma cuatro columnas:
-`region`, `chronicle_public`, `chronicle_synced_at` y `chronicle_failed_at` (esta última, la
-marca de backoff). Las tres primeras se exponen en `AccountRead`; `chronicle_failed_at` es
-interna y no sale por la API.
+Todas cuelgan de `accounts.uid` con `ON DELETE CASCADE`. `Account` suma cinco columnas:
+`region`, `chronicle_public`, `chronicle_synced_at`, `chronicle_import_source` (migración
+`0004`: `"server"` si el último sync lo hizo el backend, `"extension"` si entró por el
+import, `NULL` si nunca sincronizó) y `chronicle_failed_at` (la marca de backoff). Las cuatro
+primeras se exponen en `AccountRead`; `chronicle_failed_at` es interna y no sale por la API.
 
 `ChallengeRun` es compartida por Shiyu Defense y Deadly Assault porque los registros tienen
 la misma forma (ventana de temporada, puntaje global, un puñado de intentos); los distingue
@@ -457,17 +458,25 @@ Guardias, en este orden, antes de tocar la red:
    si están marcadas rechazadas (`InvalidCredentialsError`) o si no hay clave Fernet
    (`ValidationError`).
 
-Recién ahí entra `_run_chronicle_sync`:
+Recién ahí sale a la red, en dos mitades (así el import de la extensión comparte la segunda,
+ver *Import desde la extensión*):
+
+**`_fetch_chronicle`** junta los `data` crudos en un `ChroniclePayloads`, en este orden:
+`index`, `avatar/basic`, `buddy/info`, por cada `schedule_type` (`1`, y `2` si
+`include_previous`) Shiyu y Deadly Assault, y al final `abysss2_abstract`. Si un fetch falla,
+no se persistió nada todavía. Después se marca `credential.last_used_at = now` y entra
+**`_persist_chronicle`**:
 
 6. `index` → nickname y nivel (solo si vienen no vacíos), `region`, `chronicle_public = True`.
-7. `avatar/basic` → upsert del roster; cuenta cuántos agentes escribió (los `manual` se saltan
+7. `avatar_basic` → upsert del roster; cuenta cuántos agentes escribió (los `manual` se saltan
    y no cuentan).
-8. `buddy/info` → upsert de bangboos.
-9. Para cada `schedule_type` (`1`, y `2` si `include_previous`) y cada modo: fetch + parse +
-   upsert.
-10. `abysss2_abstract` → upsert de Lost Void.
-11. `chronicle_synced_at = now`, `chronicle_failed_at = None`, `credential.last_used_at = now`,
-    un único `commit`.
+8. `buddy_info` → upsert de bangboos.
+9. Para cada `schedule_type` y cada modo: parse + upsert de la temporada.
+10. `lost_void` → upsert de Lost Void.
+11. `chronicle_synced_at = now`, `chronicle_failed_at = None`, un único `commit`.
+
+Una sección que en el paquete venga en `None` (solo posible vía import) se salta y se lista
+en `skipped_sections`; en el sync server-side todas las secciones vienen siempre.
 
 Detalles que importan:
 
@@ -530,6 +539,52 @@ Reglas exactas:
 - `is_chronicle_sync_due` acepta `backoff_seconds=0` por default, que desactiva el chequeo. Es
   para los llamadores que solo quieren preguntar por el TTL.
 
+## Import desde la extensión
+
+`POST /accounts/{uid}/chronicle/import` recibe el paquete que la extensión de navegador (plan
+en `EXTENSION.md`) captura con la sesión del usuario: **el backend no sale a la red**, solo
+parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1.
+
+- **Auth**: `Authorization: Bearer <ZZZ_API_TOKEN>` (`Settings.api_token`,
+  `web/deps.py::require_api_token`). Con la variable vacía el endpoint está deshabilitado y
+  responde **503** (`ImportDisabledError`) — mismo patrón que el cipher: env vacía = feature
+  apagada. Sin header, con otro esquema o con token errado, **401** (`UnauthorizedError`). La
+  comparación usa `secrets.compare_digest`, y el 503 se evalúa antes que el 401.
+- **Body**: `ChronicleImportWrite` (`extra="ignore"`): `source`, `extension_version`,
+  `captured_at`, `region`, `language` y `payloads`. Cada clave de `payloads` es el `data` ya
+  desenvuelto de un endpoint —lo mismo que devuelve `HoyolabClient._get`—, así los `parse_*`
+  del mapper se aplican sin adaptador: `index`, `avatar_basic`, `buddy_info`,
+  `shiyu_defense` / `deadly_assault` (objeto `{"1": …, "2": …}` por `schedule_type`),
+  `lost_void` y `avatar_info` (lista de respuestas crudas).
+- **`index` es la única clave obligatoria**: de ahí salen nickname y nivel, y se valida el
+  UID. `parse_chronicle_uid` (mapper) busca `game_role_id` / `game_uid` / `uid` / `role_id`
+  en la raíz y en las variantes de `PROFILE_KEYS`; si lo que encuentra difiere del `{uid}`
+  del path → **422**. Si el `index` no trae ningún UID, no hay nada que refutar y el import
+  se acepta. Sin `index` (o `null`) → 422.
+- **La cuenta se crea si no existe** (el flujo de la extensión no pasa por la home del
+  tracker). Cualquier otra sección ausente o `null` se salta y se lista en
+  `skipped_sections`; una temporada presente pero con `has_data == false` va a
+  `unavailable_modes`, igual que en el sync.
+- **`avatar_info` se acepta pero no escribe builds todavía** (fase 3): se reporta en
+  `skipped_sections` y `builds_synced` queda en `0`.
+- El import **no** toca `HoyolabCredential` (ni `last_used_at`), ni TTL, ni backoff: no hubo
+  red del lado del backend. Sí escribe `chronicle_synced_at`, `region` (la del body; si viene
+  vacía se deriva del UID, rechazando China), `chronicle_public = True` y
+  `chronicle_import_source = "extension"` (el sync server-side escribe `"server"`; gana el
+  último en correr).
+- **Un solo camino de persistencia.** `TrackerService._persist_chronicle(account,
+  ChroniclePayloads)` hace parse + upsert + bookkeeping + commit tanto para el sync
+  server-side (que ahora junta primero todos los payloads con `_fetch_chronicle`) como para
+  `import_chronicle`. La regla de fuentes no cambia: `manual` inmune, y el roster importado
+  solo escribe `level` + `mindscape_level`, sin tocar las builds de Enka.
+- **Respuesta**: `ChronicleImportResponse` = `ChronicleSyncResponse` + `builds_synced` +
+  `skipped_sections`.
+- **CORS**: el plan asumía que no hacía falta (el POST sale del background con
+  `host_permissions`, que saltea CORS), pero en Firefox MV3 los permisos de host son opcionales
+  y el fetch del background puede terminar sujeto a CORS igual (preflight `OPTIONS` → 405 sin
+  middleware). El app registra `CORSMiddleware` permisivo (`allow_origins=["*"]`, sin
+  credenciales): la auth del import es el bearer token, nunca cookies, así que no abre nada.
+
 ## API HTTP
 
 `web/routers/chronicle.py`, prefijo `/accounts`, tag `chronicle`. El `{uid}` del path valida
@@ -541,6 +596,7 @@ antes de llegar al servicio.
 | `PUT` | `/accounts/{uid}/credentials` | body `{ltuid_v2, ltoken_v2}` (1–32 y 1–512 chars) | `CredentialRead`, **sin el token** | 404 cuenta no trackeada · 422 sin `ZZZ_CREDENTIALS_KEY` o cookies en blanco |
 | `DELETE` | `/accounts/{uid}/credentials` | — | 204 sin body | 404 cuenta no trackeada, o cuenta sin credenciales guardadas |
 | `POST` | `/accounts/{uid}/chronicle/sync` | `?force=false&previous=true` | `ChronicleSyncResponse` | 401 sin cookies o rechazadas · 403 Chronicle privado · 404 cuenta · 422 UID chino, sin clave o integración no configurada · 429 rate limit · 502 upstream · 503 captcha |
+| `POST` | `/accounts/{uid}/chronicle/import` | header `Authorization: Bearer <ZZZ_API_TOKEN>`; body `ChronicleImportWrite` (ver *Import desde la extensión*) | `ChronicleImportResponse` | 401 sin token o token inválido · 422 sin `index`, UID que no coincide, o UID chino sin región · 503 `ZZZ_API_TOKEN` sin configurar |
 | `GET` | `/accounts/{uid}/challenges` | `?mode=shiyu_defense\|deadly_assault` | `{items: [ChallengeRunRead]}`, ordenado por `mode` y `schedule_id` desc | 404 cuenta no trackeada |
 | `GET` | `/accounts/{uid}/bangboos` | — | `{items: [BangbooRead]}`, ordenado por `game_id` | 404 cuenta no trackeada |
 | `GET` | `/accounts/{uid}/lost-void` | — | `LostVoidRead` | 404 cuenta no trackeada, o sin progreso sincronizado |
@@ -555,9 +611,12 @@ Los dos errores que arman ese backoff son justamente el `429` y el `503` de esta
 el sync siguiente para ese UID se saltará hasta que la ventana cierre, salvo `?force=true`.
 
 El estado del Chronicle se lee además desde el propio `AccountRead` (`GET /accounts` y
-`GET /accounts/{uid}`), que expone `region`, `chronicle_public` y `chronicle_synced_at`.
-`region` cae a `region_for_uid(uid)` cuando la columna todavía está vacía, así que trae la
-región derivada aunque la cuenta nunca se haya sincronizado.
+`GET /accounts/{uid}`), que expone `region`, `chronicle_public`, `chronicle_synced_at`,
+`chronicle_import_source` (`"extension"` / `"server"` / `null`, quién hizo el **último**
+sync) y `has_hoyolab_credentials` (si hay una `HoyolabCredential` guardada — el frontend ya
+no deduce "tiene credenciales" de que vuelvan datos). `region` cae a `region_for_uid(uid)`
+cuando la columna todavía está vacía, así que trae la región derivada aunque la cuenta nunca
+se haya sincronizado.
 
 **Todos los datetimes salen en UTC, con `Z`.** SQLite devuelve los `DateTime` sin tzinfo, así
 que cada schema los pasa por `as_utc()` al serializar: `AccountRead`, `CredentialRead`,
@@ -631,6 +690,7 @@ que tocan a HoYoLAB:
 | `ZZZ_HOYOLAB_LANGUAGE` | `hoyolab_language` | `en-us` | valor de `x-rpc-lang`; define el idioma de los nombres que se persisten |
 | `ZZZ_HOYOLAB_SYNC_TTL_SECONDS` | `hoyolab_sync_ttl_seconds` | `3600` | ventana mínima entre syncs de una misma cuenta |
 | `ZZZ_HOYOLAB_BACKOFF_SECONDS` | `hoyolab_backoff_seconds` | `900` | cuánto se deja de golpear a HoYoLAB después de un rate limit o un captcha (ver *Backoff*) |
+| `ZZZ_API_TOKEN` | `api_token` | `""` | bearer token del import de la extensión. Vacío = endpoint de import deshabilitado (503). Se rota cambiando la env (ver *Import desde la extensión*) |
 
 `ZZZ_DATABASE_URL` la comparten las dos integraciones; el resto (`ZZZ_ENKA_BASE_URL`,
 `ZZZ_STATIC_DATA_DIR`, `ZZZ_APP_NAME`) es de Enka y está en `PLAN.md`.
@@ -690,6 +750,13 @@ Fixtures en `tests/fixtures/`, una por endpoint, sin red:
 > **Las fixtures están escritas a mano, no son capturas reales.** Nadie tuvo nunca cookies
 > válidas contra las que grabarlas. Lo que verifican es que el mapper se comporte como el
 > mapper dice comportarse, no que HoYoLAB mande eso. Ver *Lo que no se sabe todavía*.
+> Seguirán siendo las inventadas hasta que corra la fase 0 de `EXTENSION.md`, que las
+> reemplaza por capturas reales del navegador.
+
+`tests/test_chronicle_import.py` arma el paquete de `POST /accounts/{uid}/chronicle/import`
+con **estas mismas fixtures**, que es exactamente lo que la extensión va a subir: cuando la
+fase 0 las reemplace por capturas reales, el contrato del import queda verificado sin tocar
+los tests.
 
 Las dos de Shiyu existen precisamente para cubrir los dos esquemas: `hoyolab_shiyu_v1.json`
 trae `hadal_ver: "v1"` con fechas como dict de partes, y `hoyolab_shiyu_v2.json` trae

@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from zzz_tracker import __version__
 from zzz_tracker.config import Settings, get_settings
@@ -50,6 +51,13 @@ def create_app(
         language=app_settings.hoyolab_language,
     )
     app.state.cipher = cipher or _optional_cipher(app_settings.credentials_key)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     register_exception_handlers(app)
     app.include_router(health_router)

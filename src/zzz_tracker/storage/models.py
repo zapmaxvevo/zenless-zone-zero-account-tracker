@@ -19,6 +19,9 @@ SOURCE_ENKA = "enka"
 SOURCE_MANUAL = "manual"
 SOURCE_HOYOLAB = "hoyolab"
 
+CHRONICLE_SOURCE_SERVER = "server"
+CHRONICLE_SOURCE_EXTENSION = "extension"
+
 MODE_SHIYU_DEFENSE = "shiyu_defense"
 MODE_DEADLY_ASSAULT = "deadly_assault"
 
@@ -76,6 +79,7 @@ class Account(Base):
     chronicle_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+    chronicle_import_source: Mapped[str | None] = mapped_column(String(16), default=None)
     chronicle_failed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )

@@ -479,6 +479,36 @@ def test_a_synced_account_reports_the_server_it_was_read_from_and_that_it_is_pub
     assert after["region"] == before["region"] != ""
 
 
+def test_the_account_tells_stored_credentials_apart_from_synced_data(
+    chronicle_client: TestClient,
+) -> None:
+    track_account(chronicle_client)
+    before = chronicle_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    store_cookies(chronicle_client)
+    with_cookies = chronicle_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    chronicle_client.delete(f"/accounts/{TRACKED_UID}/credentials")
+    without_cookies = chronicle_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    assert before["has_hoyolab_credentials"] is False
+    assert with_cookies["has_hoyolab_credentials"] is True
+    assert without_cookies["has_hoyolab_credentials"] is False
+    assert before["chronicle_import_source"] is None
+    assert with_cookies["chronicle_import_source"] is None
+
+
+def test_a_server_side_sync_marks_the_account_as_imported_from_the_server(
+    chronicle_client: TestClient,
+) -> None:
+    synced_account(chronicle_client)
+
+    account = chronicle_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    assert account["chronicle_import_source"] == "server"
+    assert account["has_hoyolab_credentials"] is True
+
+
 def test_reading_the_chronicle_of_an_account_that_is_not_tracked_answers_not_found(
     chronicle_client: TestClient,
 ) -> None:

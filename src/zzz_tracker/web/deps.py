@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from zzz_tracker.config import Settings
 from zzz_tracker.enka.client import EnkaClient
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.errors import StaticDataUnavailableError
+from zzz_tracker.errors import (
+    ImportDisabledError,
+    StaticDataUnavailableError,
+    UnauthorizedError,
+)
 from zzz_tracker.hoyolab.client import HoyolabClient
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
@@ -60,6 +65,22 @@ def get_hoyolab_client(request: Request) -> HoyolabClient:
 def get_credential_cipher(request: Request) -> CredentialCipher | None:
     cipher: CredentialCipher | None = request.app.state.cipher
     return cipher
+
+
+def require_api_token(
+    request: Request,
+    authorization: Annotated[str, Header()] = "",
+) -> None:
+    token = get_app_settings(request).api_token
+    if not token:
+        raise ImportDisabledError("The chronicle import needs ZZZ_API_TOKEN to be set")
+    scheme, _, given = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not secrets.compare_digest(
+        given.strip().encode(), token.encode()
+    ):
+        raise UnauthorizedError(
+            "The chronicle import needs `Authorization: Bearer <ZZZ_API_TOKEN>`"
+        )
 
 
 def get_tracker_service(

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     hoyolab_sync_ttl_seconds: int = 3600
     hoyolab_backoff_seconds: int = 900
     credentials_key: str = ""
+    api_token: str = ""
 
     model_config = SettingsConfigDict(
         env_prefix="ZZZ_",

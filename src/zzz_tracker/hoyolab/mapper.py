@@ -16,6 +16,7 @@ RARITY_BY_LETTER = {"B": 2, "A": 3, "S": 4}
 
 PROFILE_KEYS = ("role", "profile", "player", "cur_role", "account", "game_role")
 NICKNAME_KEYS = ("nickname", "nick_name", "name")
+UID_KEYS = ("game_role_id", "game_uid", "uid", "role_id")
 LEVEL_KEYS = ("level", "role_level", "avatar_level")
 AGENT_ICON_KEYS = ("role_square_url", "square_icon", "avatar_icon", "icon", "vertical_painting_url")
 AGENT_NAME_KEYS = ("name_mi18n", "full_name_mi18n", "name")
@@ -583,6 +584,15 @@ def parse_chronicle_account(data: dict[str, Any]) -> ParsedChronicleAccount | No
         if nickname or level:
             return ParsedChronicleAccount(nickname=nickname, level=level)
     return None
+
+
+def parse_chronicle_uid(data: dict[str, Any]) -> str:
+    payload = _as_dict(data)
+    for source in (payload, *(_as_dict(payload.get(key)) for key in PROFILE_KEYS)):
+        uid = _as_str(_first_present(source, *UID_KEYS))
+        if uid:
+            return uid
+    return ""
 
 
 def _parse_roster_agent(raw: Any) -> ParsedRosterAgent | None:
