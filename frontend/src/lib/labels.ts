@@ -58,6 +58,20 @@ export function rarityLabel(rarity: number | null): string | null {
   return RARITIES[rarity] ?? `R${rarity}`;
 }
 
+/** Los códigos de servidor que devuelve el backend (ver `storage/models.py`). */
+const REGIONS: Record<string, string> = {
+  prod_gf_us: 'América',
+  prod_gf_jp: 'Asia',
+  prod_gf_eu: 'Europa',
+  prod_gf_sg: 'TW/HK/MO',
+  prod_gf_cn: 'China',
+};
+
+export function regionLabel(region: string | null | undefined): string | null {
+  if (!region) return null;
+  return REGIONS[region] ?? region;
+}
+
 /** Nombre resuelto por el backend, con el id crudo como respaldo. */
 export function nameOr(name: string | null, prefix: string, id: number): string {
   return name ?? `${prefix} ${id}`;

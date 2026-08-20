@@ -1,11 +1,15 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './App.css';
-import { api } from './api/client';
-import { useApi } from './hooks/useApi';
+import AppShell from './components/ui/AppShell';
 import AccountPage from './pages/AccountPage';
 import AgentFormPage from './pages/AgentFormPage';
 import AgentPage from './pages/AgentPage';
+import BangboosPage from './pages/BangboosPage';
+import ChroniclePage from './pages/ChroniclePage';
+import CredentialsPage from './pages/CredentialsPage';
 import HomePage from './pages/HomePage';
+import LostVoidPage from './pages/LostVoidPage';
+import NotFoundPage from './pages/NotFoundPage';
 import RosterPage from './pages/RosterPage';
 import TeamEditorPage from './pages/TeamEditorPage';
 import TeamsPage from './pages/TeamsPage';
@@ -13,16 +17,10 @@ import TeamsPage from './pages/TeamsPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <main className="app">
-        <header className="app-header">
-          <h1>
-            <Link to="/">ZZZ Tracker</Link>
-          </h1>
-          <p className="dim">Cuentas, agentes y builds de Zenless Zone Zero.</p>
-        </header>
-
-        <Routes>
+      <Routes>
+        <Route element={<AppShell />}>
           <Route path="/" element={<HomePage />} />
+
           <Route path="/account/:uid" element={<AccountPage />} />
           <Route path="/account/:uid/agents" element={<RosterPage />} />
           <Route path="/account/:uid/agents/new" element={<AgentFormPage />} />
@@ -31,42 +29,20 @@ export default function App() {
           <Route path="/account/:uid/teams" element={<TeamsPage />} />
           <Route path="/account/:uid/teams/new" element={<TeamEditorPage />} />
           <Route path="/account/:uid/teams/:teamId/edit" element={<TeamEditorPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
 
-        <BackendStatus />
-      </main>
+          <Route path="/account/:uid/credentials" element={<CredentialsPage />} />
+          <Route path="/account/:uid/chronicle" element={<Navigate to="shiyu" replace />} />
+          <Route path="/account/:uid/chronicle/shiyu" element={<ChroniclePage mode="shiyu" />} />
+          <Route
+            path="/account/:uid/chronicle/assault"
+            element={<ChroniclePage mode="assault" />}
+          />
+          <Route path="/account/:uid/chronicle/void" element={<LostVoidPage />} />
+          <Route path="/account/:uid/chronicle/bangboos" element={<BangboosPage />} />
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
-  );
-}
-
-function NotFound() {
-  return (
-    <section className="panel">
-      <h2>No hay nada acá</h2>
-      <p className="dim">
-        La dirección no corresponde a ninguna pantalla. <Link to="/">Volver al inicio</Link>.
-      </p>
-    </section>
-  );
-}
-
-function BackendStatus() {
-  const { data, error, loading } = useApi(() => api.health());
-
-  return (
-    <footer className="app-footer dim small">
-      {loading && 'Consultando el backend…'}
-      {!loading && error && (
-        <span className="status-offline">
-          <span className="dot" aria-hidden="true" /> Backend offline — {error}
-        </span>
-      )}
-      {!loading && data && (
-        <span className="status-online">
-          <span className="dot" aria-hidden="true" /> {data.app} {data.version} · {data.status}
-        </span>
-      )}
-    </footer>
   );
 }

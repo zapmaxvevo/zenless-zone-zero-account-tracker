@@ -1,0 +1,1180 @@
+/**
+ * La piel New Eridu: todas las formas del diseño, en un solo lugar.
+ *
+ * Regla del sistema: una pantalla compone clases `.ne-*`; si necesita una forma que no
+ * está acá, se agrega acá y se documenta en docs/DESIGN.md. Nada de estilos sueltos por
+ * pantalla — es lo único que mantiene la app pareja.
+ */
+
+/* ---------- 13. Scanlines: una sola vez, en el shell ---------- */
+
+.ne-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(115deg, rgba(243, 230, 0, 0.035) 0 2px, transparent 2px 9px);
+}
+
+/* ---------- 1. Tipografía ---------- */
+
+.ne-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.94;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #fff;
+  transform: skewX(var(--skew-text));
+}
+
+.ne-display-xl {
+  font-size: clamp(30px, 6vw, 58px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+}
+
+.ne-display-lg {
+  font-size: clamp(24px, 5vw, 40px);
+}
+
+.ne-display-md {
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.ne-display-sm {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+
+/** Cifra protagonista: score, contador, total. */
+.ne-figure {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #fff;
+  transform: skewX(-8deg);
+}
+
+.ne-figure-xl {
+  font-size: 46px;
+}
+
+.ne-figure-lg {
+  font-size: 34px;
+}
+
+.ne-figure-md {
+  font-size: 26px;
+}
+
+.ne-accent {
+  color: var(--accent);
+}
+
+/** Etiqueta técnica: mayúsculas y tracking grande. Baja de tamaño, sube de tracking. */
+.ne-label {
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ne-label-sm {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+}
+
+.ne-label-lg {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+/** El contexto en amarillo que abre un hero. */
+.ne-eyebrow {
+  font-family: var(--font-tech);
+  font-size: clamp(10px, 2vw, 11px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/** Valor de dato: sin tracking, peso 700. */
+.ne-value {
+  font-family: var(--font-tech);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+
+.ne-value-lg {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+/** Único lugar con texto corrido: párrafos explicativos. */
+.ne-prose {
+  font-family: var(--font-tech);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+/* ---------- 2. Ángulos ---------- */
+
+/** El tick que abre un título de sección. */
+.ne-tick {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 26px;
+  background: var(--accent);
+  transform: skewX(var(--skew-mark));
+}
+
+.ne-tick-sm {
+  width: 5px;
+  height: 18px;
+}
+
+/** Barra diagonal que cruza un hero entero. Van de a tres, con opacidad decreciente. */
+.ne-beam {
+  position: absolute;
+  top: -40%;
+  height: 190%;
+  background: var(--accent);
+  transform: rotate(var(--rot-beam));
+  pointer-events: none;
+}
+
+/** Banda horizontal detrás del recorte de una card. */
+.ne-band {
+  position: absolute;
+  left: -30%;
+  width: 170%;
+  background: var(--accent);
+  transform: rotate(var(--rot-band));
+  pointer-events: none;
+}
+
+/** Marca sólida inclinada: píldora de score, chip del logo. */
+.ne-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 4px 12px;
+  background: var(--accent);
+  transform: skewX(var(--skew-mark));
+}
+
+.ne-pill > * {
+  transform: skewX(calc(var(--skew-mark) * -1));
+}
+
+/* ---------- 3. La esquina cortada ---------- */
+
+.ne-cut {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - var(--cut, 16px)),
+    calc(100% - var(--cut, 16px)) 100%,
+    0 100%
+  );
+}
+
+.ne-cut-sm {
+  --cut: var(--cut-sm);
+}
+
+.ne-cut-md {
+  --cut: var(--cut-md);
+}
+
+.ne-cut-lg {
+  --cut: var(--cut-lg);
+}
+
+.ne-cut-xl {
+  --cut: var(--cut-xl);
+}
+
+/* ---------- 4 + 5. Hero ---------- */
+
+.ne-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--grad-hero);
+  border: 1px solid var(--border);
+}
+
+.ne-hero-body {
+  flex: 1 1 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 560px;
+  padding: 22px clamp(14px, 3vw, 28px);
+}
+
+.ne-watermark {
+  position: absolute;
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.82;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  white-space: pre;
+  color: #fff;
+  opacity: 0.045;
+  transform: skewX(var(--skew-wm));
+  pointer-events: none;
+}
+
+/* ---------- 8. Encabezado de sección ---------- */
+
+.ne-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ne-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ne-section-count {
+  font-family: var(--font-tech);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+/* ---------- 9. Grillas y bloques ---------- */
+
+.ne-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ne-grid-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 10px;
+}
+
+.ne-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 42vw, 196px), 1fr));
+  gap: 12px;
+}
+
+.ne-grid-discs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.ne-grid-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 9px;
+}
+
+/** Tile de cifra: etiqueta → cifra → nota. */
+.ne-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+/** Variante oscura, para el tile destacado de una fila. */
+.ne-tile-ink {
+  background: var(--ink);
+  border-color: var(--border-strong);
+}
+
+/** Dato encajado dentro de un panel: más chico que un tile. */
+.ne-stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+
+/** Fila ancha con franja de acento a la izquierda (equipos, temporadas). */
+.ne-row {
+  position: relative;
+  overflow: hidden;
+  background: var(--grad-row);
+  border: 1px solid var(--border);
+  transition: border-color 0.18s ease;
+}
+
+.ne-row:hover {
+  border-color: var(--border-strong);
+}
+
+/** Las tres franjas del borde izquierdo de una fila. Usan --accent-color del dominio. */
+.ne-row-flare {
+  position: absolute;
+  top: -46px;
+  height: 190px;
+  background: var(--flare, var(--accent));
+  transform: rotate(var(--rot-beam));
+  pointer-events: none;
+}
+
+/* ---------- 10. Card de retrato ---------- */
+
+.ne-portrait-card {
+  position: relative;
+  display: block;
+  height: 326px;
+  overflow: hidden;
+  background: var(--grad-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ne-portrait-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.65);
+}
+
+.ne-portrait-art {
+  position: absolute;
+  left: 50%;
+  bottom: 80px;
+  height: 240px;
+  object-fit: contain;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.6));
+}
+
+/** El pie de la card: el gradiente come del negro para que el texto se lea sobre el arte. */
+.ne-portrait-foot {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 13px 14px;
+  background: linear-gradient(to top, var(--ink) 58%, rgba(7, 8, 11, 0));
+}
+
+/** La píldora de score, saliéndose por el borde izquierdo. */
+.ne-portrait-score {
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  z-index: 2;
+}
+
+/** Retrato circular con aro del color del elemento. */
+.ne-face {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #0b0c10;
+  border: 2px solid var(--ring, var(--border-strong));
+}
+
+/** El arte de agente es de cuerpo entero: se recorta a la cara. */
+.ne-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 0;
+  transform: scale(2.15);
+  transform-origin: 50% 9%;
+}
+
+.ne-face-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-tech);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* ---------- Discos ---------- */
+
+.ne-disc {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--grade, var(--border));
+}
+
+/** El casillero cuadrado del número de slot. */
+.ne-slot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.ne-slot-empty {
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+/** Main stat: barra del color del elemento a la izquierda. */
+.ne-disc-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--ink);
+  border-left: 3px solid var(--element, var(--accent));
+}
+
+/** Substat. `.is-key` = suma al score de la especialidad (regla 6.3). */
+.ne-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 4px 6px;
+  border-left: 2px solid transparent;
+}
+
+.ne-sub-label {
+  flex: 1;
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ne-sub-value {
+  min-width: 56px;
+  font-family: var(--font-tech);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+  color: var(--text-dim);
+}
+
+.ne-sub.is-key {
+  background: var(--key-bg);
+  border-left-color: var(--accent);
+}
+
+.ne-sub.is-key .ne-sub-label {
+  font-weight: 700;
+  color: #fff;
+}
+
+.ne-sub.is-key .ne-sub-value {
+  color: var(--accent);
+}
+
+/** Las tiradas de un substat, una marquita por tirada. */
+.ne-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.ne-pip {
+  display: block;
+  width: 11px;
+  height: 3px;
+  background: #1a1d24;
+}
+
+.ne-pip.is-on {
+  background: #3a3f4b;
+}
+
+.ne-sub.is-key .ne-pip.is-on {
+  background: var(--accent);
+}
+
+/** Barra de progreso fina, al pie de un bloque. */
+.ne-bar {
+  height: 4px;
+  background: var(--ink);
+}
+
+.ne-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--fill, var(--accent));
+}
+
+.ne-bar-lg {
+  height: 6px;
+  background: #1a1d24;
+}
+
+/* ---------- Filas de estadísticas ---------- */
+
+.ne-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ne-stat-row:last-child {
+  border-bottom: 0;
+}
+
+/* ---------- 11. Estados ---------- */
+
+.ne-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.ne-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+}
+
+/** El rombo del banner: un cuadrado girado, no un icono. */
+.ne-banner-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  background: var(--text-dim);
+  transform: rotate(45deg);
+}
+
+/** Captcha / sync salteado: acento, no rojo. No son errores (regla 11). */
+.ne-banner-warn {
+  border-color: rgba(243, 230, 0, 0.45);
+}
+
+.ne-banner-warn .ne-banner-dot {
+  background: var(--accent);
+}
+
+/* ---------- Chips y botones de la piel ---------- */
+
+/** Botón de sección (Chronicle): plano, chaflán chico, activo en amarillo. */
+.ne-chip {
+  padding: 9px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+
+.ne-chip:hover {
+  color: #fff;
+}
+
+.ne-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d0e12;
+}
+
+/** Píldora de dato del header: el UID, la ventana de una temporada. */
+.ne-data-pill {
+  padding: 6px 10px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  font-family: var(--font-tech);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/** Botón fantasma: volver, cerrar. */
+.ne-ghost {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.ne-ghost:hover {
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ---------- 12. Shell ---------- */
+
+.ne-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 clamp(8px, 2vw, 16px) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ne-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  transition: transform 0.26s ease;
+}
+
+.ne-header.is-hidden {
+  transform: translateY(-130%);
+}
+
+.ne-header-bar {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 2vw, 18px);
+  padding: 7px clamp(9px, 2vw, 16px);
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.ne-logo {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(19px, 4vw, 24px);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-decoration: none;
+  transform: skewX(var(--skew-mark));
+}
+
+.ne-tab {
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.ne-tab:hover {
+  color: #fff;
+}
+
+.ne-tab.is-active {
+  background: var(--bg-panel-2);
+  border-bottom-color: var(--accent);
+  color: #fff;
+}
+
+/** En el menú desplegable la barra activa pasa de abajo a la izquierda. */
+.ne-tab-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border-bottom: 0;
+  border-left: 3px solid transparent;
+  font-size: 13px;
+  text-align: left;
+}
+
+.ne-tab-menu.is-active {
+  border-left-color: var(--accent);
+}
+
+.ne-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-top: 0;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.75);
+}
+
+.ne-burger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  flex: none;
+  width: 40px;
+  height: 34px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+
+.ne-burger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--text);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ne-burger.is-open {
+  background: var(--accent);
+}
+
+.ne-burger.is-open span {
+  background: var(--ink);
+}
+
+.ne-burger.is-open span:nth-child(2) {
+  opacity: 0.25;
+}
+
+.ne-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex: none;
+}
+
+.ne-brand-sub {
+  display: block;
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.ne-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/** Empuja la cuenta al extremo derecho del header. */
+.ne-header-gap {
+  flex: 1;
+  min-width: 8px;
+}
+
+.ne-header-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+}
+
+.ne-menu-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Piezas de los componentes de ui/ ---------- */
+
+.ne-hero-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0 12px;
+}
+
+.ne-hero-art {
+  flex: 1 1 260px;
+  align-self: flex-end;
+  min-width: 170px;
+  max-width: 520px;
+  height: clamp(200px, 30vw, 330px);
+  margin-left: auto;
+}
+
+.ne-hero-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom right;
+  filter: drop-shadow(-16px 14px 26px rgba(0, 0, 0, 0.65));
+}
+
+/** La letra de rango detrás de una card: sale por arriba y por la derecha. */
+.ne-portrait-rank {
+  top: -30px;
+  right: -8px;
+  font-size: 146px;
+  line-height: 1;
+  opacity: 0.14;
+}
+
+.ne-portrait-fallback {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 96px;
+  text-align: center;
+  font-family: var(--font-tech);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+.ne-portrait-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.ne-portrait-name img {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.8));
+}
+
+.ne-portrait-note {
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+}
+
+.ne-face-wrap {
+  position: relative;
+  flex: none;
+}
+
+.ne-face-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  padding: 2px 6px;
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.ne-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ne-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ne-footer-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+/* ---------- Vocabulario común de las pantallas ---------- */
+
+/** El cuerpo de un bloque de contenido. Se combina con `.ne-cut-lg`. */
+.ne-panel {
+  padding: 16px 18px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+/** Botonera: pie de hero, de formulario, de bloque. */
+.ne-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/** Un enlace con pinta de botón fantasma: `<a>` es inline y no respeta el alto. */
+a.ne-ghost {
+  display: inline-flex;
+  align-items: center;
+}
+
+/**
+ * La etiqueta técnica dentro de un campo de formulario.
+ *
+ * `.field label` de App.css gana por especificidad y le pisaría a `.ne-label` el tamaño y el
+ * tracking, que son justo la escala fija de la regla 1.
+ */
+.field label.ne-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+.field label.ne-label.ne-label-sm {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+}
+
+/** Aviso de estado suelto entre bloques; dentro de un stack el gap lo pone el contenedor. */
+.ne-state {
+  margin: 12px 0;
+}
+
+.ne-stack > .ne-state {
+  margin: 0;
+}
+
+/** Falla real: rojo. El sync salteado y el captcha usan `.ne-banner-warn` (regla 11). */
+.ne-banner-error {
+  border-color: var(--red);
+}
+
+.ne-banner-error .ne-banner-dot {
+  background: var(--red);
+}
+
+/** El texto del error se lee entero: el gris de `.ne-prose` es para lo secundario. */
+.ne-banner-error .ne-prose {
+  color: var(--text);
+}
+
+/** Estrellas de un intento o un bangboo: apagadas salvo las ganadas. */
+.ne-stars {
+  display: flex;
+  gap: 3px;
+  font-size: 16px;
+  line-height: 1;
+  color: #2a2d36;
+}
+
+.ne-star.is-on {
+  color: var(--accent);
+}
+
+/**
+ * Anillo de progreso: la cifra dibujada además de escrita.
+ *
+ * El relleno sale de `--ring-turn`, en vueltas, para que el degradé cónico corte justo donde
+ * termina el dato; el círculo interno lo convierte en aro.
+ */
+.ne-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--accent) 0turn var(--ring-turn, 0turn),
+    #23262f var(--ring-turn, 0turn) 1turn
+  );
+}
+
+.ne-ring::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.ne-ring > * {
+  position: relative;
+}
+
+/** Tile con anillo: la cifra deja de ir arriba de la etiqueta y pasa al costado. */
+.ne-tile-ring {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.ne-tile-ring-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/** Cards de build: un punto más anchas que las del roster. */
+.ne-grid-builds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+/** Cuerpo de una fila. Va por encima de las franjas, que cruzan por detrás. */
+.ne-row-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 14px 16px;
+}
+
+/** Cuando la fila lleva franjas, el contenido les deja libre el margen izquierdo. */
+.ne-row-body.is-flared {
+  padding-left: 30px;
+}
+
+.ne-row-main {
+  display: flex;
+  flex: 1 1 170px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/** La cifra de la fila, alineada al borde derecho. */
+.ne-row-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+/** Fila que además es enlace: el amarillo de link no manda sobre el bloque. */
+.ne-row-link,
+.ne-row-link:hover {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+}
+
+/** Los retratos de los miembros de un equipo, en fila. */
+.ne-faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

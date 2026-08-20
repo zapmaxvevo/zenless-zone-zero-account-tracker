@@ -1,4 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { regionLabel } from './labels';
+
+describe('regionLabel', () => {
+  it('traduce los códigos de servidor del backend', () => {
+    expect(regionLabel('prod_gf_us')).toBe('América');
+    expect(regionLabel('prod_gf_eu')).toBe('Europa');
+  });
+
+  it('un servidor desconocido se muestra crudo en vez de inventarle nombre', () => {
+    expect(regionLabel('prod_gf_mars')).toBe('prod_gf_mars');
+  });
+
+  it('sin servidor no hay etiqueta', () => {
+    expect(regionLabel(null)).toBeNull();
+  });
+});
 import { elementLabel, nameOr, professionLabel, rarityLabel, skillLabel } from './labels';
 
 describe('rarityLabel', () => {

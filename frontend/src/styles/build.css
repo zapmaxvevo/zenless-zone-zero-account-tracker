@@ -1,0 +1,180 @@
+/**
+ * Formas propias de la pantalla de build de un agente.
+ *
+ * Van acá y no en `eridu.css` sólo porque la piel compartida se está tocando en paralelo:
+ * el prefijo `.ne-build-` marca las candidatas a subir al layer común (ver docs/DESIGN.md).
+ */
+
+/* ---------- Contenedores ---------- */
+
+/** Panel de sección: el mismo fondo del tile, con el chaflán de bloque grande. */
+.ne-build-panel {
+  padding: 16px 18px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+.ne-build-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/** Columna angosta: estadísticas, W-Engine, habilidades, sets. */
+.ne-build-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+/** Columna ancha: los discos. El `999` la deja llenar todo lo que sobre. */
+.ne-build-main {
+  flex: 999 1 460px;
+  min-width: 0;
+}
+
+.ne-build-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- Hero ---------- */
+
+.ne-build-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ne-build-bar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ne-build-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ne-build-name img {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.8));
+}
+
+.ne-build-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ne-build-figures > * {
+  flex: 1 1 180px;
+}
+
+/* ---------- Paneles de la columna angosta ---------- */
+
+.ne-build-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ne-build-skill img {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.ne-build-set {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ne-build-set img {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+/** Las piezas del set se van al extremo derecho de su fila. */
+.ne-build-set .ne-label {
+  margin-left: auto;
+}
+
+/* ---------- Discos ---------- */
+
+/** La leyenda del encabezado: la misma marca que lleva un substat que suma. */
+.ne-build-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 460px;
+}
+
+.ne-build-key-swatch {
+  flex: none;
+  width: 14px;
+  height: 8px;
+  background: rgba(243, 230, 0, 0.14);
+  border-left: 2px solid var(--accent);
+}
+
+.ne-build-disc-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.ne-build-disc-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.ne-build-disc-id {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+/** El nombre del set no parte la cabecera: se corta. */
+.ne-build-disc-id .ne-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ne-build-disc-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.ne-build-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}

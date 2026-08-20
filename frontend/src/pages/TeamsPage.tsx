@@ -5,11 +5,18 @@ import { describeError } from '../api/errors';
 import type { TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
 import TeamCard from '../components/TeamCard';
+import SectionHead from '../components/ui/SectionHead';
+import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
+import { useSync } from '../lib/syncContext';
+import '../styles/teams.css';
 
 export default function TeamsPage() {
   const uid = useParams().uid ?? '';
-  const { data, error, loading, reload } = useApi(() => api.listTeams(uid), uid);
+  const { version } = useSync();
+  const { data, error, loading, reload } = useApi(() => api.listTeams(uid), `${uid}:${version}`);
+  // El catálogo se pide una sola vez para toda la pantalla, no una por fila.
+  const { art } = useAgentArt();
   const [removing, setRemoving] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const teams = data?.items ?? [];
@@ -39,12 +46,18 @@ export default function TeamsPage() {
       </nav>
 
       <section className="panel">
-        <header className="panel-header">
-          <h2>Equipos ({teams.length})</h2>
-          <Link className="link-button" to={`/account/${uid}/teams/new`}>
-            Armar equipo
-          </Link>
-        </header>
+        <SectionHead
+          title="Equipos"
+          count={teams.length}
+          action={
+            <Link
+              className="zui-button zui-button-accent zui-button-sm"
+              to={`/account/${uid}/teams/new`}
+            >
+              Armar equipo
+            </Link>
+          }
+        />
 
         {loading && <StatusMessage kind="loading">Cargando los equipos…</StatusMessage>}
 
@@ -62,11 +75,12 @@ export default function TeamsPage() {
           </StatusMessage>
         )}
 
-        <div className="team-list">
+        <div className="ne-stack">
           {teams.map((team) => (
             <TeamCard
               key={team.id}
               team={team}
+              art={art}
               busy={removing === team.id}
               onDelete={() => handleDelete(team)}
             />

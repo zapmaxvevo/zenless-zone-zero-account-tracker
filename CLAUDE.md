@@ -28,3 +28,20 @@ Frontend (inside `frontend/`):
 
 - Add dependencies with `uv add` / `npm install`; never hand-edit lockfiles.
 - Keep the backend API and the frontend strictly separated: the frontend talks to the backend over HTTP only, no shared code.
+
+## Design
+
+The app's look is the **New Eridu** design system. **Read `docs/DESIGN.md` in full before building or
+changing any screen** — it is the source of truth, not a suggestion. Its thirteen rules cover the three
+typefaces and their jobs, the three canonical angles, the cut corner, the background hierarchy,
+watermarks, when accent yellow is allowed, colour-from-domain, the section header, density, the portrait
+card, empty/error states, responsive behaviour and the scanline overlay.
+
+Where things live:
+
+- `frontend/src/styles/tokens.css` — colours, fonts, gradients, angles, chamfers
+- `frontend/src/styles/eridu.css` — every `.ne-*` class; **new shapes go here**, never inline in a screen
+- `frontend/src/components/ui/` — `AppShell`, `Hero`, `SectionHead`, `Tile`, `PortraitCard`, `Face`, `Banner`
+- `frontend/src/lib/palette.ts` — colour by element / rank / grade; never hardcode a hex in a screen
+- `frontend/src/lib/score.ts` — the build-score model the design's hierarchy is built on
+- `design-system/` — the synced `zzz-ui` base package (buttons, inputs, tags); the New Eridu skin sits on top

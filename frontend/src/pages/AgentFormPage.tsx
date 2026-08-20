@@ -12,6 +12,7 @@ import type {
 } from '../api/types';
 import DiscFields from '../components/DiscFields';
 import StatusMessage from '../components/StatusMessage';
+import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
 import type { AgentDraft, WEngineDraft } from '../lib/agentDraft';
 import {
@@ -24,6 +25,7 @@ import {
   toAgentWrite,
 } from '../lib/agentDraft';
 import { SKILL_KEYS, nameOr, skillLabel } from '../lib/labels';
+import '../styles/forms.css';
 
 export default function AgentFormPage() {
   const { uid = '', agentId } = useParams();
@@ -118,13 +120,14 @@ function AgentForm({
   }
 
   const skillKeys = [...new Set([...SKILL_KEYS, ...Object.keys(draft.skill_levels)])].sort();
+  const equipped = draft.discs.filter((disc) => disc.equipped).length;
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="ne-stack" onSubmit={handleSubmit}>
       <section className="panel">
-        <h2>
-          {agent ? `Editar ${nameOr(agent.name, 'agente', agent.game_id)}` : 'Agregar agente'}
-        </h2>
+        <SectionHead
+          title={agent ? `Editar ${nameOr(agent.name, 'agente', agent.game_id)}` : 'Agregar agente'}
+        />
 
         <StatusMessage kind="empty">
           Lo que se carga a mano queda marcado como manual: a partir de ahí el sync con Enka no
@@ -135,7 +138,9 @@ function AgentForm({
 
         {!agent && (
           <div className="field">
-            <label htmlFor="agent-game-id">Agente</label>
+            <label className="ne-label" htmlFor="agent-game-id">
+              Agente
+            </label>
             <select
               id="agent-game-id"
               value={draft.game_id}
@@ -151,7 +156,7 @@ function AgentForm({
           </div>
         )}
 
-        <div className="field-row">
+        <div className="field-row ne-field-row">
           <NumberField
             id="agent-level"
             label="Nivel"
@@ -184,8 +189,8 @@ function AgentForm({
       </section>
 
       <section className="panel">
-        <h3>Habilidades</h3>
-        <div className="field-row">
+        <SectionHead title="Habilidades" />
+        <div className="field-row ne-field-row">
           {skillKeys.map((key) => (
             <NumberField
               key={key}
@@ -202,17 +207,20 @@ function AgentForm({
       </section>
 
       <section className="panel">
-        <header className="panel-header">
-          <h3>W-Engine</h3>
-          <button
-            type="button"
-            onClick={() =>
-              setDraft({ ...draft, wengine: draft.wengine ? null : emptyWEngineDraft() })
-            }
-          >
-            {draft.wengine ? 'Desequipar' : 'Equipar'}
-          </button>
-        </header>
+        <SectionHead
+          title="W-Engine"
+          action={
+            <button
+              type="button"
+              className="zui-button zui-button-sm"
+              onClick={() =>
+                setDraft({ ...draft, wengine: draft.wengine ? null : emptyWEngineDraft() })
+              }
+            >
+              {draft.wengine ? 'Desequipar' : 'Equipar'}
+            </button>
+          }
+        />
 
         {draft.wengine ? (
           <WEngineFields
@@ -221,13 +229,13 @@ function AgentForm({
             onChange={(wengine) => setDraft({ ...draft, wengine })}
           />
         ) : (
-          <p className="dim small">Sin W-Engine equipado.</p>
+          <p className="ne-empty">Sin W-Engine equipado</p>
         )}
       </section>
 
       <section className="panel">
-        <h3>Discos</h3>
-        <div className="disc-grid">
+        <SectionHead title="Discos" count={`${equipped}/${draft.discs.length}`} />
+        <div className="ne-grid-discs">
           {draft.discs.map((disc, index) => (
             <DiscFields
               key={disc.slot}
@@ -247,24 +255,24 @@ function AgentForm({
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel ne-stack">
         {errors.map((message) => (
           <StatusMessage key={message} kind="error">
             {message}
           </StatusMessage>
         ))}
 
-        <p className="actions">
-          <button type="submit" disabled={saving}>
+        <div className="ne-actions">
+          <button type="submit" className="zui-button zui-button-accent" disabled={saving}>
             {saving ? 'Guardando…' : 'Guardar'}
-          </button>{' '}
+          </button>
           <Link
-            className="link-button"
+            className="ne-ghost"
             to={agent ? `/account/${uid}/agents/${agent.id}` : `/account/${uid}/agents`}
           >
             Cancelar
           </Link>
-        </p>
+        </div>
       </section>
     </form>
   );
@@ -280,7 +288,9 @@ function WEngineFields({ wengine, catalog, onChange }: WEngineFieldsProps) {
   return (
     <>
       <div className="field">
-        <label htmlFor="wengine-game-id">Modelo</label>
+        <label className="ne-label" htmlFor="wengine-game-id">
+          Modelo
+        </label>
         <select
           id="wengine-game-id"
           value={wengine.game_id}
@@ -295,7 +305,7 @@ function WEngineFields({ wengine, catalog, onChange }: WEngineFieldsProps) {
         </select>
       </div>
 
-      <div className="field-row">
+      <div className="field-row ne-field-row">
         <NumberField
           id="wengine-level"
           label="Nivel"
@@ -333,7 +343,9 @@ interface NumberFieldProps {
 function NumberField({ id, label, limits, value, onChange }: NumberFieldProps) {
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
+      <label className="ne-label" htmlFor={id}>
+        {label}
+      </label>
       <input
         id={id}
         type="number"

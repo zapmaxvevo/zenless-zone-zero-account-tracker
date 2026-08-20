@@ -5,8 +5,13 @@ import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AgentRead, TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
+import Face from '../components/ui/Face';
+import SectionHead from '../components/ui/SectionHead';
+import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { nameOr } from '../lib/labels';
+import { elementsColor, initials } from '../lib/palette';
+import { useSync } from '../lib/syncContext';
 import type { TeamDraft } from '../lib/teams';
 import {
   MAX_TEAM_NAME,
@@ -16,10 +21,14 @@ import {
   teamErrors,
   toTeamWrite,
 } from '../lib/teams';
+import '../styles/teams.css';
+
+const PICK_FACE = 56;
 
 export default function TeamEditorPage() {
   const { uid = '', teamId } = useParams();
-  const roster = useApi(() => api.listAgents(uid), uid);
+  const { version } = useSync();
+  const roster = useApi(() => api.listAgents(uid), `${uid}:${version}`);
   const team = useApi(
     () => (teamId ? api.getTeam(teamId) : Promise.resolve(null)),
     teamId ?? 'nuevo',
@@ -56,11 +65,13 @@ interface TeamFormProps {
 
 function TeamForm({ uid, team, roster }: TeamFormProps) {
   const navigate = useNavigate();
+  const { art } = useAgentArt();
   const [draft, setDraft] = useState<TeamDraft>(() =>
     team ? draftFromTeam(team) : emptyTeamDraft(),
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const title = team ? 'Editar equipo' : 'Armar equipo';
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -94,7 +105,7 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
   if (roster.length === 0) {
     return (
       <section className="panel">
-        <h2>{team ? 'Editar equipo' : 'Armar equipo'}</h2>
+        <SectionHead title={title} />
         <StatusMessage kind="empty">
           Esta cuenta no tiene agentes todavía, así que no hay con quién armar un equipo. Sincronizá
           la cuenta o cargá un agente a mano desde el roster.
@@ -104,11 +115,13 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
   }
 
   return (
-    <form className="panel" onSubmit={handleSubmit}>
-      <h2>{team ? 'Editar equipo' : 'Armar equipo'}</h2>
+    <form className="panel ne-team-form" onSubmit={handleSubmit}>
+      <SectionHead title={title} />
 
-      <div className="field">
-        <label htmlFor="team-name">Nombre</label>
+      <div className="ne-team-field">
+        <label className="ne-label" htmlFor="team-name">
+          Nombre
+        </label>
         <input
           id="team-name"
           maxLength={MAX_TEAM_NAME}
@@ -117,8 +130,10 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
         />
       </div>
 
-      <div className="field">
-        <label htmlFor="team-notes">Notas</label>
+      <div className="ne-team-field">
+        <label className="ne-label" htmlFor="team-notes">
+          Notas
+        </label>
         <textarea
           id="team-notes"
           rows={3}
@@ -127,24 +142,47 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
         />
       </div>
 
-      <div className="slot-fields">
-        {TEAM_SLOTS.map((slot, index) => (
-          <div className="field" key={slot}>
-            <label htmlFor={`team-slot-${slot}`}>Slot {slot}</label>
-            <select
-              id={`team-slot-${slot}`}
-              value={draft.members[index] ?? ''}
-              onChange={(event) => chooseMember(index, event.target.value)}
-            >
-              <option value="">— vacío —</option>
-              {roster.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {nameOr(agent.name, 'Agente', agent.game_id)} · Nv. {agent.level}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
+      <div className="ne-team-picks">
+        {TEAM_SLOTS.map((slot, index) => {
+          const chosen = roster.find((agent) => agent.id === draft.members[index]) ?? null;
+
+          return (
+            <div className="ne-team-pick" key={slot}>
+              {chosen ? (
+                <Face
+                  art={art(chosen.game_id)}
+                  fallback={initials(nameOr(chosen.name, 'Agente', chosen.game_id))}
+                  ring={elementsColor(chosen.elements)}
+                  size={PICK_FACE}
+                />
+              ) : (
+                <span
+                  className="ne-team-free"
+                  style={{ width: PICK_FACE, height: PICK_FACE }}
+                  aria-hidden="true"
+                />
+              )}
+
+              <div className="ne-team-field">
+                <label className="ne-label" htmlFor={`team-slot-${slot}`}>
+                  Slot {slot}
+                </label>
+                <select
+                  id={`team-slot-${slot}`}
+                  value={draft.members[index] ?? ''}
+                  onChange={(event) => chooseMember(index, event.target.value)}
+                >
+                  <option value="">— vacío —</option>
+                  {roster.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {nameOr(agent.name, 'Agente', agent.game_id)} · Nv. {agent.level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {errors.map((message) => (
@@ -153,14 +191,14 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
         </StatusMessage>
       ))}
 
-      <p className="actions">
-        <button type="submit" disabled={saving}>
+      <div className="ne-team-actions">
+        <button type="submit" className="zui-button zui-button-accent" disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar'}
-        </button>{' '}
-        <Link className="link-button" to={`/account/${uid}/teams`}>
+        </button>
+        <Link className="zui-button" to={`/account/${uid}/teams`}>
           Cancelar
         </Link>
-      </p>
+      </div>
     </form>
   );
 }

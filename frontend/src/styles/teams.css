@@ -1,0 +1,167 @@
+/**
+ * Formas propias de la pantalla de equipos: la fila con los tres slots y el editor.
+ *
+ * Todo lo demás sale de styles/eridu.css. Si alguna de estas formas aparece en otra
+ * pantalla, se muda al layer compartido y se documenta en docs/DESIGN.md.
+ */
+
+/* ---------- La fila de un equipo ---------- */
+
+.ne-team-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px 18px;
+}
+
+/** El contenido va por encima de las tres franjas, que son absolutas. */
+.ne-team-main,
+.ne-team-side {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ne-team-main {
+  flex: 1 1 340px;
+  gap: 12px;
+}
+
+.ne-team-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ne-team-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  list-style: none;
+}
+
+.ne-team-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  width: 88px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.ne-team-slot-name {
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+a.ne-team-slot:hover .ne-team-slot-name {
+  color: #fff;
+}
+
+/** Slot libre: dashed y en gris. Un slot vacío es información, no un problema (regla 11). */
+.ne-team-free {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 2px dashed var(--border-strong);
+  border-radius: 50%;
+}
+
+/* ---------- La columna del score ---------- */
+
+.ne-team-side {
+  flex: 1 1 170px;
+  gap: 12px;
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+
+.ne-team-score-box {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ne-team-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/** La cifra de un equipo pesa más que la de un tile: es lo que se mira de la fila. */
+.ne-team-score {
+  font-size: 40px;
+}
+
+.ne-team-dim {
+  color: var(--text-dim);
+}
+
+.ne-team-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* ---------- El editor ---------- */
+
+.ne-team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ne-team-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ne-team-field input,
+.ne-team-field select,
+.ne-team-field textarea {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.ne-team-field input:focus,
+.ne-team-field select:focus,
+.ne-team-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ne-team-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+/** Cada slot del editor: el retrato del agente elegido y su selector al lado. */
+.ne-team-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+
+.ne-team-pick .ne-team-field {
+  flex: 1;
+}

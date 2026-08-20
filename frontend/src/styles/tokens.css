@@ -1,0 +1,67 @@
+/**
+ * Tokens de New Eridu. Los define el diseño, no las pantallas.
+ *
+ * Los primeros (--bg .. --radius-*) son los mismos que publica el paquete `zzz-ui`
+ * (design-system/dist/zzz-ui.css): si allá cambian, acá también. Los que siguen son
+ * de la piel New Eridu y solo existen en la app. Ver docs/DESIGN.md.
+ */
+
+:root {
+  --bg: #0d0e12;
+  --bg-panel: #16181f;
+  --bg-panel-2: #1e212b;
+  --border: #2a2e3a;
+  --border-strong: #3d4354;
+  --text: #e8e9ee;
+  --text-dim: #9096a6;
+  --accent: #f3e600;
+  --accent-dim: #b9af1a;
+  --green: #46d18a;
+  --red: #e0555f;
+
+  --rank-s: #f3e600;
+  --rank-a: #b06de0;
+  --rank-b: #5aa9e6;
+
+  --element-fire: #ff7a45;
+  --element-ice: #61d2ff;
+  --element-electric: #8f8bff;
+  --element-physics: #f7d64a;
+  --element-ether: #ff5fa2;
+
+  --ui: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* Piel New Eridu */
+
+  /** Más negro que el fondo: barras de sistema, píldoras, pie de card. */
+  --ink: #07080b;
+
+  --font-display: 'Archivo Black', 'Arial Black', sans-serif;
+  --font-tech: 'Chakra Petch', ui-monospace, monospace;
+
+  --grad-hero: linear-gradient(120deg, #191c25 0%, #0d0e12 62%);
+  --grad-card: linear-gradient(168deg, #20232e 0%, #0b0c10 72%);
+  --grad-row: linear-gradient(105deg, #1b1e27 0%, #101218 100%);
+
+  --skew-text: -7deg;
+  --skew-mark: -11deg;
+  --skew-wm: -9deg;
+  --rot-beam: 19deg;
+  --rot-band: -15deg;
+
+  --cut-sm: 8px;
+  --cut-md: 14px;
+  --cut-lg: 20px;
+  --cut-xl: 26px;
+
+  /** Fondo y barra de un dato que suma al score. */
+  --key-bg: rgba(243, 230, 0, 0.07);
+
+  color-scheme: dark;
+}
