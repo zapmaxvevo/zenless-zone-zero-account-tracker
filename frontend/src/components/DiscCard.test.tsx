@@ -37,11 +37,11 @@ describe('DiscCard', () => {
     expect(html).toContain('Rango S · +15');
   });
 
-  it('prende una marquita por tirada, contando la inicial que Enka no publica', () => {
+  it('prende una marquita por tirada', () => {
     const html = render(DISC);
 
-    // 3 + 1 de la subida de crítico, 1 + 1 de la de ataque.
-    expect(html.match(/ne-pip is-on/g)).toHaveLength(6);
+    // 3 tiradas de crítico y 1 de ataque; `rolls` ya incluye la inicial.
+    expect(html.match(/ne-pip is-on/g)).toHaveLength(4);
   });
 
   it('marca las subestadísticas que suman al score de la especialidad', () => {

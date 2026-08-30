@@ -205,6 +205,23 @@ describe('agentDraftErrors', () => {
     expect(errors).toContain('El disco 1: hay un substat repetido.');
   });
 
+  it('un substat sin tiradas es imposible en el juego: el mínimo es una', () => {
+    const draft = emptyAgentDraft();
+    draft.discs[0] = {
+      ...draft.discs[0],
+      equipped: true,
+      set_id: '31000',
+      roll_count: '5',
+      substats: [{ prop_id: '20103', value: '480', rolls: '0' }],
+    };
+
+    const errors = agentDraftErrors(draft);
+
+    expect(errors).toContain('El disco 1: los rolls de un substat va de 1 a 6.');
+    // Las mejoras del disco son otra cosa y siguen yendo de 0 a 5.
+    expect(errors).not.toContain('El disco 1: los rolls va de 0 a 5.');
+  });
+
   it('ignora los discos que no están equipados', () => {
     const draft = emptyAgentDraft();
     draft.discs[0] = { ...draft.discs[0], equipped: false, level: '99' };

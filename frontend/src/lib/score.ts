@@ -74,7 +74,14 @@ const KEY_SUBS: Record<string, readonly SubKey[]> = {
 
 const DEFAULT_KEYS = KEY_SUBS.Attack;
 
-/** Lo que rinde un disco muy bueno: fija el 100% de la barra y el máximo del build. */
+/**
+ * Lo que rinde un disco muy bueno: fija el 100% de la barra y el máximo del build.
+ *
+ * El techo y los cortes de `discGrade` no se movieron al arreglar `effectiveRolls`: estaban
+ * calibrados contra el modelo sin la tirada de más. Con la cuenta de prueba (31 discos de
+ * nivel 15, seis agentes armados) el mejor disco puntúa 55 clavado y el reparto de notas
+ * queda S=9 A=7 B=9 C=6; con la tirada de más, 20 de 31 discos eran S.
+ */
 const DISC_CEILING = 55;
 
 const SLOTS = 6;
@@ -101,11 +108,14 @@ export function isKeySub(
 /**
  * Tiradas efectivas de una subestadística.
  *
- * Enka publica en `rolls` las mejoras posteriores; la tirada inicial no se cuenta ahí, así
- * que el modelo suma una.
+ * `rolls` ya cuenta la tirada inicial: es el total, no las mejoras posteriores. Verificado
+ * el 2026-08-30 contra HoYoLAB, que del mismo disco publica el valor acumulado y el número
+ * de tiradas por separado — el `rolls` de Enka coincide con ese número, y el `value` de Enka
+ * es el paso por tirada. La aritmética lo cierra: un disco nivel 15 tiene 5 mejoras, así que
+ * sus substats suman 8 o 9 tiradas (3 o 4 iniciales + 5), y eso es exactamente lo que suman.
  */
 export function effectiveRolls(stat: Pick<StatRead, 'rolls'>): number {
-  return Math.max(0, stat.rolls) + 1;
+  return Math.max(0, stat.rolls);
 }
 
 /** Score crudo de un disco, en la escala del diseño (un disco excelente ronda 55). */

@@ -41,7 +41,12 @@ MAX_MODIFICATION_LEVEL = 5
 MAX_PHASE = 5
 MAX_RARITY = 5
 MAX_DISC_LEVEL = 15
+#: Upgrades of the disc itself: a level 15 disc was rolled five times.
 MAX_DISC_ROLLS = 5
+#: Rolls of a single substat, the initial one included: never zero, and at most that first
+#: one plus the five disc upgrades, should every upgrade land on the same line.
+MIN_SUBSTAT_ROLLS = 1
+MAX_SUBSTAT_ROLLS = 6
 
 
 class ErrorResponse(BaseModel):
@@ -292,9 +297,20 @@ class AgentListResponse(BaseModel):
 
 
 class SubstatWrite(BaseModel):
+    """One substat of a hand-typed disc.
+
+    Only the manual write path builds these: the Enka parser and the HoYoLAB import go
+    straight to `ParsedStat`, so the roll floor below never rejects imported data.
+    """
+
     prop_id: int = Field(ge=1, description="Enka property id, as served by /catalog/properties")
     value: int = Field(default=0, ge=0, description="Raw value, in the property's own scale")
-    rolls: int = Field(default=0, ge=0)
+    rolls: int = Field(
+        default=MIN_SUBSTAT_ROLLS,
+        ge=MIN_SUBSTAT_ROLLS,
+        le=MAX_SUBSTAT_ROLLS,
+        description="Total rolls, initial one included: a substat on the disc has at least one",
+    )
 
 
 class WEngineWrite(BaseModel):

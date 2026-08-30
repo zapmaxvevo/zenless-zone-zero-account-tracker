@@ -17,7 +17,13 @@ export const LIMITS = {
   modification_level: [0, 5],
   phase: [1, 5],
   discLevel: [0, 15],
-  rollCount: [0, 5],
+  /** Las mejoras del disco: un disco nivel 15 se mejoró cinco veces. */
+  discRolls: [0, 5],
+  /**
+   * Las tiradas de un substat, que ya incluyen la inicial (ver `effectiveRolls` en
+   * `lib/score.ts`): un substat existe con una tirada y llega a seis, nunca a cero.
+   */
+  substatRolls: [1, 6],
   skillLevel: [0, 12],
 } as const;
 
@@ -193,14 +199,14 @@ export function agentDraftErrors(draft: AgentDraft, options: DraftErrorOptions =
       errors.push(`${label}: elegí un set.`);
     }
     checkRange(errors, `${label}: el nivel`, disc.level, LIMITS.discLevel);
-    checkRange(errors, `${label}: los rolls`, disc.roll_count, LIMITS.rollCount);
+    checkRange(errors, `${label}: los rolls`, disc.roll_count, LIMITS.discRolls);
     if (disc.main_stat_id && parseInt(disc.main_stat_value, 10) < 0) {
       errors.push(`${label}: el valor del stat principal no puede ser negativo.`);
     }
 
     for (const substat of disc.substats) {
       if (!parseId(substat.prop_id)) errors.push(`${label}: hay un substat sin elegir.`);
-      checkRange(errors, `${label}: los rolls de un substat`, substat.rolls, LIMITS.rollCount);
+      checkRange(errors, `${label}: los rolls de un substat`, substat.rolls, LIMITS.substatRolls);
     }
 
     const props = disc.substats.map((substat) => substat.prop_id).filter(Boolean);
@@ -328,7 +334,13 @@ function toDiscWrite(draft: DiscDraft): DriveDiscWrite {
     substats: draft.substats.flatMap<SubstatWrite>((substat) => {
       const propId = parseId(substat.prop_id);
       if (!propId) return [];
-      return [{ prop_id: propId, value: toNumber(substat.value), rolls: toNumber(substat.rolls) }];
+      return [
+        {
+          prop_id: propId,
+          value: toNumber(substat.value),
+          rolls: toNumber(substat.rolls, LIMITS.substatRolls[0]),
+        },
+      ];
     }),
   };
 }
@@ -351,9 +363,9 @@ function parseId(text: string): number | null {
   return Number.isNaN(value) || value <= 0 ? null : value;
 }
 
-function toNumber(text: string): number {
+function toNumber(text: string, fallback = 0): number {
   const value = parseInt(text, 10);
-  return Number.isNaN(value) ? 0 : value;
+  return Number.isNaN(value) ? fallback : value;
 }
 
 function same(left: unknown, right: unknown): boolean {

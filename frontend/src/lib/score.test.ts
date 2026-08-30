@@ -93,17 +93,21 @@ describe('keySubs', () => {
 });
 
 describe('effectiveRolls', () => {
-  it('suma la tirada inicial, que Enka no cuenta', () => {
-    expect(effectiveRolls({ rolls: 0 })).toBe(1);
-    expect(effectiveRolls({ rolls: 5 })).toBe(6);
+  it('usa el total de tiradas, que ya incluye la inicial', () => {
+    expect(effectiveRolls({ rolls: 1 })).toBe(1);
+    expect(effectiveRolls({ rolls: 5 })).toBe(5);
+  });
+
+  it('un rolls negativo no resta', () => {
+    expect(effectiveRolls({ rolls: -2 })).toBe(0);
   });
 });
 
 describe('discScore', () => {
   it('las subestadísticas clave valen entero y el resto un cuarto', () => {
     // DAÑO CRIT le suma a Ataque pero no a Defensa, que puntúa DEF%, PV%, ATQ% y Prob. CRIT.
-    const clave = discScore(disc([stat(21103, 3)]), 'Attack');
-    const relleno = discScore(disc([stat(21103, 3)]), 'Defense');
+    const clave = discScore(disc([stat(21103, 4)]), 'Attack');
+    const relleno = discScore(disc([stat(21103, 4)]), 'Defense');
 
     expect(clave).toBe(24);
     expect(relleno).toBe(clave / 4);
@@ -142,7 +146,7 @@ describe('buildScore', () => {
 
   it('media build es media nota: los slots que faltan cuentan cero', () => {
     const uno = disc([stat(20103, 3)]);
-    expect(buildScore([uno], 'Attack')).toBe(15);
+    expect(buildScore([uno], 'Attack')).toBe(11);
     expect(buildScore([], 'Attack')).toBe(0);
   });
 });
