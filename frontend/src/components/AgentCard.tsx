@@ -1,10 +1,10 @@
 import type { AgentRead } from '../api/types';
-import { elementIcon } from '../lib/icons';
-import { elementLabel, nameOr, professionLabel, rarityLabel } from '../lib/labels';
-import { elementColor, elementsColor, rarityColor } from '../lib/palette';
+import { elementIcon, professionIcon } from '../lib/icons';
+import { agentRankLabel, elementLabel, nameOr, professionLabel } from '../lib/labels';
+import { elementColor, elementsColor, rankColor } from '../lib/palette';
 import { rosterScore } from '../lib/score';
 import '../styles/roster.css';
-import SourceTag from './SourceTag';
+import IconTag from './ui/IconTag';
 import PortraitCard from './ui/PortraitCard';
 
 interface AgentCardProps {
@@ -18,11 +18,13 @@ interface AgentCardProps {
  *
  * Todo lo que se ve sale del dato: el rango tiñe la marca de agua, el atributo tiñe la
  * banda y trae su icono, y la píldora amarilla lleva el score aproximado del build.
+ * Atributo y especialidad se muestran con el icono del juego, no con el nombre (regla 7).
  */
 export default function AgentCard({ agent, art = null }: AgentCardProps) {
   const name = nameOr(agent.name, 'Agente', agent.game_id);
   const profession = professionLabel(agent.profession);
   const element = agent.elements[0] ?? null;
+  const rank = agentRankLabel(agent.rarity, agent.game_id);
 
   return (
     <PortraitCard
@@ -30,8 +32,8 @@ export default function AgentCard({ agent, art = null }: AgentCardProps) {
       name={name}
       art={art}
       fallback={agent.game_id}
-      rank={rarityLabel(agent.rarity)}
-      rankColor={rarityColor(agent.rarity)}
+      rank={rank}
+      rankColor={rankColor(rank)}
       elementColor={elementsColor(agent.elements)}
       elementIcon={element && elementIcon(element)}
       meta={`Nv. ${agent.level} · M${agent.mindscape_level} · ${agent.disc_count} discos`}
@@ -39,16 +41,14 @@ export default function AgentCard({ agent, art = null }: AgentCardProps) {
       tags={
         <span className="ne-tag-row">
           {agent.elements.map((each) => (
-            <span
+            <IconTag
               key={each}
-              className="tag ne-tag-tint"
-              style={{ ['--tint' as string]: elementColor(each) }}
-            >
-              {elementLabel(each)}
-            </span>
+              icon={elementIcon(each)}
+              label={elementLabel(each)}
+              tint={elementColor(each)}
+            />
           ))}
-          {profession && <span className="tag">{profession}</span>}
-          <SourceTag source={agent.source} />
+          {profession && <IconTag icon={professionIcon(agent.profession)} label={profession} />}
         </span>
       }
       footNote={

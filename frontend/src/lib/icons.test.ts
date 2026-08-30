@@ -44,14 +44,18 @@ describe('professionIcon y attackIcon', () => {
 });
 
 describe('rankIcon', () => {
-  it('usa la misma escala 2..4 que rarityLabel', () => {
-    expect(rankIcon(4)).toContain('/s');
-    expect(rankIcon(3)).toContain('/a');
-    expect(rankIcon(2)).toContain('/b');
+  it('busca por la letra que ya resolvieron rarityLabel y agentRankLabel', () => {
+    expect(rankIcon('S')).toContain('/s');
+    expect(rankIcon('A')).toContain('/a');
+    expect(rankIcon('B')).toContain('/b');
   });
 
-  it('no inventa un icono para una rareza fuera de la escala', () => {
-    expect(rankIcon(5)).toBeNull();
+  it('cubre el rango propio de Pyrois, que no está en la escala 2..4', () => {
+    expect(rankIcon('I')).toContain('/i');
+  });
+
+  it('no inventa un icono para un rango que no existe', () => {
+    expect(rankIcon('R5')).toBeNull();
     expect(rankIcon(null)).toBeNull();
   });
 });

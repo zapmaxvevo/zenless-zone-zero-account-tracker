@@ -4,14 +4,15 @@ import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AgentDetailRead, CatalogPropertyRead, EquippedSetRead } from '../api/types';
 import DiscCard from '../components/DiscCard';
-import SourceTag from '../components/SourceTag';
 import StatusMessage from '../components/StatusMessage';
 import Hero from '../components/ui/Hero';
+import IconTag from '../components/ui/IconTag';
 import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
-import { elementIcon, skillIcon } from '../lib/icons';
+import { elementIcon, professionIcon, rankIcon, skillIcon } from '../lib/icons';
 import {
   SKILL_KEYS,
+  agentRankLabel,
   elementLabel,
   nameOr,
   professionLabel,
@@ -76,7 +77,7 @@ interface AgentBuildProps {
 function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
   const navigate = useNavigate();
   const name = nameOr(agent.name, 'Agente', agent.game_id);
-  const rarity = rarityLabel(agent.rarity);
+  const rank = agentRankLabel(agent.rarity, agent.game_id);
   const profession = professionLabel(agent.profession);
   const element = elementsColor(agent.elements);
   const icon = agent.elements.length > 0 ? elementIcon(agent.elements[0]) : null;
@@ -111,7 +112,7 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
 
   return (
     <>
-      <Hero size="md" watermark={rarity} beamColor={element} art={agent.image_url}>
+      <Hero size="md" watermark={rank} beamColor={element} art={agent.image_url}>
         <div className="ne-build-bar">
           <div className="ne-build-bar-group">
             <Link className="ne-ghost" to={`/account/${uid}/agents`}>
@@ -148,17 +149,15 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
 
         <p className="tags">
           {agent.elements.map((entry) => (
-            <span
+            <IconTag
               key={entry}
-              className="tag ne-tag-tint"
-              style={{ ['--tint' as string]: elementColor(entry) }}
-            >
-              {elementLabel(entry)}
-            </span>
+              icon={elementIcon(entry)}
+              label={elementLabel(entry)}
+              tint={elementColor(entry)}
+            />
           ))}
-          {profession && <span className="tag">{profession}</span>}
-          {rarity && <span className={`tag rank rank-${rarity}`}>{rarity}</span>}
-          <SourceTag source={agent.source} />
+          {profession && <IconTag icon={professionIcon(agent.profession)} label={profession} />}
+          {rank && <IconTag icon={rankIcon(rank)} label={`Rango ${rank}`} />}
         </p>
 
         <div className="ne-build-figures">

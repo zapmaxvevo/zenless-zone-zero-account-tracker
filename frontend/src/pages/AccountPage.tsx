@@ -7,15 +7,23 @@ import StatusMessage from '../components/StatusMessage';
 import Banner from '../components/ui/Banner';
 import Face from '../components/ui/Face';
 import Hero from '../components/ui/Hero';
+import IconTag from '../components/ui/IconTag';
 import PortraitCard from '../components/ui/PortraitCard';
 import SectionHead from '../components/ui/SectionHead';
 import Tile from '../components/ui/Tile';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { useCountdown } from '../hooks/useCountdown';
-import { elementIcon } from '../lib/icons';
-import { nameOr, professionLabel, rarityLabel, regionLabel } from '../lib/labels';
-import { elementsColor, gradeColor, gradeLabel, initials, rarityColor } from '../lib/palette';
+import { elementIcon, professionIcon } from '../lib/icons';
+import { agentRankLabel, elementLabel, nameOr, professionLabel, regionLabel } from '../lib/labels';
+import {
+  elementColor,
+  elementsColor,
+  gradeColor,
+  gradeLabel,
+  initials,
+  rankColor,
+} from '../lib/palette';
 import type { ScoredAgent } from '../lib/score';
 import { rosterScore } from '../lib/score';
 import { useSync } from '../lib/syncContext';
@@ -186,22 +194,42 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
           <p className="ne-empty">Todavía no hay agentes sincronizados</p>
         ) : (
           <div className="ne-grid-builds">
-            {scored.slice(0, TOP_BUILDS).map(({ agent, score: build }) => (
-              <PortraitCard
-                key={agent.id}
-                to={`/account/${uid}/agents/${agent.id}`}
-                name={nameOr(agent.name, 'Agente', agent.game_id)}
-                art={art(agent.game_id)}
-                fallback={agent.game_id}
-                rank={rarityLabel(agent.rarity)}
-                rankColor={rarityColor(agent.rarity)}
-                elementColor={elementsColor(agent.elements)}
-                elementIcon={agent.elements[0] ? elementIcon(agent.elements[0]) : null}
-                meta={`${professionLabel(agent.profession) ?? EMPTY} · Nv. ${agent.level} · M${agent.mindscape_level}`}
-                score={build}
-                footNote={agent.wengine?.name ?? 'Sin W-Engine'}
-              />
-            ))}
+            {scored.slice(0, TOP_BUILDS).map(({ agent, score: build }) => {
+              const rank = agentRankLabel(agent.rarity, agent.game_id);
+              const profession = professionLabel(agent.profession);
+
+              return (
+                <PortraitCard
+                  key={agent.id}
+                  to={`/account/${uid}/agents/${agent.id}`}
+                  name={nameOr(agent.name, 'Agente', agent.game_id)}
+                  art={art(agent.game_id)}
+                  fallback={agent.game_id}
+                  rank={rank}
+                  rankColor={rankColor(rank)}
+                  elementColor={elementsColor(agent.elements)}
+                  elementIcon={agent.elements[0] ? elementIcon(agent.elements[0]) : null}
+                  meta={`Nv. ${agent.level} · M${agent.mindscape_level}`}
+                  tags={
+                    <span className="ne-tag-row">
+                      {agent.elements.map((each) => (
+                        <IconTag
+                          key={each}
+                          icon={elementIcon(each)}
+                          label={elementLabel(each)}
+                          tint={elementColor(each)}
+                        />
+                      ))}
+                      {profession && (
+                        <IconTag icon={professionIcon(agent.profession)} label={profession} />
+                      )}
+                    </span>
+                  }
+                  score={build}
+                  footNote={agent.wengine?.name ?? 'Sin W-Engine'}
+                />
+              );
+            })}
           </div>
         )}
       </section>

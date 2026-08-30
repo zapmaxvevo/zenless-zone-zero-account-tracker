@@ -9,7 +9,6 @@ import {
   initials,
   rankColor,
   rarityColor,
-  sourceColor,
 } from './palette';
 
 describe('elementColor', () => {
@@ -46,18 +45,6 @@ describe('elementColor', () => {
   });
 });
 
-describe('sourceColor', () => {
-  it('distingue el import vivo del dato tipeado a mano', () => {
-    expect(sourceColor('hoyolab')).toBe('var(--green)');
-    expect(sourceColor('manual')).toBe('var(--text-dim)');
-  });
-
-  it('enka es el import por defecto y no se destaca', () => {
-    expect(sourceColor('enka')).toBe('var(--border-strong)');
-    expect(sourceColor(null)).toBe('var(--border-strong)');
-  });
-});
-
 describe('elementsColor', () => {
   it('manda el primero de la lista', () => {
     expect(elementsColor(['Ice', 'Fire'])).toBe('var(--element-ice)');
@@ -73,6 +60,11 @@ describe('rankColor y rarityColor', () => {
   it('usa la escala de letras del juego', () => {
     expect(rankColor('S')).toBe('var(--rank-s)');
     expect(rankColor('a')).toBe('var(--rank-a)');
+  });
+
+  // Pyrois no está en la escala 2..4: su rango solo llega por `agentRankLabel`.
+  it('el rango propio de Pyrois toma el dorado de la S, como su icono', () => {
+    expect(rankColor('I')).toBe('var(--rank-s)');
   });
 
   it('convierte la rareza cruda con la misma escala 2..4', () => {

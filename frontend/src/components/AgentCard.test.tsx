@@ -67,16 +67,35 @@ describe('AgentCard', () => {
 
     expect(html).toContain('Agente 1041');
     expect(html).toContain('ne-portrait-fallback');
-    expect(html).not.toContain('<img');
+    expect(html).not.toContain('ne-portrait-art');
     expect(html).toContain('Sin W-Engine');
   });
 
-  it('marca la fuente cuando no es el showcase de Enka', () => {
-    expect(render(<AgentCard agent={{ ...AGENT, source: 'manual' }} />)).toContain('Manual');
-    expect(render(<AgentCard agent={{ ...AGENT, source: 'hoyolab' }} />)).toContain('HoYoLAB');
+  it('nombra atributo y especialidad con el icono del juego, no con la palabra', () => {
+    const html = render(<AgentCard agent={AGENT} art={ART} />);
+
+    expect(html).toContain('icons/element/fire.png');
+    expect(html).toContain('icons/profession/attack.png');
+    // El nombre sigue estando, pero solo para quien no ve el icono.
+    expect(html).toContain('<span class="ne-sr-only">Fuego</span>');
+    expect(html).toContain('<span class="ne-sr-only">Ataque</span>');
   });
 
-  it('no etiqueta a todo el roster: el import de Enka no lleva marca', () => {
-    expect(render(<AgentCard agent={AGENT} />)).not.toContain('Enka');
+  // De dónde salió el dato es metadato del tracker, no del juego: no va en pantalla.
+  it('no dice de qué fuente vino el agente', () => {
+    for (const source of ['enka', 'hoyolab', 'manual'] as const) {
+      const html = render(<AgentCard agent={{ ...AGENT, source }} />);
+      expect(html).not.toContain('Enka');
+      expect(html).not.toContain('HoYoLAB');
+      expect(html).not.toContain('Manual');
+    }
+  });
+
+  // Enka le pone la misma rareza 4 que a cualquier S; el rango propio sale del `game_id`.
+  it('a Pyrois le pone su propio rango, no la S de su rareza', () => {
+    const html = render(<AgentCard agent={{ ...AGENT, game_id: 1551, rarity: 4 }} />);
+
+    expect(html).toContain('>I<');
+    expect(html).not.toContain('>S<');
   });
 });

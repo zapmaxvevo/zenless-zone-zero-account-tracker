@@ -44,10 +44,14 @@ export function professionIcon(profession: string | null): string | null {
   return lookup('profession', profession && profession.toLowerCase());
 }
 
-/** Rango por rareza numérica, con la misma escala 2..4 = B/A/S que `rarityLabel`. */
-export function rankIcon(rarity: number | null): string | null {
-  const letter: Record<number, string> = { 2: 'b', 3: 'a', 4: 's' };
-  return lookup('rank', rarity === null ? null : (letter[rarity] ?? null));
+/**
+ * Rango por su letra ya resuelta (`rarityLabel` / `agentRankLabel`), no por la rareza cruda.
+ *
+ * El icono trae el color del rango puesto —S dorado, A violeta, B celeste—, así que un tag
+ * de rango dibujado con icono no necesita teñirse aparte. Pyrois tiene su propia letra.
+ */
+export function rankIcon(rank: string | null): string | null {
+  return lookup('rank', rank && rank.toLowerCase());
 }
 
 /** Tipo de ataque: `Slash`, `Strike`, `Pierce`. */

@@ -14,10 +14,3 @@
 .ne-filters .field {
   margin-top: 0;
 }
-
-/** Los tags del pie de una card: como `.tags`, pero sin el margen que separa párrafos. */
-.ne-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}

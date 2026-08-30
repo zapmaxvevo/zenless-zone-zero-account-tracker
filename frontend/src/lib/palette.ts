@@ -7,7 +7,6 @@
  * se dibuja igual.
  */
 
-import type { AgentSource } from '../api/types';
 import type { ElementKey } from './elements';
 import { elementKey } from './elements';
 
@@ -30,34 +29,17 @@ const ELEMENTS: Record<ElementKey, string> = {
   Lumiflux: 'var(--element-lumiflux)',
 };
 
-/**
- * De dónde salió un agente.
- *
- * `enka` es el import por defecto y no se marca en pantalla. De los otros dos, el que vino
- * de una sincronización viva se pinta con el verde de estado y el tipeado a mano queda en
- * gris: es metadato, no un dato del juego, así que no toca la paleta de elementos.
- */
-const SOURCES: Record<AgentSource, string> = {
-  enka: NEUTRAL,
-  hoyolab: 'var(--green)',
-  manual: 'var(--text-dim)',
-};
-
+/** El rango propio de Pyrois se pinta con el dorado de la S, que es el que trae su icono. */
 const RANKS: Record<string, string> = {
   S: 'var(--rank-s)',
   A: 'var(--rank-a)',
   B: 'var(--rank-b)',
+  I: 'var(--rank-s)',
 };
 
 export function elementColor(element: string | null | undefined): string {
   const key = elementKey(element);
   return key === null ? NEUTRAL : ELEMENTS[key];
-}
-
-/** Color de la fuente de un agente; una fuente desconocida no inventa color. */
-export function sourceColor(source: AgentSource | null | undefined): string {
-  if (!source) return NEUTRAL;
-  return SOURCES[source] ?? NEUTRAL;
 }
 
 /** El primero de la lista manda: define el aro, la banda y la franja de la card. */

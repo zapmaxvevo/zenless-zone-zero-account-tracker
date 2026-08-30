@@ -50,11 +50,13 @@ ICONS: dict[str, dict[str, str]] = {
         "defense": "Icon_Defense.png",
         "rupture": "Icon_Rupture.png",
     },
-    # Rangos de agente. Solo S/A/B: es la escala 2..4 que maneja la app.
+    # Rangos de agente. S/A/B es la escala 2..4 que manda Enka; `i` es el rango propio de
+    # Pyrois, que en el dato de Enka viaja como una rareza 4 más (ver `rankIcon` en icons.ts).
     "rank": {
         "s": "Icon_AgentRank_S.png",
         "a": "Icon_AgentRank_A.png",
         "b": "Icon_AgentRank_B.png",
+        "i": "Icon_AgentRank_I.png",
     },
     # Tipo de ataque del agente.
     "attack": {

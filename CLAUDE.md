@@ -41,7 +41,9 @@ Where things live:
 
 - `frontend/src/styles/tokens.css` — colours, fonts, gradients, angles, chamfers
 - `frontend/src/styles/eridu.css` — every `.ne-*` class; **new shapes go here**, never inline in a screen
-- `frontend/src/components/ui/` — `AppShell`, `Hero`, `SectionHead`, `Tile`, `PortraitCard`, `Face`, `Banner`
+- `frontend/src/components/ui/` — `AppShell`, `Hero`, `SectionHead`, `Tile`, `PortraitCard`, `Face`, `Banner`, `IconTag`
 - `frontend/src/lib/palette.ts` — colour by element / rank / grade; never hardcode a hex in a screen
+- `frontend/src/lib/icons.ts` — game icons by element / specialty / rank / skill; element and
+  specialty are shown as icons, never as their written name
 - `frontend/src/lib/score.ts` — the build-score model the design's hierarchy is built on
 - `design-system/` — the synced `zzz-ui` base package (buttons, inputs, tags); the New Eridu skin sits on top

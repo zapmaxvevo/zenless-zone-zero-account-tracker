@@ -1,6 +1,5 @@
 /** Traducciones de los valores que Enka publica en inglés; si aparece uno nuevo, se muestra crudo. */
 
-import type { AgentSource } from '../api/types';
 import type { ElementKey } from './elements';
 import { elementKey } from './elements';
 
@@ -16,13 +15,6 @@ const ELEMENTS: Record<ElementKey, string> = {
   Assault: 'Embestida',
   Wind: 'Viento',
   Lumiflux: 'Lumiflujo',
-};
-
-/** De dónde salió un agente. `enka` es el import por defecto y la UI no lo marca. */
-const SOURCES: Record<AgentSource, string> = {
-  enka: 'Enka',
-  hoyolab: 'HoYoLAB',
-  manual: 'Manual',
 };
 
 const PROFESSIONS: Record<string, string> = {
@@ -54,10 +46,6 @@ export function elementLabel(element: string): string {
   return key === null ? element : ELEMENTS[key];
 }
 
-export function sourceLabel(source: AgentSource): string {
-  return SOURCES[source];
-}
-
 export function professionLabel(profession: string | null): string | null {
   if (!profession) return null;
   return PROFESSIONS[profession] ?? profession;
@@ -76,6 +64,24 @@ export function skillLabel(key: string): string {
 export function rarityLabel(rarity: number | null): string | null {
   if (rarity === null) return null;
   return RARITIES[rarity] ?? `R${rarity}`;
+}
+
+/**
+ * Agentes cuyo rango en el juego no es el de su rareza.
+ *
+ * Enka y HoYoLAB solo saben de la escala 2..4, así que Pyrois llega como una S más; en el
+ * juego tiene su propio rango. La excepción va por `game_id` porque es lo único que
+ * distingue al agente en las tres fuentes.
+ */
+const SPECIAL_RANKS: Record<number, string> = { 1551: 'I' };
+
+/**
+ * Rango de un agente: el de su rareza, salvo que tenga uno propio.
+ *
+ * Los W-Engines y los discos no tienen excepciones: esos siguen usando `rarityLabel`.
+ */
+export function agentRankLabel(rarity: number | null, gameId: number): string | null {
+  return SPECIAL_RANKS[gameId] ?? rarityLabel(rarity);
 }
 
 /** Los códigos de servidor que devuelve el backend (ver `storage/models.py`). */

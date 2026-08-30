@@ -16,12 +16,12 @@ describe('regionLabel', () => {
   });
 });
 import {
+  agentRankLabel,
   elementLabel,
   nameOr,
   professionLabel,
   rarityLabel,
   skillLabel,
-  sourceLabel,
 } from './labels';
 
 describe('rarityLabel', () => {
@@ -38,6 +38,23 @@ describe('rarityLabel', () => {
 
   it('deja pasar el null de un id que los datos estáticos no resolvieron', () => {
     expect(rarityLabel(null)).toBeNull();
+  });
+});
+
+describe('agentRankLabel', () => {
+  it('para un agente común es el rango de su rareza', () => {
+    expect(agentRankLabel(4, 1041)).toBe('S');
+    expect(agentRankLabel(3, 1011)).toBe('A');
+    expect(agentRankLabel(2, 1121)).toBe('B');
+  });
+
+  // Enka le pone rareza 4, igual que a cualquier S; el rango propio solo se sabe por el id.
+  it('Pyrois tiene su propio rango, no el de su rareza', () => {
+    expect(agentRankLabel(4, 1551)).toBe('I');
+  });
+
+  it('un agente sin rareza resuelta sigue sin rango', () => {
+    expect(agentRankLabel(null, 1041)).toBeNull();
   });
 });
 
@@ -60,14 +77,6 @@ describe('elementLabel y professionLabel', () => {
     expect(elementLabel('Plasma')).toBe('Plasma');
     expect(professionLabel('Trickster')).toBe('Trickster');
     expect(professionLabel(null)).toBeNull();
-  });
-});
-
-describe('sourceLabel', () => {
-  it('nombra las tres fuentes de un agente', () => {
-    expect(sourceLabel('enka')).toBe('Enka');
-    expect(sourceLabel('hoyolab')).toBe('HoYoLAB');
-    expect(sourceLabel('manual')).toBe('Manual');
   });
 });
 

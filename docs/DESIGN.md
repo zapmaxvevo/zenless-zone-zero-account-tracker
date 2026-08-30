@@ -168,7 +168,7 @@ Ningún color se elige por gusto: sale del dato.
 ```
 elemento   fire #ff7a45 · ice/frost #61d2ff · electric #8f8bff · physics/assault #f7d64a
            ether/auric-ink #ff5fa2 · wind #4fd9a0 · lumiflux #ffeec4
-rango      S #f3e600 · A #b06de0 · B #5aa9e6
+rango      S #f3e600 · A #b06de0 · B #5aa9e6 · I (Pyrois) #f3e600
 grade      S #f3e600 · A #b06de0 · B #5aa9e6 · C #7a808f
 ```
 
@@ -188,6 +188,41 @@ El color de elemento aparece siempre en los mismos cinco lugares, y en ninguno m
 
 Helper: `elementColor()` / `rankColor()` / `gradeColor()` en `frontend/src/lib/palette.ts`.
 No hardcodees hex en una pantalla.
+
+### El icono es el nombre
+
+El juego nombra estas categorías con un símbolo, no con una palabra, y la app hace lo mismo:
+**atributo, especialidad y rango se dibujan con su icono del juego, nunca con el nombre
+escrito.** El icono va dentro del tag, con el borde teñido por el dato como cualquier otro
+tag; el nombre traducido viaja en `title` y en un `.ne-sr-only` para lectores de pantalla, y
+solo se ve cuando la wiki todavía no ilustra ese valor.
+
+Componente: `IconTag` en `frontend/src/components/ui/IconTag.tsx`. Iconos:
+`elementIcon()` / `professionIcon()` / `rankIcon()` / `attackIcon()` / `skillIcon()` en
+`frontend/src/lib/icons.ts`; los baja `scripts/fetch_wiki_icons.py`.
+
+El icono de rango ya viene con su color puesto —S dorado, A violeta, B celeste—, así que un
+tag de rango no se tiñe aparte. **La marca de agua sí sigue siendo la letra**: es un recurso
+tipográfico (regla 5), no un tag.
+
+El rango de un agente **no siempre es el de su rareza**: Enka y HoYoLAB solo saben de la
+escala 2..4, y Pyrois llega como una S más aunque en el juego tenga su propio rango. La
+excepción vive en `agentRankLabel()` (`lib/labels.ts`), indexada por `game_id`, y todo lo
+que dibuje el rango de un **agente** pasa por ahí; `rarityLabel()` queda para W-Engines y
+discos, que no tienen excepciones.
+
+Una excepción, porque no es decoración sino texto que hay que poder tipear o comparar: los
+**selects de filtro** (roster, formularios) llevan el nombre — un `<option>` no dibuja iconos
+y el filtro se busca por palabra.
+
+Una lista de habilidades es el caso mixto: el icono va **junto** al nombre, porque ahí la
+fila es un renglón de datos, no un tag.
+
+### Lo que no es dato del juego, no se muestra
+
+De qué fuente salió un agente (Enka, el Chronicle, o tipeado a mano) es metadato del
+tracker, no del juego: **no aparece en pantalla**. La card de un agente muestra lo que el
+agente es, no cómo entró a la base.
 
 ---
 
@@ -346,7 +381,8 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 `.ne-stars` / `.ne-star.is-on`
 
 **Controles** `.ne-chip` (+`.is-active`) · `.ne-data-pill` · `.ne-ghost` · `.ne-tab` (+`-menu`,
-`.is-active`) · `.ne-burger` · `.ne-menu` · `.ne-logo` / `.ne-brand` · `.ne-tag-tint`
+`.is-active`) · `.ne-burger` · `.ne-menu` · `.ne-logo` / `.ne-brand` · `.ne-tag-tint` · `.ne-tag-row` /
+`.ne-tag-icon` · `.ne-sr-only`
 
 Las custom properties que leen esas clases: `--cut` (chaflán), `--grade` (nota de un disco),
 `--element` (barra del main stat), `--fill` (relleno de una barra), `--flare` (franja de una
@@ -367,7 +403,8 @@ frontend/index.html                 carga Archivo Black + Chakra Petch + Inter
 frontend/src/styles/tokens.css      colores, fuentes, gradientes, ángulos, chaflanes
 frontend/src/styles/eridu.css       todas las clases .ne-*
 frontend/src/lib/palette.ts         color por elemento / rango / grade
-frontend/src/components/ui/         AppShell, Hero, Tile, SectionHead, PortraitCard, …
+frontend/src/lib/icons.ts           icono por elemento / especialidad / rango / habilidad
+frontend/src/components/ui/         AppShell, Hero, Tile, SectionHead, PortraitCard, IconTag, …
 design-system/                      paquete zzz-ui: Button, Panel, Tag, Field, … (base)
 ```
 
