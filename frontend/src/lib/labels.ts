@@ -1,13 +1,20 @@
 /** Traducciones de los valores que Enka publica en inglés; si aparece uno nuevo, se muestra crudo. */
 
-const ELEMENTS: Record<string, string> = {
+import type { ElementKey } from './elements';
+import { elementKey } from './elements';
+
+/** Por atributo canónico, no por clave cruda: los alias los resuelve `elements.ts`. */
+const ELEMENTS: Record<ElementKey, string> = {
   Physics: 'Físico',
   Fire: 'Fuego',
   Ice: 'Hielo',
   Electric: 'Eléctrico',
   Ether: 'Éter',
-  AuricInk: 'Tinta áurica',
   Frost: 'Escarcha',
+  AuricInk: 'Tinta áurica',
+  Assault: 'Embestida',
+  Wind: 'Viento',
+  Lumiflux: 'Lumiflujo',
 };
 
 const PROFESSIONS: Record<string, string> = {
@@ -35,7 +42,8 @@ const RARITIES: Record<number, string> = { 2: 'B', 3: 'A', 4: 'S' };
 export const SKILL_KEYS = ['0', '1', '2', '3', '5', '6'];
 
 export function elementLabel(element: string): string {
-  return ELEMENTS[element] ?? element;
+  const key = elementKey(element);
+  return key === null ? element : ELEMENTS[key];
 }
 
 export function professionLabel(profession: string | null): string | null {
@@ -56,6 +64,38 @@ export function skillLabel(key: string): string {
 export function rarityLabel(rarity: number | null): string | null {
   if (rarity === null) return null;
   return RARITIES[rarity] ?? `R${rarity}`;
+}
+
+/**
+ * Agentes cuyo rango en el juego no es el de su rareza.
+ *
+ * Enka y HoYoLAB solo saben de la escala 2..4, así que Pyrois llega como una S más; en el
+ * juego tiene su propio rango. La excepción va por `game_id` porque es lo único que
+ * distingue al agente en las tres fuentes.
+ */
+const SPECIAL_RANKS: Record<number, string> = { 1551: 'I' };
+
+/**
+ * Rango de un agente: el de su rareza, salvo que tenga uno propio.
+ *
+ * Los W-Engines y los discos no tienen excepciones: esos siguen usando `rarityLabel`.
+ */
+export function agentRankLabel(rarity: number | null, gameId: number): string | null {
+  return SPECIAL_RANKS[gameId] ?? rarityLabel(rarity);
+}
+
+/** Los códigos de servidor que devuelve el backend (ver `storage/models.py`). */
+const REGIONS: Record<string, string> = {
+  prod_gf_us: 'América',
+  prod_gf_jp: 'Asia',
+  prod_gf_eu: 'Europa',
+  prod_gf_sg: 'TW/HK/MO',
+  prod_gf_cn: 'China',
+};
+
+export function regionLabel(region: string | null | undefined): string | null {
+  if (!region) return null;
+  return REGIONS[region] ?? region;
 }
 
 /** Nombre resuelto por el backend, con el id crudo como respaldo. */

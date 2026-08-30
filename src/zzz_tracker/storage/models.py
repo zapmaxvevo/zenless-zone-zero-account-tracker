@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -16,6 +17,29 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 SOURCE_ENKA = "enka"
 SOURCE_MANUAL = "manual"
+SOURCE_HOYOLAB = "hoyolab"
+
+CHRONICLE_SOURCE_SERVER = "server"
+CHRONICLE_SOURCE_EXTENSION = "extension"
+
+MODE_SHIYU_DEFENSE = "shiyu_defense"
+MODE_DEADLY_ASSAULT = "deadly_assault"
+
+REGIONS_BY_UID_PREFIX = {
+    "10": "prod_gf_us",
+    "13": "prod_gf_jp",
+    "15": "prod_gf_eu",
+    "17": "prod_gf_sg",
+}
+DEFAULT_REGION = "prod_gf_eu"
+CHINA_REGION = "prod_gf_cn"
+
+
+def region_for_uid(uid: str) -> str:
+    digits = uid.strip()
+    if len(digits) == 8:
+        return CHINA_REGION
+    return REGIONS_BY_UID_PREFIX.get(digits[:2], DEFAULT_REGION)
 
 
 class Base(DeclarativeBase):
@@ -50,6 +74,16 @@ class Account(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     sync_ttl_seconds: Mapped[int] = mapped_column(Integer, default=0)
 
+    region: Mapped[str] = mapped_column(String(16), default="")
+    chronicle_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    chronicle_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    chronicle_import_source: Mapped[str | None] = mapped_column(String(16), default=None)
+    chronicle_failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -65,6 +99,21 @@ class Account(Base):
         cascade="all, delete-orphan",
         order_by="Team.id",
     )
+    bangboos: Mapped[list[Bangboo]] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+        order_by="Bangboo.game_id",
+    )
+    credential: Mapped[HoyolabCredential | None] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    challenge_runs: Mapped[list[ChallengeRun]] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+        order_by="ChallengeRun.schedule_id.desc()",
+    )
 
     def next_sync_available_at(self) -> datetime | None:
         """When Enka is expected to serve fresh data again; None if never synced."""
@@ -78,6 +127,167 @@ class Account(Base):
         if next_sync is None:
             return True
         return (now or utc_now()) >= next_sync
+
+    def is_in_chronicle_backoff(self, backoff_seconds: int, now: datetime | None = None) -> bool:
+        failed_at = as_utc(self.chronicle_failed_at)
+        if failed_at is None:
+            return False
+        return (now or utc_now()) < failed_at + timedelta(seconds=backoff_seconds)
+
+    def is_chronicle_sync_due(
+        self,
+        ttl_seconds: int,
+        backoff_seconds: int = 0,
+        now: datetime | None = None,
+    ) -> bool:
+        moment = now or utc_now()
+        if self.is_in_chronicle_backoff(backoff_seconds, moment):
+            return False
+        synced_at = as_utc(self.chronicle_synced_at)
+        if synced_at is None:
+            return True
+        return moment >= synced_at + timedelta(seconds=ttl_seconds)
+
+
+class HoyolabCredential(Base):
+    __tablename__ = "hoyolab_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), unique=True, index=True
+    )
+    ltuid_v2: Mapped[str] = mapped_column(String(32))
+    encrypted_ltoken: Mapped[str] = mapped_column(Text)
+
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="credential")
+
+    @property
+    def is_rejected(self) -> bool:
+        return self.rejected_at is not None
+
+
+class Bangboo(Base):
+    __tablename__ = "bangboos"
+    __table_args__ = (UniqueConstraint("account_uid", "game_id", name="uq_bangboos_account_game"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), index=True
+    )
+    game_id: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(64), default="")
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    rarity: Mapped[int | None] = mapped_column(Integer, default=None)
+    star: Mapped[int] = mapped_column(Integer, default=0)
+    icon: Mapped[str] = mapped_column(Text, default="")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="bangboos")
+
+
+class ChallengeRun(Base):
+    __tablename__ = "challenge_runs"
+    __table_args__ = (
+        UniqueConstraint("account_uid", "mode", "schedule_id", name="uq_challenge_runs_season"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), index=True
+    )
+    mode: Mapped[str] = mapped_column(String(32), index=True)
+    schedule_id: Mapped[int] = mapped_column(Integer)
+
+    begin_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    has_data: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    rating: Mapped[str] = mapped_column(String(4), default="")
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    max_score: Mapped[int] = mapped_column(Integer, default=0)
+    total_stars: Mapped[int] = mapped_column(Integer, default=0)
+    rank_percent: Mapped[int | None] = mapped_column(Integer, default=None)
+    clear_time_seconds: Mapped[int | None] = mapped_column(Integer, default=None)
+    schema_version: Mapped[str] = mapped_column(String(8), default="")
+
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="challenge_runs")
+    entries: Mapped[list[ChallengeRunEntry]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="ChallengeRunEntry.position",
+    )
+
+
+class ChallengeRunEntry(Base):
+    __tablename__ = "challenge_run_entries"
+    __table_args__ = (
+        UniqueConstraint("run_id", "position", name="uq_challenge_run_entries_position"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("challenge_runs.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer)
+    layer_index: Mapped[int | None] = mapped_column(Integer, default=None)
+    layer_id: Mapped[int | None] = mapped_column(Integer, default=None)
+
+    name: Mapped[str] = mapped_column(String(128), default="")
+    rating: Mapped[str] = mapped_column(String(4), default="")
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    max_score: Mapped[int] = mapped_column(Integer, default=0)
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    clear_time_seconds: Mapped[int | None] = mapped_column(Integer, default=None)
+    challenged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    boss_name: Mapped[str] = mapped_column(String(128), default="")
+    boss_icon: Mapped[str] = mapped_column(Text, default="")
+    buffs: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    agents: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    bangboo_id: Mapped[int | None] = mapped_column(Integer, default=None)
+
+    run: Mapped[ChallengeRun] = relationship(back_populates="entries")
+
+
+class LostVoidProgress(Base):
+    __tablename__ = "lost_void_progress"
+
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), primary_key=True
+    )
+    license_level: Mapped[int] = mapped_column(Integer, default=0)
+    exploration_log: Mapped[int] = mapped_column(Integer, default=0)
+    max_exploration_log: Mapped[int] = mapped_column(Integer, default=0)
+    commissions_done: Mapped[int] = mapped_column(Integer, default=0)
+    commissions_total: Mapped[int] = mapped_column(Integer, default=0)
+    ultimate_challenge_score: Mapped[int] = mapped_column(Integer, default=0)
+    ultimate_challenge_tier: Mapped[str] = mapped_column(String(32), default="")
+    data_collected: Mapped[int] = mapped_column(Integer, default=0)
+
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship()
 
 
 class Agent(Base):
@@ -164,6 +374,30 @@ class DriveDisc(Base):
     item_uid: Mapped[int | None] = mapped_column(Integer, default=None)
 
     agent: Mapped[Agent] = relationship(back_populates="discs")
+
+
+class AgentBuildSnapshot(Base):
+    """The raw `avatar/info` entry an import brought for one agent.
+
+    One row per account and agent, overwritten by every import: the snapshot is the escape
+    valve for whatever the mapper does not read yet, so what matters is that it mirrors the
+    build currently stored, not how it looked last month. Keeping a history here would grow
+    without bound for a value nobody reads twice; a build history, if it ever exists, belongs
+    to the tracked build and not to a copy of the payload.
+    """
+
+    __tablename__ = "agent_build_snapshots"
+    __table_args__ = (
+        UniqueConstraint("account_uid", "game_id", name="uq_agent_build_snapshots_account_game"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), index=True
+    )
+    game_id: Mapped[int] = mapped_column(Integer)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class Team(Base):

@@ -1,0 +1,46 @@
+/* Tokens del tema New Eridu. Definidos en :root, sin provider de por medio. */
+
+:root {
+  /* Superficies */
+  --bg: #0d0e12;
+  --bg-panel: #16181f;
+  --bg-panel-2: #1e212b;
+
+  /* Bordes */
+  --border: #2a2e3a;
+  --border-strong: #3d4354;
+
+  /* Texto */
+  --text: #e8e9ee;
+  --text-dim: #9096a6;
+
+  /* Acento y semánticos */
+  --accent: #f3e600;
+  --accent-dim: #b9af1a;
+  --green: #46d18a;
+  --red: #e0555f;
+
+  /* Rangos de rareza */
+  --rank-s: #f3e600;
+  --rank-a: #b06de0;
+  --rank-b: #5aa9e6;
+
+  /* Atributos elementales */
+  --element-fire: #ff7a45;
+  --element-ice: #61d2ff;
+  --element-electric: #8f8bff;
+  --element-physics: #f7d64a;
+  --element-ether: #ff5fa2;
+
+  /* Tipografía */
+  --ui: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;
+
+  /* Radios */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  color-scheme: dark;
+}

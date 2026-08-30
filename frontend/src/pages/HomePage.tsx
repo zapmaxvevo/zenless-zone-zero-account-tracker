@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import StatusMessage from '../components/StatusMessage';
+import Hero from '../components/ui/Hero';
+import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
 import { formatDateTime } from '../lib/time';
 import { normalizeUid, uidError } from '../lib/uid';
@@ -14,6 +16,8 @@ export default function HomePage() {
   const [uid, setUid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
+
+  const items = accounts.data?.items ?? [];
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -35,40 +39,55 @@ export default function HomePage() {
   }
 
   return (
-    <>
-      <section className="panel">
-        <h2>Seguir una cuenta</h2>
-        <p className="dim">
+    <div className="ne-stack">
+      <Hero size="sm" watermark="REGISTRO">
+        <span className="ne-eyebrow">Inter-Knot // Registro</span>
+        <h2 className="ne-display ne-display-lg">Seguir una cuenta</h2>
+
+        <p className="ne-prose">
           Ingresá el UID de la cuenta. Los datos salen de la vitrina pública de Enka.Network, así
           que el perfil tiene que estar visible en el juego.
         </p>
 
-        <form className="uid-form" onSubmit={handleSubmit}>
-          <input
-            aria-label="UID de la cuenta"
-            inputMode="numeric"
-            placeholder="1300000000"
-            value={uid}
-            onChange={(event) => {
-              setUid(event.target.value);
-              setError(null);
-            }}
-          />
-          <button type="submit" disabled={tracking}>
-            {tracking ? 'Importando…' : 'Importar'}
-          </button>
-        </form>
+        <div>
+          <label className="ne-label ne-label-lg" htmlFor="uid">
+            UID de la cuenta
+          </label>
+          <form className="uid-form" onSubmit={handleSubmit}>
+            <input
+              id="uid"
+              inputMode="numeric"
+              placeholder="1300000000"
+              value={uid}
+              onChange={(event) => {
+                setUid(event.target.value);
+                setError(null);
+              }}
+            />
+            <button type="submit" className="zui-button zui-button-accent" disabled={tracking}>
+              {tracking ? 'Importando…' : 'Importar'}
+            </button>
+          </form>
+        </div>
 
         {error && <StatusMessage kind="error">{error}</StatusMessage>}
-      </section>
+      </Hero>
 
-      <section className="panel">
-        <header className="panel-header">
-          <h2>Cuentas seguidas</h2>
-          <button type="button" onClick={accounts.reload} disabled={accounts.loading}>
-            Actualizar
-          </button>
-        </header>
+      <section className="ne-panel ne-cut ne-cut-lg">
+        <SectionHead
+          title="Cuentas seguidas"
+          count={items.length}
+          action={
+            <button
+              type="button"
+              className="zui-button zui-button-sm"
+              onClick={accounts.reload}
+              disabled={accounts.loading}
+            >
+              Actualizar
+            </button>
+          }
+        />
 
         {accounts.loading && <StatusMessage kind="loading">Buscando cuentas…</StatusMessage>}
 
@@ -78,26 +97,33 @@ export default function HomePage() {
           </StatusMessage>
         )}
 
-        {!accounts.loading && accounts.data?.items.length === 0 && (
-          <StatusMessage kind="empty">Todavía no seguís ninguna cuenta.</StatusMessage>
+        {!accounts.loading && !accounts.error && items.length === 0 && (
+          <p className="ne-empty">Todavía no seguís ninguna cuenta</p>
         )}
 
-        <ul className="account-list">
-          {accounts.data?.items.map((account) => (
-            <li key={account.uid}>
-              <Link to={`/account/${account.uid}`}>
-                <strong>{account.nickname || account.uid}</strong>
-                <span className="dim small">
-                  UID {account.uid} · Nv. {account.level} · {account.agent_count} agentes
+        <div className="ne-stack">
+          {items.map((account) => (
+            <Link
+              key={account.uid}
+              className="ne-row ne-row-link ne-cut ne-cut-md"
+              to={`/account/${account.uid}`}
+            >
+              <span className="ne-row-body">
+                <span className="ne-row-main">
+                  <span className="ne-display ne-display-sm">
+                    {account.nickname || `UID ${account.uid}`}
+                  </span>
+                  <span className="ne-label">
+                    Nivel {account.level} · {account.agent_count} agentes · Última sincronización:{' '}
+                    {formatDateTime(account.last_synced_at)}
+                  </span>
                 </span>
-                <span className="dim small">
-                  Última sincronización: {formatDateTime(account.last_synced_at)}
-                </span>
-              </Link>
-            </li>
+                <span className="ne-data-pill">{account.uid}</span>
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       </section>
-    </>
+    </div>
   );
 }

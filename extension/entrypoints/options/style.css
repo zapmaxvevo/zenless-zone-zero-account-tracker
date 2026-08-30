@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #121212;
+  color: #eaeaea;
+}
+
+.options {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+h1 {
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+input {
+  background: #1d1d1d;
+  border: 1px solid #333;
+  color: #eaeaea;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.primary {
+  align-self: flex-start;
+  background: #f0c419;
+  color: #121212;
+  border: none;
+  padding: 8px 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.saved {
+  margin: 0;
+  color: #7bd88f;
+  font-size: 13px;
+}
+
+.hint {
+  margin-top: 18px;
+  font-size: 12px;
+  color: #9a9a9a;
+}

@@ -19,8 +19,11 @@ export const LIMITS = {
   discLevel: [0, 15],
   /** Procs que recibe el disco entero: 5 en un S. Es el `BreakLevel` de Enka. */
   discProcs: [0, 5],
-  /** Rolls de un substat suelto: 1 inicial más los 5 procs, si se los lleva todos. */
-  substatRolls: [0, 6],
+  /**
+   * Las tiradas de un substat, que ya incluyen la inicial (ver `effectiveRolls` en
+   * `lib/score.ts`): un substat existe con una tirada y llega a seis, nunca a cero.
+   */
+  substatRolls: [1, 6],
   skillLevel: [0, 12],
 } as const;
 
@@ -331,7 +334,13 @@ function toDiscWrite(draft: DiscDraft): DriveDiscWrite {
     substats: draft.substats.flatMap<SubstatWrite>((substat) => {
       const propId = parseId(substat.prop_id);
       if (!propId) return [];
-      return [{ prop_id: propId, value: toNumber(substat.value), rolls: toNumber(substat.rolls) }];
+      return [
+        {
+          prop_id: propId,
+          value: toNumber(substat.value),
+          rolls: toNumber(substat.rolls, LIMITS.substatRolls[0]),
+        },
+      ];
     }),
   };
 }
@@ -354,9 +363,9 @@ function parseId(text: string): number | null {
   return Number.isNaN(value) || value <= 0 ? null : value;
 }
 
-function toNumber(text: string): number {
+function toNumber(text: string, fallback = 0): number {
   const value = parseInt(text, 10);
-  return Number.isNaN(value) ? 0 : value;
+  return Number.isNaN(value) ? fallback : value;
 }
 
 function same(left: unknown, right: unknown): boolean {

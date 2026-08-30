@@ -1,0 +1,40 @@
+{
+  "name": "zzz-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sistema de diseño New Eridu del ZZZ Tracker: tokens y primitivas de UI.",
+  "main": "./dist/zzz-ui.js",
+  "module": "./dist/zzz-ui.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/zzz-ui.js"
+    },
+    "./styles.css": "./dist/zzz-ui.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  }
+}

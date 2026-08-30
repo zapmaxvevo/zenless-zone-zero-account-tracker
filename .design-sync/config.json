@@ -1,0 +1,13 @@
+{
+  "projectId": "6df275b2-b9f8-4b75-8fa3-7689d1623b03",
+  "shape": "package",
+  "pkg": "zzz-ui",
+  "globalName": "ZzzUI",
+  "buildCmd": "npm run build",
+  "cssEntry": "dist/zzz-ui.css",
+  "docsDir": "docs",
+  "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": ["docs/guides/**/*.md"],
+  "extraFonts": ["fonts/inter.css"],
+  "provider": { "component": "AppShell" }
+}

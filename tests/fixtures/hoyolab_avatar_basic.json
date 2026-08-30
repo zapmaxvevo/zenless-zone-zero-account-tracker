@@ -1,0 +1,60 @@
+{
+  "avatar_list": [
+    {
+      "id": 1041,
+      "level": 60,
+      "name_mi18n": "Soldier 11",
+      "full_name_mi18n": "Soldier 11",
+      "element_type": 201,
+      "camp_name_mi18n": "Obol Squad",
+      "avatar_profession": 1,
+      "rarity": "A",
+      "rank": 6,
+      "is_chosen": false,
+      "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1041.png",
+      "sub_element_type": 0
+    },
+    {
+      "id": 1191,
+      "level": 60,
+      "name_mi18n": "Ellen",
+      "full_name_mi18n": "Ellen Joe",
+      "element_type": 202,
+      "camp_name_mi18n": "Victoria Housekeeping",
+      "avatar_profession": 2,
+      "rarity": "S",
+      "rank": 2,
+      "is_chosen": true,
+      "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1191.png",
+      "sub_element_type": 0
+    },
+    {
+      "id": 1211,
+      "level": 55,
+      "name_mi18n": "Rina",
+      "full_name_mi18n": "Alexandrina Sebastiane",
+      "element_type": 203,
+      "camp_name_mi18n": "Victoria Housekeeping",
+      "avatar_profession": 4,
+      "rarity": "S",
+      "rank": 0,
+      "is_chosen": false,
+      "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1211.png",
+      "sub_element_type": 0
+    },
+    {
+      "id": 1131,
+      "level": 50,
+      "name_mi18n": "Soukaku",
+      "full_name_mi18n": "Soukaku",
+      "element_type": 202,
+      "camp_name_mi18n": "Hollow Special Operations Section 6",
+      "avatar_profession": 5,
+      "rarity": "A",
+      "rank": 3,
+      "is_chosen": false,
+      "role_square_url": "https://act-webstatic.hoyoverse.com/zzz/avatar/1131.png",
+      "sub_element_type": 0
+    }
+  ]
+}

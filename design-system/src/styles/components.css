@@ -1,0 +1,419 @@
+/* Estilos de los componentes del DS. Una sección por componente. */
+
+/* ---------- AppShell ---------- */
+
+.app-shell {
+  background: radial-gradient(ellipse at 50% -10%, #1c1f2b 0%, var(--bg) 60%), var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  padding: 1.25rem;
+}
+
+.app-shell-content {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ---------- Button ---------- */
+
+.zui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zui-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.zui-button:disabled,
+.zui-button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.zui-button-accent {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.zui-button-accent:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.zui-button-danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-danger:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-sm {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* ---------- Panel ---------- */
+
+.panel {
+  padding: 1.25rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.panel-title {
+  color: var(--accent);
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ---------- Tag / ElementTag / RankBadge ---------- */
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.tag-accent {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.tag-success {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.tag-danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.element-fire {
+  color: var(--element-fire);
+  border-color: var(--element-fire);
+}
+
+.element-ice {
+  color: var(--element-ice);
+  border-color: var(--element-ice);
+}
+
+.element-electric {
+  color: var(--element-electric);
+  border-color: var(--element-electric);
+}
+
+.element-physics {
+  color: var(--element-physics);
+  border-color: var(--element-physics);
+}
+
+.element-ether {
+  color: var(--element-ether);
+  border-color: var(--element-ether);
+}
+
+.rank {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--bg);
+  background: var(--text-dim);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+}
+
+.rank-S {
+  background: var(--rank-s);
+}
+
+.rank-A {
+  background: var(--rank-a);
+}
+
+.rank-B {
+  background: var(--rank-b);
+}
+
+/* ---------- StatusMessage ---------- */
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel-2);
+  font-size: 0.9rem;
+}
+
+.state-loading,
+.state-empty {
+  color: var(--text-dim);
+}
+
+.state-error {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.state > .zui-button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ---------- Field / TextInput / Select ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.field-hint-error {
+  color: var(--red);
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.field-row > .field {
+  flex: 1 1 8rem;
+}
+
+.zui-input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.zui-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.zui-input-mono {
+  font-family: var(--mono);
+}
+
+.zui-input-invalid {
+  border-color: var(--red);
+}
+
+/* ---------- MetaList ---------- */
+
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+.meta dt {
+  color: var(--text-dim);
+}
+
+.meta dd {
+  font-family: var(--mono);
+}
+
+/* ---------- StatList ---------- */
+
+.stat-list {
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.stat-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stat-label {
+  color: var(--text-dim);
+}
+
+.stat-value {
+  font-family: var(--mono);
+}
+
+.stat-note {
+  margin-left: 0.35rem;
+  color: var(--accent-dim);
+}
+
+/* ---------- EntityCard ---------- */
+
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.9rem;
+}
+
+.entity-card {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  text-decoration: none;
+}
+
+a.entity-card:hover {
+  border-color: var(--accent);
+}
+
+.entity-card-portrait {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.entity-card-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.entity-card-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.entity-card-portrait .rank {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  border-radius: var(--radius-sm) 0 0 0;
+}
+
+.entity-card-body {
+  min-width: 0;
+}
+
+.entity-card-title {
+  font-size: 0.95rem;
+  color: var(--text);
+  text-transform: none;
+  margin-bottom: 0.1rem;
+}
+
+.entity-card-body p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- EmptySlot ---------- */
+
+.empty-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}

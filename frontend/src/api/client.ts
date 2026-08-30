@@ -5,18 +5,28 @@ import type {
   AgentListResponse,
   AgentUpdate,
   AgentWrite,
+  BangbooListResponse,
   CatalogAgentRead,
   CatalogDiscSetRead,
   CatalogListResponse,
   CatalogPropertyRead,
   CatalogWEngineRead,
+  ChallengeMode,
+  ChallengeRunListResponse,
+  ChronicleSyncResponse,
+  CredentialRead,
+  CredentialWrite,
   HealthResponse,
+  LostVoidRead,
   TeamListResponse,
   TeamRead,
   TeamWrite,
 } from './types';
 
 const BASE = '/api';
+
+/** Los defaults del backend: `force` apagado y `previous` prendido. */
+export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
 
 /** Error de una respuesta HTTP no exitosa, con el `detail` que devuelve FastAPI. */
 export class ApiError extends Error {
@@ -62,6 +72,23 @@ export function extractDetail(body: unknown, fallback: string): string {
 /** Mensaje por defecto cuando el body no trae un `detail` usable. */
 export function statusFallback(status: number, statusText: string): string {
   return statusText.trim() || `Error ${status}`;
+}
+
+/**
+ * Query string con los parámetros presentes: `'?force=true'`, o `''` si no queda ninguno.
+ *
+ * Omitir un parámetro no es lo mismo que mandarlo vacío: FastAPI aplica su default solo
+ * cuando la clave no viaja.
+ */
+export function queryString(
+  params: Record<string, string | number | boolean | null | undefined>,
+): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== undefined) search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : '';
 }
 
 async function toApiError(res: Response): Promise<ApiError> {
@@ -127,6 +154,17 @@ export const api = {
   getTeam: (teamId: number | string) => get<TeamRead>(`/teams/${teamId}`),
   updateTeam: (teamId: number | string, body: TeamWrite) => put<TeamRead>(`/teams/${teamId}`, body),
   deleteTeam: (teamId: number | string) => del<void>(`/teams/${teamId}`),
+
+  storeCredentials: (uid: string, body: CredentialWrite) =>
+    put<CredentialRead>(`/accounts/${uid}/credentials`, body),
+  deleteCredentials: (uid: string) => del<void>(`/accounts/${uid}/credentials`),
+
+  syncChronicle: (uid: string, options: ChronicleSyncOptions = {}) =>
+    post<ChronicleSyncResponse>(`/accounts/${uid}/chronicle/sync${queryString(options)}`),
+  listChallenges: (uid: string, mode?: ChallengeMode) =>
+    get<ChallengeRunListResponse>(`/accounts/${uid}/challenges${queryString({ mode })}`),
+  listBangboos: (uid: string) => get<BangbooListResponse>(`/accounts/${uid}/bangboos`),
+  getLostVoid: (uid: string) => get<LostVoidRead>(`/accounts/${uid}/lost-void`),
 
   catalogAgents: () => get<CatalogListResponse<CatalogAgentRead>>('/catalog/agents'),
   catalogWEngines: () => get<CatalogListResponse<CatalogWEngineRead>>('/catalog/wengines'),

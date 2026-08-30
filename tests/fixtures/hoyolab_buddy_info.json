@@ -1,0 +1,27 @@
+{
+  "list": [
+    {
+      "id": 53001,
+      "name": "Amillion",
+      "rarity": "S",
+      "level": 60,
+      "star": 5,
+      "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53001.png"
+    },
+    {
+      "id": 53101,
+      "name": "Butler",
+      "rarity": "A",
+      "level": 45,
+      "star": 3,
+      "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53101.png"
+    },
+    {
+      "id": 53201,
+      "name": "Penguinboo",
+      "level": 50,
+      "star": 4,
+      "bangboo_rectangle_url": "https://act-webstatic.hoyoverse.com/zzz/buddy/53201.png"
+    }
+  ]
+}

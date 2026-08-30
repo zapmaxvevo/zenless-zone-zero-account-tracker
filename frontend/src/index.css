@@ -1,22 +1,7 @@
-/* Tema oscuro estilo New Eridu — base global */
+@import './styles/tokens.css';
+@import './styles/eridu.css';
 
-:root {
-  --bg: #0d0e12;
-  --bg-panel: #16181f;
-  --bg-panel-2: #1e212b;
-  --border: #2a2e3a;
-  --border-strong: #3d4354;
-  --text: #e8e9ee;
-  --text-dim: #9096a6;
-  --accent: #f3e600;
-  --accent-dim: #b9af1a;
-  --green: #46d18a;
-  --red: #e0555f;
-  --ui: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;
-
-  color-scheme: dark;
-}
+/* Base global. Las formas del diseño viven en styles/eridu.css; acá solo el reset. */
 
 * {
   box-sizing: border-box;
@@ -40,24 +25,28 @@ body {
 
 #root {
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
 }
 
 h1,
 h2,
-h3 {
+h3,
+h4 {
   line-height: 1.2;
   letter-spacing: 0.01em;
 }
 
-h1 {
-  color: var(--accent);
-  text-transform: uppercase;
-}
-
 a {
   color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #fff;
+}
+
+::selection {
+  background: var(--accent);
+  color: #0d0e12;
 }
 
 button {
@@ -66,7 +55,7 @@ button {
   color: var(--text);
   background: var(--bg-panel-2);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 0.35rem 0.9rem;
   cursor: pointer;
 }
@@ -79,4 +68,63 @@ button:hover:not(:disabled) {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* Botón del design system: la piel New Eridu no lo redefine, lo reusa. */
+
+.zui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zui-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.zui-button:disabled,
+.zui-button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.zui-button-accent {
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.zui-button-accent:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.zui-button-danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-danger:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-sm {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
 }

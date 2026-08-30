@@ -1,55 +1,192 @@
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import type { AgentRead } from '../api/types';
 import AgentCard from '../components/AgentCard';
 import StatusMessage from '../components/StatusMessage';
+import SectionHead from '../components/ui/SectionHead';
+import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
+import { elementLabel, nameOr, professionLabel } from '../lib/labels';
+import { rosterScore } from '../lib/score';
+import { useSync } from '../lib/syncContext';
+import '../styles/roster.css';
+
+type Order = 'score' | 'level' | 'name';
+
+interface Option {
+  value: string;
+  label: string;
+}
+
+/** Las opciones salen de lo que el roster tiene puesto, no de una lista fija del código. */
+function options(values: readonly (string | null)[], label: (value: string) => string): Option[] {
+  const present = [...new Set(values.filter((value): value is string => Boolean(value)))];
+  return present
+    .map((value) => ({ value, label: label(value) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function agentName(agent: AgentRead): string {
+  return nameOr(agent.name, 'Agente', agent.game_id);
+}
 
 export default function RosterPage() {
   const uid = useParams().uid ?? '';
-  const { data, error, loading, reload } = useApi(() => api.listAgents(uid), uid);
-  const agents = data?.items ?? [];
+  const { version } = useSync();
+  const { data, error, loading, reload } = useApi(() => api.listAgents(uid), `${uid}:${version}`);
+  const { art } = useAgentArt();
+
+  const [search, setSearch] = useState('');
+  const [element, setElement] = useState('');
+  const [profession, setProfession] = useState('');
+  const [order, setOrder] = useState<Order>('score');
+
+  const agents = useMemo(() => data?.items ?? [], [data]);
+
+  const elements = useMemo(
+    () =>
+      options(
+        agents.flatMap((agent) => agent.elements),
+        elementLabel,
+      ),
+    [agents],
+  );
+
+  const professions = useMemo(
+    () =>
+      options(
+        agents.map((agent) => agent.profession),
+        (value) => professionLabel(value) ?? value,
+      ),
+    [agents],
+  );
+
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const matching = agents.filter((agent) => {
+      if (element && !agent.elements.includes(element)) return false;
+      if (profession && agent.profession !== profession) return false;
+      return !query || agentName(agent).toLowerCase().includes(query);
+    });
+
+    // El orden se calcula sobre la copia: `data.items` es el que devuelve la API.
+    return [...matching].sort((a, b) => {
+      if (order === 'level') return b.level - a.level || agentName(a).localeCompare(agentName(b));
+      if (order === 'name') return agentName(a).localeCompare(agentName(b));
+      return rosterScore(b) - rosterScore(a) || agentName(a).localeCompare(agentName(b));
+    });
+  }, [agents, search, element, profession, order]);
 
   return (
-    <>
-      <nav className="crumbs">
-        <Link to="/">Cuentas</Link> <span className="dim">/</span>{' '}
-        <Link to={`/account/${uid}`}>{uid}</Link> <span className="dim">/ Roster</span>
-      </nav>
+    <section className="panel">
+      <SectionHead
+        title="Roster"
+        count={visible.length}
+        action={
+          <Link
+            className="zui-button zui-button-accent zui-button-sm"
+            to={`/account/${uid}/agents/new`}
+          >
+            Agregar agente
+          </Link>
+        }
+      />
 
-      <section className="panel">
-        <header className="panel-header">
-          <h2>Roster ({agents.length})</h2>
-          <div className="team-actions">
-            <Link className="link-button" to={`/account/${uid}/agents/new`}>
-              Agregar agente
-            </Link>
-            <button type="button" onClick={reload} disabled={loading}>
-              Actualizar
-            </button>
+      {loading && <StatusMessage kind="loading">Cargando los agentes…</StatusMessage>}
+
+      {!loading && error && (
+        <StatusMessage kind="error" onRetry={reload}>
+          {error}
+        </StatusMessage>
+      )}
+
+      {!loading && !error && agents.length === 0 && (
+        <StatusMessage kind="empty">
+          Esta cuenta no tiene agentes. Enka solo publica los que estén en la vitrina del juego:
+          ponelos ahí y sincronizá de nuevo, o cargalos a mano.
+        </StatusMessage>
+      )}
+
+      {agents.length > 0 && (
+        <>
+          <div className="field-row ne-filters">
+            <div className="field">
+              <label className="ne-label" htmlFor="roster-search">
+                Buscar
+              </label>
+              <input
+                id="roster-search"
+                type="search"
+                value={search}
+                placeholder="Nombre del agente"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label className="ne-label" htmlFor="roster-element">
+                Atributo
+              </label>
+              <select
+                id="roster-element"
+                value={element}
+                onChange={(event) => setElement(event.target.value)}
+              >
+                <option value="">Todos</option>
+                {elements.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label className="ne-label" htmlFor="roster-profession">
+                Especialidad
+              </label>
+              <select
+                id="roster-profession"
+                value={profession}
+                onChange={(event) => setProfession(event.target.value)}
+              >
+                <option value="">Todas</option>
+                {professions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label className="ne-label" htmlFor="roster-order">
+                Orden
+              </label>
+              <select
+                id="roster-order"
+                value={order}
+                onChange={(event) => setOrder(event.target.value as Order)}
+              >
+                <option value="score">Score de build</option>
+                <option value="level">Nivel</option>
+                <option value="name">Nombre</option>
+              </select>
+            </div>
           </div>
-        </header>
 
-        {loading && <StatusMessage kind="loading">Cargando los agentes…</StatusMessage>}
-
-        {!loading && error && (
-          <StatusMessage kind="error" onRetry={reload}>
-            {error}
-          </StatusMessage>
-        )}
-
-        {!loading && !error && agents.length === 0 && (
-          <StatusMessage kind="empty">
-            Esta cuenta no tiene agentes. Enka solo publica los que estén en la vitrina del juego:
-            ponelos ahí y sincronizá de nuevo, o cargalos a mano.
-          </StatusMessage>
-        )}
-
-        <div className="agent-grid">
-          {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
-      </section>
-    </>
+          {visible.length === 0 ? (
+            <StatusMessage kind="empty">Ningún agente coincide con el filtro.</StatusMessage>
+          ) : (
+            <div className="ne-grid-cards">
+              {visible.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} art={art(agent.game_id)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

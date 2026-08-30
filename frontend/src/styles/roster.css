@@ -1,0 +1,16 @@
+/**
+ * Las dos formas que el roster necesita y la piel compartida todavía no tiene.
+ *
+ * Nada de esto pisa a `eridu.css`: son ajustes de encaje entre los campos base de `App.css`
+ * y la densidad de la piel New Eridu.
+ */
+
+/** Barra de filtros: separada de la grilla por el gap de bloque de la regla 9. */
+.ne-filters {
+  margin-bottom: 12px;
+}
+
+/** Dentro de la barra los campos ya están alineados por la fila: sobra el margen de arriba. */
+.ne-filters .field {
+  margin-top: 0;
+}

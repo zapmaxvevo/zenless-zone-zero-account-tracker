@@ -1,5 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { elementLabel, nameOr, professionLabel, rarityLabel, skillLabel } from './labels';
+import { regionLabel } from './labels';
+
+describe('regionLabel', () => {
+  it('traduce los códigos de servidor del backend', () => {
+    expect(regionLabel('prod_gf_us')).toBe('América');
+    expect(regionLabel('prod_gf_eu')).toBe('Europa');
+  });
+
+  it('un servidor desconocido se muestra crudo en vez de inventarle nombre', () => {
+    expect(regionLabel('prod_gf_mars')).toBe('prod_gf_mars');
+  });
+
+  it('sin servidor no hay etiqueta', () => {
+    expect(regionLabel(null)).toBeNull();
+  });
+});
+import {
+  agentRankLabel,
+  elementLabel,
+  nameOr,
+  professionLabel,
+  rarityLabel,
+  skillLabel,
+} from './labels';
 
 describe('rarityLabel', () => {
   it('traduce la escala 2..4 al rango por letra que usa el juego', () => {
@@ -18,11 +41,36 @@ describe('rarityLabel', () => {
   });
 });
 
+describe('agentRankLabel', () => {
+  it('para un agente común es el rango de su rareza', () => {
+    expect(agentRankLabel(4, 1041)).toBe('S');
+    expect(agentRankLabel(3, 1011)).toBe('A');
+    expect(agentRankLabel(2, 1121)).toBe('B');
+  });
+
+  // Enka le pone rareza 4, igual que a cualquier S; el rango propio solo se sabe por el id.
+  it('Pyrois tiene su propio rango, no el de su rareza', () => {
+    expect(agentRankLabel(4, 1551)).toBe('I');
+  });
+
+  it('un agente sin rareza resuelta sigue sin rango', () => {
+    expect(agentRankLabel(null, 1041)).toBeNull();
+  });
+});
+
 describe('elementLabel y professionLabel', () => {
   it('traducen lo que Enka publica en inglés', () => {
     expect(elementLabel('Fire')).toBe('Fuego');
     expect(elementLabel('AuricInk')).toBe('Tinta áurica');
     expect(professionLabel('Anomaly')).toBe('Anomalía');
+  });
+
+  it('traducen también los nombres crudos de los datos estáticos', () => {
+    expect(elementLabel('Elec')).toBe('Eléctrico');
+    expect(elementLabel('AuricEther')).toBe('Tinta áurica');
+    expect(elementLabel('FireFrost')).toBe('Escarcha');
+    expect(elementLabel('Lumen')).toBe('Lumiflujo');
+    expect(professionLabel('Rupture')).toBe('Ruptura');
   });
 
   it('muestran crudo un valor nuevo en vez de romperse', () => {

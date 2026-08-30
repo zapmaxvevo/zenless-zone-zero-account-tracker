@@ -27,6 +27,21 @@ def test_expected_routes_are_registered(client: TestClient) -> None:
     assert EXPECTED_ROUTES.issubset(schema["paths"])
 
 
+def test_cors_preflight_from_an_extension_is_accepted(client: TestClient) -> None:
+    response = client.options(
+        "/accounts/123/chronicle/import",
+        headers={
+            "Origin": "moz-extension://0000-1111",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
 def test_app_state_holds_settings_and_collaborators(app: FastAPI, settings: Settings) -> None:
     assert app.state.settings is settings
     assert app.state.db.database_url == settings.database_url

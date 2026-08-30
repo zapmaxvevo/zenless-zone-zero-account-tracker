@@ -1,0 +1,424 @@
+/**
+ * Las formas que las cuatro pantallas del Chronicle necesitan y la piel compartida no tiene.
+ *
+ * Nada de esto pisa a `eridu.css`: son bloques propios del Chronicle (temporada, intento,
+ * escuadra, bangboo) compuestos con los mismos tokens y los mismos ángulos. Ver
+ * docs/DESIGN.md.
+ */
+
+/* ---------- Navegación de sección ---------- */
+
+.ne-chronicle-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ne-chronicle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/** Los chips son `NavLink`, no botones: el `<a>` global les pondría el amarillo del link. */
+.ne-chronicle-nav a.ne-chip {
+  display: inline-block;
+  color: var(--text-dim);
+}
+
+.ne-chronicle-nav a.ne-chip:hover {
+  color: #fff;
+}
+
+.ne-chronicle-nav a.ne-chip.is-active {
+  color: #0d0e12;
+}
+
+/** Empuja el botón de sincronizar y el acceso a credenciales al extremo derecho. */
+.ne-chronicle-gap {
+  flex: 1;
+  min-width: 8px;
+}
+
+/* ---------- Temporada ---------- */
+
+.ne-season {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+.ne-season-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/** La temporada en curso es el estado activo de la pantalla: va en amarillo (regla 6). */
+.ne-season-tag {
+  flex: none;
+  padding: 7px 12px;
+  background: var(--bg-panel-2);
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ne-season-tag.is-current {
+  background: var(--accent);
+  color: #0d0e12;
+}
+
+.ne-season-window {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ne-season-rating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+}
+
+.ne-season-rating-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/** El rating global de la temporada es la cifra protagonista de la cabecera. */
+.ne-season-figure {
+  font-size: 50px;
+}
+
+/** La barra inclinada que acompaña al rating: la firma de los 19° en chico. */
+.ne-slash {
+  flex: none;
+  align-self: stretch;
+  width: 5px;
+  margin: -3px 0;
+  background: var(--accent);
+  transform: rotate(var(--rot-beam));
+}
+
+/** En una fila la grilla de datos ocupa lo que sobra; abajo de 360px se baja sola. */
+.ne-season-stats {
+  flex: 1 1 360px;
+}
+
+.ne-season-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.ne-season-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/** Capa jugada: fondo de acento tenue. La no jugada es un slot libre, no un error (regla 11). */
+.ne-layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  background: rgba(243, 230, 0, 0.08);
+  border: 1px solid var(--border-strong);
+}
+
+.ne-layer.is-empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+.ne-layer-index {
+  font-family: var(--font-tech);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.ne-layer-stars {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.ne-layer.is-empty .ne-layer-index,
+.ne-layer.is-empty .ne-layer-stars {
+  color: var(--text-dim);
+}
+
+.ne-attempts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- Intento ---------- */
+
+.ne-attempt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+
+.ne-attempt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/** El jefe del intento: retrato redondo con sus iniciales cuando no hay icono. */
+.ne-attempt-boss {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  background: var(--bg-panel);
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  font-family: var(--font-tech);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+.ne-attempt-boss img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ne-attempt-title {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ne-attempt-name {
+  text-transform: uppercase;
+}
+
+.ne-attempt-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 18px;
+  margin-left: auto;
+}
+
+.ne-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/** Los buffs de la temporada: el único texto corrido del intento. */
+.ne-buffs {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  background: rgba(243, 230, 0, 0.04);
+  border: 1px solid var(--border);
+}
+
+.ne-buff-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ---------- Escuadra del intento ---------- */
+
+.ne-squad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ne-squad-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 11px 6px 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+/** El cuadrado del agente: barra de rango abajo, aro del atributo alrededor (regla 7). */
+.ne-squad-face {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  background: var(--ink);
+  border: 1px solid var(--element, var(--border));
+  border-bottom: 2px solid var(--rank, var(--border-strong));
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+.ne-squad-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ne-squad-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/** El bangboo no es un agente: va en un slot aparte, con el borde punteado del vacío. */
+.ne-bangboo-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-strong);
+}
+
+/* ---------- Vacío Perdido ---------- */
+
+.ne-grid-void {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 10px;
+}
+
+/** Cifra y su tope en la misma línea: `1240 / 2000`. */
+.ne-void-value {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+/* ---------- Bangboos ---------- */
+
+.ne-grid-boos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.ne-boo {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 13px 14px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+
+.ne-boo-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  height: 118px;
+  background: var(--ink);
+}
+
+.ne-boo-art img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.ne-boo-fallback {
+  font-family: var(--font-tech);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+/** El rango, arriba a la derecha del retrato y teñido por el rango mismo. */
+.ne-boo-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 9px;
+  background: var(--ink);
+  border-left: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  font-family: var(--font-tech);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--rank, var(--accent));
+}
+
+.ne-boo-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ---------- Conectar HoYoLAB ---------- */
+
+/** Lo que un panel de conexión apila debajo de su encabezado: prosa, pasos, estado. */
+.ne-connect-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 860px;
+}
+
+/** Nombres de variable y de cookie se leen carácter por carácter: van en mono, como el UID. */
+.ne-connect-token {
+  padding: 2px 6px;
+  background: var(--ink);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+}
+
+.ne-cred-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 540px;
+}
+
+/** Las cookies se leen carácter por carácter: van en mono, como el UID. */
+.ne-cred-form .field input {
+  font-family: var(--mono);
+}

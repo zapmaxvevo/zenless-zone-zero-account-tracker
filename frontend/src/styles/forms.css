@@ -1,0 +1,58 @@
+/** Fila de campos a la densidad de la regla 9: 10px adentro, 12px contra el bloque anterior. */
+.ne-field-row {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ne-field-row .field,
+.ne-field-row > button {
+  margin-top: 0;
+}
+
+/** Casilla de verificación: etiqueta técnica y el tilde en amarillo, que es el estado activo. */
+.ne-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-tech);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ne-check input {
+  accent-color: var(--accent);
+}
+
+/* ---------- Disco editable ---------- */
+
+.ne-disc-fields {
+  gap: 0;
+  padding-bottom: 14px;
+}
+
+/** Slot vacío: borde punteado y sin color de rango. Un disco libre es info, no un problema. */
+.ne-disc-fields.is-empty {
+  border-style: dashed;
+  border-top-color: var(--border);
+}
+
+.ne-disc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/** El bloque de substats: chaflán y borde sólido, nunca el punteado del estado vacío. */
+.ne-substats {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+}
+
+.ne-substats legend {
+  padding: 0 6px;
+}

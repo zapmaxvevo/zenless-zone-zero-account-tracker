@@ -2,6 +2,8 @@ import type { CatalogDiscSetRead, CatalogPropertyRead } from '../api/types';
 import type { DiscDraft, SubstatDraft } from '../lib/agentDraft';
 import { DISC_RARITIES, LIMITS, MAX_SUBSTATS, emptyDiscDraft } from '../lib/agentDraft';
 import { rarityLabel } from '../lib/labels';
+import { rarityColor } from '../lib/palette';
+import '../styles/forms.css';
 
 interface DiscFieldsProps {
   disc: DiscDraft;
@@ -22,11 +24,17 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
     patch({ substats });
   }
 
+  // La línea de arriba toma el color del rango elegido: el color sale del dato (regla 7).
+  const grade = disc.equipped ? rarityColor(parseInt(disc.rarity, 10)) : 'var(--border)';
+
   return (
-    <article className={`disc ${disc.equipped ? '' : 'disc-empty'}`}>
-      <header className="disc-header">
-        <span className="disc-slot">{disc.slot}</span>
-        <label className="checkbox">
+    <article
+      className={`ne-disc ne-cut ne-cut-md ne-disc-fields${disc.equipped ? '' : ' is-empty'}`}
+      style={{ ['--grade' as string]: grade }}
+    >
+      <header className="ne-disc-head">
+        <span className={`ne-slot${disc.equipped ? '' : ' ne-slot-empty'}`}>{disc.slot}</span>
+        <label className="ne-check">
           <input
             type="checkbox"
             checked={disc.equipped}
@@ -43,7 +51,9 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
       {disc.equipped && (
         <>
           <div className="field">
-            <label htmlFor={`disc-${disc.slot}-set`}>Set</label>
+            <label className="ne-label" htmlFor={`disc-${disc.slot}-set`}>
+              Set
+            </label>
             <select
               id={`disc-${disc.slot}-set`}
               value={disc.set_id}
@@ -58,9 +68,11 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </select>
           </div>
 
-          <div className="field-row">
+          <div className="field-row ne-field-row">
             <div className="field">
-              <label htmlFor={`disc-${disc.slot}-rarity`}>Rango</label>
+              <label className="ne-label" htmlFor={`disc-${disc.slot}-rarity`}>
+                Rango
+              </label>
               <select
                 id={`disc-${disc.slot}-rarity`}
                 value={disc.rarity}
@@ -75,7 +87,9 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </div>
 
             <div className="field">
-              <label htmlFor={`disc-${disc.slot}-level`}>Nivel</label>
+              <label className="ne-label" htmlFor={`disc-${disc.slot}-level`}>
+                Nivel
+              </label>
               <input
                 id={`disc-${disc.slot}-level`}
                 type="number"
@@ -87,7 +101,9 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </div>
 
             <div className="field">
-              <label htmlFor={`disc-${disc.slot}-rolls`}>Rolls</label>
+              <label className="ne-label" htmlFor={`disc-${disc.slot}-rolls`}>
+                Rolls
+              </label>
               <input
                 id={`disc-${disc.slot}-rolls`}
                 type="number"
@@ -99,9 +115,11 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </div>
           </div>
 
-          <div className="field-row">
+          <div className="field-row ne-field-row">
             <div className="field">
-              <label htmlFor={`disc-${disc.slot}-main`}>Stat principal</label>
+              <label className="ne-label" htmlFor={`disc-${disc.slot}-main`}>
+                Stat principal
+              </label>
               <select
                 id={`disc-${disc.slot}-main`}
                 value={disc.main_stat_id}
@@ -117,7 +135,9 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </div>
 
             <div className="field">
-              <label htmlFor={`disc-${disc.slot}-main-value`}>Valor</label>
+              <label className="ne-label" htmlFor={`disc-${disc.slot}-main-value`}>
+                Valor
+              </label>
               <input
                 id={`disc-${disc.slot}-main-value`}
                 type="number"
@@ -128,11 +148,12 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             </div>
           </div>
 
-          <fieldset className="substat-fields">
-            <legend className="dim small">Substats (valor crudo de Enka: 480 es 4,8%)</legend>
+          <fieldset className="ne-substats ne-cut ne-cut-md">
+            <legend className="ne-label">Substats</legend>
+            <p className="ne-prose">Valor crudo de Enka: 480 es 4,8%.</p>
 
             {disc.substats.map((substat, index) => (
-              <div className="field-row" key={index}>
+              <div className="field-row ne-field-row" key={index}>
                 <div className="field">
                   <select
                     aria-label={`Substat ${index + 1} del disco ${disc.slot}`}
@@ -171,6 +192,7 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
 
                 <button
                   type="button"
+                  className="zui-button zui-button-danger zui-button-sm"
                   onClick={() =>
                     patch({ substats: disc.substats.filter((_, position) => position !== index) })
                   }
@@ -181,14 +203,23 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
             ))}
 
             {disc.substats.length < MAX_SUBSTATS && (
-              <button
-                type="button"
-                onClick={() =>
-                  patch({ substats: [...disc.substats, { prop_id: '', value: '0', rolls: '0' }] })
-                }
-              >
-                Agregar substat
-              </button>
+              <div className="ne-field-row">
+                <button
+                  type="button"
+                  className="zui-button zui-button-sm"
+                  onClick={() =>
+                    patch({
+                      substats: [
+                        ...disc.substats,
+                        // Un substat nace con su tirada inicial ya contada: nunca con cero.
+                        { prop_id: '', value: '0', rolls: String(LIMITS.substatRolls[0]) },
+                      ],
+                    })
+                  }
+                >
+                  Agregar substat
+                </button>
+              </div>
             )}
           </fieldset>
         </>
