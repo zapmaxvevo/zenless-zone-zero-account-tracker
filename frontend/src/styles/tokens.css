@@ -28,6 +28,8 @@
   --element-electric: #8f8bff;
   --element-physics: #f7d64a;
   --element-ether: #ff5fa2;
+  --element-wind: #4fd9a0;
+  --element-lumiflux: #ffeec4;
 
   --ui: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;

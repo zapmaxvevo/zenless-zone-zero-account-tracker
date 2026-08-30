@@ -10,17 +10,33 @@ from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
 SCHEMA_V1 = "v1"
 SCHEMA_V2 = "v2"
 
+ZZZ_GAME_ID = 8
+
 RATING_ORDER = ("B", "A", "S", "S+")
 RATING_STARS = {"B": 1, "A": 2, "S": 3, "S+": 3}
 RARITY_BY_LETTER = {"B": 2, "A": 3, "S": 4}
 
+# Where a profile might hide inside a chronicle payload. Never confirmed against the real
+# API: the `index` a browser actually receives carries `stats`, `avatar_list`, `buddy_list`,
+# `cat_notes_list`, `game_data_show`, `area_collections`, `award_state` and
+# `challenge_schedule_list`, and no profile at all — neither nickname, nor level, nor UID.
+# The record card answers for those, and these keys are left as a courtesy to whatever
+# region or version does send a profile.
 PROFILE_KEYS = ("role", "profile", "player", "cur_role", "account", "game_role")
 NICKNAME_KEYS = ("nickname", "nick_name", "name")
 UID_KEYS = ("game_role_id", "game_uid", "uid", "role_id")
 LEVEL_KEYS = ("level", "role_level", "avatar_level")
 AGENT_ICON_KEYS = ("role_square_url", "square_icon", "avatar_icon", "icon", "vertical_painting_url")
 AGENT_NAME_KEYS = ("name_mi18n", "full_name_mi18n", "name")
-BANGBOO_ICON_KEYS = ("bangboo_rectangle_url", "square_icon", "role_square_url", "icon")
+# `bangboo_square_url` is the one observed against the real API (2026-08-30); the rest are
+# conjectures from before anyone had cookies, kept only as a fallback.
+BANGBOO_ICON_KEYS = (
+    "bangboo_square_url",
+    "bangboo_rectangle_url",
+    "square_icon",
+    "role_square_url",
+    "icon",
+)
 
 LAYER_DETAIL_SUFFIX = "_layer_detail"
 LAYER_ORDINALS: tuple[tuple[str, ...], ...] = (
@@ -106,6 +122,15 @@ class ParsedLostVoid:
 
 @dataclass(frozen=True, slots=True)
 class ParsedChronicleAccount:
+    nickname: str
+    level: int
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedRecordCard:
+    """Who the chronicle belongs to, which the chronicle itself never says."""
+
+    uid: str
     nickname: str
     level: int
 
@@ -575,7 +600,42 @@ def parse_lost_void(data: dict[str, Any]) -> ParsedLostVoid | None:
     )
 
 
+def parse_record_card(data: dict[str, Any]) -> ParsedRecordCard | None:
+    """Read the ZZZ entry of `getGameRecordCard`, the only payload that names the player.
+
+    The card is the game list of a HoYoLAB profile, so it is checked to be the ZZZ one before
+    its UID is believed: a card of another game would otherwise refuse a perfectly good
+    import. A card with nothing to say is no card at all.
+    """
+    payload = _as_dict(data)
+    game_id = _as_optional_int(payload.get("game_id"))
+    if game_id is not None and game_id != ZZZ_GAME_ID:
+        return None
+
+    uid = _as_str(_first_present(payload, *UID_KEYS))
+    nickname = _as_str(_first_present(payload, *NICKNAME_KEYS))
+    level = _as_int(_first_present(payload, *LEVEL_KEYS))
+    if not uid and not nickname and not level:
+        return None
+    return ParsedRecordCard(uid=uid, nickname=nickname, level=level)
+
+
+def parse_challenge_nickname(data: dict[str, Any]) -> str:
+    """The nickname the challenge payloads carry at their root, the cheapest fallback there is.
+
+    Both `hadal_info_v2` and `hadal_mem_detail_v2` sign their answer with `nick_name`, so a
+    sync with no record card still learns the name of the account it is writing.
+    """
+    return _as_str(_first_present(_as_dict(data), *NICKNAME_KEYS))
+
+
 def parse_chronicle_account(data: dict[str, Any]) -> ParsedChronicleAccount | None:
+    """Read the profile out of the `index`, for the versions of it that carry one.
+
+    The captured `index` has no profile whatsoever, so this returns `None` for the payload a
+    browser receives today; see `PROFILE_KEYS`. The record card is what actually names the
+    account, and this stays as the fallback.
+    """
     payload = _as_dict(data)
     sources = [payload, *(_as_dict(payload.get(key)) for key in PROFILE_KEYS)]
     for source in sources:
@@ -587,6 +647,7 @@ def parse_chronicle_account(data: dict[str, Any]) -> ParsedChronicleAccount | No
 
 
 def parse_chronicle_uid(data: dict[str, Any]) -> str:
+    """The UID the `index` claims, empty for the real payload, which never claims one."""
     payload = _as_dict(data)
     for source in (payload, *(_as_dict(payload.get(key)) for key in PROFILE_KEYS)):
         uid = _as_str(_first_present(source, *UID_KEYS))

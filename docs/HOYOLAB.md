@@ -139,7 +139,7 @@ Los endpoints se reparten en dos convenciones **para los mismos dos valores**:
 
 | Convención | Endpoints |
 |---|---|
-| `role_id` + `server` | `index`, `avatar/basic`, `buddy/info`, `hadal_info_v2` |
+| `role_id` + `server` | `index`, `avatar/basic`, `avatar/info`, `buddy/info`, `hadal_info_v2` |
 | `uid` + `region` | el resto (`hadal_mem_detail_v2`, `abysss2_abstract`) |
 
 `HoyolabClient._get` lo resuelve con `uid_param`, que arrastra el nombre del parámetro de
@@ -163,6 +163,69 @@ error contra la API.
 
 Todos devuelven el `data` crudo del payload (dict vacío si falta o si no es un dict). El HTTP
 y el `retcode` los maneja `_get`; el parseo lo hace el mapper.
+
+### `avatar/info`: la build completa, un agente por request
+
+No lo llama `HoyolabClient` (el backend no sale a la red en el import); lo llama la extensión.
+Verificado el 2026-08-30 contra la API real, con captura guardada en
+`tests/fixtures/hoyolab_avatar_info.json`.
+
+```
+GET …/api/zzz/avatar/info?id_list[]=<game_id>&need_wiki=false&role_id=<uid>&server=<region>
+```
+
+Dos cosas que cuestan una tarde si se descubren a mano:
+
+- **Los corchetes van repetidos, no indexados.** `id_list[]=1091` responde `retcode 0`;
+  `id_list[0]=1091` responde **`-400005` "Parameter Error"**. El plan original decía lo
+  contrario, leyendo el bundle desminificado.
+- **Acepta un solo id por request.** `id_list[]=a&id_list[]=b` también da `-400005`, con 3 ids
+  y con 36. Un roster de 36 agentes son 36 requests: ~50 s serializados con jitter de
+  300–800 ms. Por eso el sync de la extensión es incremental contra `avatar/basic`, que en un
+  único request da `level` y `rank` de todo el roster.
+
+`need_wiki=false` saca `avatar_wiki` / `strategy_wiki` / `equip_wiki` / `weapon_wiki`, que son
+links a la wiki y ruido para el tracker. La respuesta trae `data.avatar_list` con **un**
+agente.
+
+#### Mapeo a los modelos, y las dos trampas
+
+El espacio de ids es **el mismo que el de Enka**: `StaticData.disc_rarity()` y
+`disc_set_id()` responden bien con el `equip[].id` de HoYoLAB. Todo lo de abajo se verificó
+contra los seis agentes que ya estaban guardados por Enka en una cuenta real — coincidencia
+exacta en 137 substats, 36 discos, 6 W-Engines y 36 skills.
+
+| Modelo | De dónde sale |
+|---|---|
+| `Agent.mindscape_level` | `rank` |
+| `Agent.skill_levels` | `skills[]` como `{str(skill_type): level}`; los `skill_type` (0,1,2,3,5,6) son las mismas claves que guarda Enka |
+| `Agent.core_skill_enhancement` | `skills[skill_type=5].level - 1` (HoYoLAB 7 ≡ Enka 6) |
+| `Agent.promotion_level` | **no viene**: se deriva del `level` |
+| `DriveDisc.slot` | `equip[].equipment_type` |
+| `DriveDisc.game_id` / `set_id` | `equip[].id` / `equip[].equip_suit.suit_id` |
+| `DriveDisc.roll_count` | **no viene**: `level // 3` (un disco nivel 15 tiene 5) |
+| `WEngine.phase` | `weapon.star` |
+| `WEngine.modification_level` | **no viene**: se deriva del `level` |
+
+**Trampa 1 — el valor del substat está acumulado.** HoYoLAB manda el total (`base: "27"` con
+`level: 3`) y el modelo guarda **el paso por tirada**, que es lo que publica Enka (`value: 9`).
+La conversión es `value = base / level`. Mapear `base` directo triplica los substats y rompe
+todos los scores sin que salte ningún test.
+
+**Trampa 2 — `base` es un string y los porcentajes van ×100.** `"38"` → `38`, `"4.8%"` → `480`.
+Es la escala de Enka y la que espera `formatStatValue` en el frontend.
+
+El conteo de tiradas es `properties[].level`, **no** `properties[].add`: `add` son las mejoras
+posteriores y `level` es el total incluyendo la inicial, que es lo que significa `rolls` en el
+modelo. La aritmética lo confirma: un disco nivel 15 tiene 5 mejoras, así que sus substats
+suman 8 o 9 tiradas (3 o 4 iniciales + 5), y eso es exactamente lo que suman.
+
+**Lo que HoYoLAB da y Enka no**: el `main_properties` de cada disco. Enka nunca lo mandó (los
+36 discos capturados tienen `main_stat_id` en NULL), así que el import de la extensión no solo
+agrega los agentes fuera del showcase: completa el stat principal de los que ya estaban.
+
+**Lo que Enka da y HoYoLAB no**: `item_uid` de discos y W-Engines, `weapon_effect_state` y
+`obtained_at`.
 
 ### Temporadas: solo hay dos
 
@@ -201,6 +264,11 @@ dentro del body. `HoyolabClient._raise_for_retcode` lo traduce a excepciones de 
 | `10101`, `-110`, `1028` | `RETCODES_RATE_LIMITED` | `RateLimitedError` | 429 |
 | `1034`, `10035`, `5003`, `10041` | `RETCODES_CAPTCHA` | `CaptchaRequiredError` | 503 |
 | cualquier otro | — | `ExternalServiceError` | 502 |
+
+`-400005` ("Parameter Error") no está en la tabla porque no lo produce el usuario ni la
+sesión: significa que **nosotros** armamos mal la query. Se observó en `avatar/info` con
+`id_list` indexado y con más de un id. Cae en `ExternalServiceError`; la extensión sí lo
+distingue, para no decirle al usuario que su sesión venció cuando el bug es nuestro.
 
 **El `message` de HoYoLAB se propaga en las cinco ramas**, no solo en el fallback: las cuatro
 mapeadas lo agregan entre paréntesis al final del detalle cuando viene no vacío (`" (Not
@@ -565,8 +633,20 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
   tracker). Cualquier otra sección ausente o `null` se salta y se lista en
   `skipped_sections`; una temporada presente pero con `has_data == false` va a
   `unavailable_modes`, igual que en el sync.
-- **`avatar_info` se acepta pero no escribe builds todavía** (fase 3): se reporta en
-  `skipped_sections` y `builds_synced` queda en `0`.
+- **`avatar_info` escribe builds completas** de todo el roster, una respuesta por agente
+  (ver *`avatar/info`: la build completa*). Se persiste después del roster de `avatar_basic`,
+  para que el dato completo pise al parcial, y `builds_synced` cuenta los agentes escritos.
+  Va a `skipped_sections` solo cuando la sección falta o viene vacía — que es lo normal en un
+  import incremental donde ningún agente cambió. El `data` crudo de cada agente queda además
+  en `agent_build_snapshots` (una fila por cuenta y agente, pisada en cada import): es la
+  válvula de escape para lo que el mapper todavía no lee.
+- **`record_card`** es la entrada de ZZZ de `getGameRecordCard`, recortada por la extensión a
+  `game_role_id`, `nickname`, `region`, `level`, `is_public` y `has_role` (recortada a
+  propósito: la card trae también las otras cuentas de HoYoverse del usuario). Es el único
+  payload que nombra la cuenta, porque el `index` no trae ni UID ni nickname ni nivel, así que
+  de ahí salen el nombre, el nivel y el UID contra el que se valida el path. No es un endpoint
+  del chronicle y el sync server-side no puede pedirlo, así que **nunca** se reporta como
+  sección saltada.
 - El import **no** toca `HoyolabCredential` (ni `last_used_at`), ni TTL, ni backoff: no hubo
   red del lado del backend. Sí escribe `chronicle_synced_at`, `region` (la del body; si viene
   vacía se deriva del UID, rechazando China), `chronicle_public = True` y
@@ -798,27 +878,36 @@ Si algún día la clave aparece, **no hay que tocar el mapper**:
 `_parse_deadly_assault_entry` ya lee `info.get("rating")` de forma tolerante y `_best_rating`
 lo levantaría solo. Alcanzaría con actualizar la fixture y borrar esta sección.
 
-### El contrato no está verificado contra la API real
+### El contrato, verificado a medias (2026-08-30)
 
-Las fixtures están **escritas a mano** a partir de lo investigado, no capturadas: nadie tuvo
-cookies válidas. El mapper está probado contra ellas, o sea que está probado contra *nuestra
-idea* del payload. Los helpers `_first_present` del mapper existen precisamente por eso: la
-mayoría de los nombres alternativos que prueban son conjeturas, no campos observados.
+Hasta agosto de 2026 las fixtures estaban **escritas a mano**: nadie tenía cookies, así que el
+mapper estaba probado contra *nuestra idea* del payload. Los helpers `_first_present` existen
+por eso — la mayoría de los nombres alternativos que prueban son conjeturas.
 
-Lo que **no** está verificado, ordenado por cuánto puede doler:
+Las capturas de la fase 0 de la extensión (`extension/scripts/capture.js`, con la sesión del
+usuario) resolvieron una parte. Lo verificado:
 
-| Sin verificar | Por qué importa | Si está mal, qué se rompe |
-|---|---|---|
-| Nombres de campo de **Shiyu V2** (`fitfh_layer_detail`, `layer_challenge_info_list`, `monster_pic`, `brief.*`) | es el esquema más nuevo y el que menos rastro público tiene | la run se guarda con ceros, o `parse_shiyu_defense` cae al camino V1 |
-| Si `name` / `boss_name` / `boss_icon` viven en el item o en el layer | el fallback a la capa se escribió sin saberlo | nada, si están en alguno de los dos; el fallback cubre ambos casos |
-| Cómo se llaman las **capas bajas** de Shiyu V2 (`first_layer_detail` … `third_layer_detail`) | son conjetura por analogía con `fourth`/`fitfh`, las únicas dos con rastro público | poco: el barrido de `*_layer_detail` las levanta igual, solo que sin `layer_index`. Se pierden únicamente si la clave no termina en `_layer_detail` |
-| Qué **capa pertenece a qué nodo** (Estable / Disputado / Inestable) | es lo que haría falta para separar los nodos en la UI | nada hoy: no se infiere. Sin esto, la UI solo puede agrupar por capa |
-| **Ausencia de rating en Deadly Assault** | ver arriba | nada: el mapper lo levantaría solo |
-| **Lectura del Chronicle de terceros** | razonada sobre la app oficial; el cliente nunca manda `isHost` | `retcode 10102`, o datos de la cuenta propia en vez de la ajena |
-| `rank_percent` en **centésimas** (`250` = 2,5 %) | la división por 100 está cableada en `ChallengeRunRead.from_run` | porcentajes 100× mal en toda la UI |
-| Forma de **Lost Void** (`abysss2_abstract`) | `parse_lost_void` prueba muchas variantes de clave; ninguna fue observada | progreso todo en `0`, sin error |
-| Mapa de **regiones por prefijo de UID** | solo `10`/`13`/`15`/`17`; el resto cae a `prod_gf_eu` | `retcode` de UID inexistente en la región equivocada |
-| Qué **retcodes** aparecen de verdad | las cinco familias salen de reportes de terceros | un retcode sin mapear cae a `ExternalServiceError` (502) |
+| Conjetura | Veredicto |
+|---|---|
+| `avatar/info` y el mapeo entero de builds | **verificado**, contra las builds que Enka ya tenía de los mismos seis agentes: 137 substats, 36 discos, 6 W-Engines y 36 skills idénticos. Ver *`avatar/info`: la build completa* |
+| La errata `fitfh_layer_detail` de Shiyu V2 | **existe**, tal cual, junto a `fourth_layer_detail` |
+| Las claves `brief.*` de Shiyu V2 (`score`, `rank_percent`, `rating`, `max_score`) | **existen** en la raíz de `hadal_info_v2` |
+| Ausencia de rating en Deadly Assault | **confirmada** sobre payload real: se puntúa con `total_score` y `star` |
+| Ids de discos y W-Engines compartidos con Enka | **confirmado**: `StaticData` resuelve los ids de HoYoLAB sin tabla nueva |
+| Regiones por prefijo de UID | **confirmado** para `10` → `prod_gf_us` |
+
+Y lo refutado, que es lo que importa:
+
+| Conjetura | Qué pasa de verdad |
+|---|---|
+| El `index` trae el perfil (`PROFILE_KEYS`: `role`, `profile`, `player`, `cur_role`, `account`, `game_role`) | **Ninguna de esas claves existe.** El `index` real solo trae `stats`, `avatar_list`, `buddy_list`, `cat_notes_list`, `game_data_show`, `area_collections`, `award_state` y `challenge_schedule_list`: **no hay nickname, ni nivel, ni UID**. *Arreglado*: salen de `getGameRecordCard`, que la extensión manda como sección `record_card`, y de ahí sale también el UID contra el que se valida el path. `PROFILE_KEYS` queda de respaldo por si alguna región sí manda perfil |
+| `BANGBOO_ICON_KEYS` (`bangboo_rectangle_url`, `square_icon`, `role_square_url`, `icon`) | La clave real es **`bangboo_square_url`**, que no estaba en la lista: los 34 bangboos se guardaban con el ícono vacío. *Arreglado*: va primera, las conjeturas quedan de respaldo |
+| Las claves de Lost Void (`exploration_log`, `commission_progress`, `license_level`, `ultimate_challenge`, `data_collected`) | **Ninguna existe.** El payload real trae `abyss_level {cur_level, max_level}`, `abyss_task {cur_task, max_task}`, `abyss_duty {cur_duty, max_duty}`, `abyss_collect[]`, `abyss_max`, `special_mission` y `unlock`. `parse_lost_void` devuelve **todo en cero** contra datos reales, exactamente el fallo silencioso que esta sección predecía. **Sin arreglar**: remapearlo necesita saber qué muestra cada número en la página de HoYoLAB, y el modelo `LostVoidProgress` tiene campos con otros nombres. El `raw` sí se guarda entero, así que el dato no se pierde |
+
+Lo que sigue sin verificar: los nombres de campo de las **capas** de Shiyu V2
+(`layer_challenge_info_list`, `monster_pic`, dónde viven `name`/`boss_name`/`boss_icon`), porque
+la cuenta capturada no jugó la temporada y las dos capas vinieron en `null`; qué capa pertenece
+a qué nodo; y la **lectura del Chronicle de terceros**.
 
 ### Checklist para la primera vez con cookies reales
 

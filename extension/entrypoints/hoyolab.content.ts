@@ -1,5 +1,10 @@
 import { browser, defineContentScript } from '#imports';
-import type { ChroniclePayloads, RawPayload, ScheduleKey } from '../lib/chronicle';
+import {
+  recordCardSection,
+  type ChroniclePayloads,
+  type RawPayload,
+  type ScheduleKey,
+} from '../lib/chronicle';
 import {
   chronicleUrl,
   fetchHoyolab,
@@ -15,14 +20,19 @@ import {
   type HoyolabResponse,
   type RoleRef,
 } from '../lib/hoyolab';
-import type {
-  ExtensionMessage,
-  LastImport,
-  ProgressMessage,
-  SectionFailure,
-  SectionId,
-  SyncResult,
+import {
+  failureText,
+  type ExtensionMessage,
+  type LastImport,
+  type ProgressMessage,
+  type RunSyncMessage,
+  type SectionFailure,
+  type SectionId,
+  type SectionProgress,
+  type SyncResult,
 } from '../lib/messages';
+import { agentsToFetch, readRoster } from '../lib/roster';
+import { collapseBuildFailures, fetchBuilds, type BuildsSync } from '../lib/builds';
 import { STORAGE_KEYS } from '../lib/tracker';
 
 export default defineContentScript({
@@ -35,7 +45,7 @@ export default defineContentScript({
         return;
       }
       if (msg?.type === 'zzz-run-sync') {
-        runSync(msg.language)
+        runSync(msg)
           .then(sendResponse)
           .catch((error) =>
             sendResponse({
@@ -43,6 +53,8 @@ export default defineContentScript({
               sections: {},
               failures: [],
               fatal: { kind: 'error', message: `Falló el sync: ${String(error)}` },
+              roster: [],
+              fetchedAvatarIds: [],
             } satisfies SyncResult),
           );
         return true;
@@ -51,14 +63,19 @@ export default defineContentScript({
   },
 });
 
-function report(section: SectionId, status: ProgressMessage['status'], detail?: string): void {
-  const message: ProgressMessage = { type: 'zzz-progress', section, status, detail };
+function report(
+  section: SectionId,
+  status: ProgressMessage['status'],
+  detail?: string,
+  progress?: SectionProgress,
+): void {
+  const message: ProgressMessage = { type: 'zzz-progress', section, status, detail, progress };
   void browser.runtime.sendMessage(message).catch(() => {});
 }
 
-function logTrace(section: SectionId, response: HoyolabResponse): void {
+function logTrace(label: string, response: HoyolabResponse): void {
   console.info(
-    `[zzz-tracker] ${section}: http=${response.httpStatus} retcode=${response.retcode} ` +
+    `[zzz-tracker] ${label}: http=${response.httpStatus} retcode=${response.retcode} ` +
       `x-trace-id=${response.traceId ?? '-'}`,
   );
 }
@@ -99,7 +116,8 @@ interface StepOutcome {
   response: HoyolabResponse;
 }
 
-async function runSync(language: string): Promise<SyncResult> {
+async function runSync(request: RunSyncMessage): Promise<SyncResult> {
+  const { language } = request;
   const failures: SectionFailure[] = [];
 
   const ltuid = readCookie('ltuid_v2');
@@ -110,6 +128,8 @@ async function runSync(language: string): Promise<SyncResult> {
       sections: {},
       failures,
       fatal: { kind: 'invalid_session', message: userMessage('invalid_session') },
+      roster: [],
+      fetchedAvatarIds: [],
     };
   }
 
@@ -124,6 +144,8 @@ async function runSync(language: string): Promise<SyncResult> {
       sections: {},
       failures,
       fatal: { kind: 'invalid_session', message: userMessage('invalid_session', card) },
+      roster: [],
+      fetchedAvatarIds: [],
     };
   }
   report('record_card', card.kind === 'ok' ? 'done' : 'failed', card.message || undefined);
@@ -140,6 +162,8 @@ async function runSync(language: string): Promise<SyncResult> {
         message:
           'No se pudo descubrir el UID de ZZZ: getGameRecordCard no trajo la cuenta y no hay un import previo del que caer.',
       },
+      roster: [],
+      fetchedAvatarIds: [],
     };
   }
 
@@ -192,6 +216,9 @@ async function runSync(language: string): Promise<SyncResult> {
   };
 
   const sections: ChroniclePayloads = {};
+  // El UID, el nickname y el nivel de la cuenta sólo están acá: `index` no los trae.
+  const cardSection = card.kind === 'ok' ? recordCardSection(card.data) : null;
+  if (cardSection) sections.record_card = cardSection;
   const index = dataOf('index');
   if (index !== undefined) sections.index = index;
   const avatarBasic = dataOf('avatar_basic');
@@ -205,13 +232,68 @@ async function runSync(language: string): Promise<SyncResult> {
   const lostVoid = dataOf('lost_void');
   if (lostVoid !== undefined) sections.lost_void = lostVoid;
 
-  const lastKind = outcomes.at(-1)?.response.kind;
+  // Las builds van al final: dependen del roster de `avatar/basic` y son un request por
+  // agente, así que si algo cortó el sync (sesión, captcha, rate limit) no se intentan.
+  const roster = readRoster(sections.avatar_basic);
+  const fetchedAvatarIds: number[] = [];
+  const mainStopped = STOP_KINDS.includes(outcomes.at(-1)?.response.kind ?? 'ok');
+  if (!mainStopped) {
+    await sleep(jitterMs());
+    const ids = agentsToFetch(roster, request.rosterSnapshot, { reimportAll: request.reimportAll });
+    const builds = await runBuilds(role, language, ids);
+    if (builds.payloads.length > 0) sections.avatar_info = builds.payloads;
+    fetchedAvatarIds.push(...builds.fetchedIds);
+    // Una sola advertencia por las builds, no una por agente: ver collapseBuildFailures.
+    const collapsed = collapseBuildFailures(builds);
+    if (collapsed) failures.push(collapsed);
+  }
+
+  // El `fatal` sale SÓLO de las 8 secciones principales: sin `index` no hay import. Un corte
+  // durante las builds no lo prende, porque tirar el paquete entero perdería también los
+  // agentes que sí viajaron; viaja como warning y el próximo import completa el resto.
+  const lastResponse = outcomes.at(-1)?.response;
+  const lastKind = lastResponse?.kind;
   const fatal =
     lastKind === 'invalid_session' || lastKind === 'hard_limit'
-      ? { kind: lastKind, message: userMessage(lastKind, outcomes.at(-1)?.response) }
+      ? { kind: lastKind, message: userMessage(lastKind, lastResponse) }
       : null;
 
-  return { role, sections, failures, fatal };
+  return { role, sections, failures, fatal, roster, fetchedAvatarIds };
+}
+
+/** `fetchBuilds` con el progreso y el log de traces que necesita la pestaña. */
+async function runBuilds(role: RoleRef, language: string, ids: number[]): Promise<BuildsSync> {
+  const total = ids.length;
+  if (total === 0) {
+    report('avatar_info', 'done', 'sin cambios desde el último import', { done: 0, total: 0 });
+    return { payloads: [], fetchedIds: [], failures: [], stopped: null, requested: 0 };
+  }
+
+  report('avatar_info', 'fetching', undefined, { done: 0, total });
+  const builds = await fetchBuilds({
+    role,
+    language,
+    ids,
+    onAgent: ({ id, done, response }) => {
+      logTrace(`avatar_info ${id}`, response);
+      // Un progreso POR AGENTE, y no uno cada tantos: además de mover el contador del
+      // popup, es lo que mantiene vivo al service worker de MV3. El background está
+      // esperando la respuesta de `tabs.sendMessage` durante los ~50 s que tarda el roster
+      // completo, y Chrome lo termina a los 30 s de inactividad; recibir un mensaje resetea
+      // ese timer. A ~1,4 s por agente (request + jitter) alcanza de sobra. Si esto se
+      // "optimiza" a un mensaje cada diez agentes, el worker se muere en el medio y se
+      // pierde el import entero después de haber hecho los 36 requests a HoYoLAB.
+      report('avatar_info', 'fetching', undefined, { done, total });
+    },
+  });
+
+  // El mismo texto que la advertencia del import: dice cuántas builds faltaron y que
+  // reimportando se completan, que es lo único que el usuario puede hacer al respecto.
+  const collapsed = collapseBuildFailures(builds);
+  const detail = collapsed ? failureText(collapsed) : undefined;
+  const progress = { done: builds.fetchedIds.length, total };
+  report('avatar_info', builds.stopped ? 'failed' : 'done', detail, progress);
+  return builds;
 }
 
 function scheduled(

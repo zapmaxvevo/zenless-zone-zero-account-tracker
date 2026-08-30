@@ -14,7 +14,14 @@ export const JITTER_MIN_MS = 300;
 export const JITTER_MAX_MS = 800;
 
 export type RetcodeKind =
-  'ok' | 'invalid_session' | 'not_public' | 'rate_limited' | 'captcha' | 'hard_limit' | 'error';
+  | 'ok'
+  | 'invalid_session'
+  | 'not_public'
+  | 'rate_limited'
+  | 'captcha'
+  | 'hard_limit'
+  | 'bad_params'
+  | 'error';
 
 export const RETCODES_INVALID_SESSION: readonly number[] = [-100, 10001];
 export const RETCODES_NOT_PUBLIC: readonly number[] = [10102, 10104];
@@ -23,10 +30,13 @@ export const RETCODES_RATE_LIMITED: readonly number[] = [10101, -110, 1028];
 // diarias); queda fuera de la familia captcha hasta que la fase 0 lo observe de verdad.
 export const RETCODES_CAPTCHA: readonly number[] = [1034, 10035];
 export const RETCODE_HARD_LIMIT = 10041;
+// Parámetros mal armados: la sesión del usuario está bien, la URL que mandamos no.
+export const RETCODE_BAD_PARAMS = -400005;
 
 export function classifyRetcode(retcode: number): RetcodeKind {
   if (retcode === 0) return 'ok';
   if (retcode === RETCODE_HARD_LIMIT) return 'hard_limit';
+  if (retcode === RETCODE_BAD_PARAMS) return 'bad_params';
   if (RETCODES_INVALID_SESSION.includes(retcode)) return 'invalid_session';
   if (RETCODES_NOT_PUBLIC.includes(retcode)) return 'not_public';
   if (RETCODES_RATE_LIMITED.includes(retcode)) return 'rate_limited';
@@ -64,8 +74,16 @@ export function userMessage(
       text = 'HoYoLAB pidió un captcha. Abrí act.hoyolab.com, resolvelo y reintentá a mano.';
       break;
     case 'hard_limit':
+      // Afirma qué pasó con el import, así que sólo sirve en el camino fatal (las 8 secciones
+      // principales). Un corte durante las builds sube igual lo que ya trajo y arma su propio
+      // texto con `SectionFailure.text`.
       text =
         'HoYoLAB cortó el acceso (retcode 10041). Se canceló el import entero; probá más tarde.';
+      break;
+    case 'bad_params':
+      text =
+        'La extensión armó mal la petición (retcode -400005). Es un bug de la extensión, ' +
+        'no un problema de tu sesión de HoYoLAB: reportalo con el trace.';
       break;
     default: {
       const retcode = extra.retcode != null ? ` (retcode ${extra.retcode})` : '';
@@ -123,6 +141,20 @@ export function chronicleUrl(
   params.set(endpoint.uidParam === 'role_id' ? 'server' : 'region', role.server);
   for (const [name, value] of Object.entries(extra)) params.set(name, value);
   return `${HOYOLAB_BASE_URL}/${endpoint.path}?${params.toString()}`;
+}
+
+/**
+ * `avatar/info` de UN agente. Forma verificada el 2026-08-30: los corchetes de `id_list[]`
+ * van literales y repetidos (la forma indexada `id_list[0]` devuelve -400005) y el endpoint
+ * acepta un solo id por request (con 3 o con 36 también devuelve -400005).
+ */
+export function avatarInfoUrl(role: RoleRef, id: number | string): string {
+  const endpoint: ChronicleEndpoint = ENDPOINTS.avatar_info;
+  const params = new URLSearchParams();
+  params.set('need_wiki', 'false');
+  params.set(endpoint.uidParam, role.roleId);
+  params.set('server', role.server);
+  return `${HOYOLAB_BASE_URL}/${endpoint.path}?id_list[]=${encodeURIComponent(String(id))}&${params.toString()}`;
 }
 
 export function recordCardUrl(ltuid: string): string {

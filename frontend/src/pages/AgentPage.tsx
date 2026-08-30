@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AgentDetailRead, CatalogPropertyRead, EquippedSetRead } from '../api/types';
 import DiscCard from '../components/DiscCard';
+import SourceTag from '../components/SourceTag';
 import StatusMessage from '../components/StatusMessage';
 import Hero from '../components/ui/Hero';
 import SectionHead from '../components/ui/SectionHead';
@@ -17,7 +18,7 @@ import {
   rarityLabel,
   skillLabel,
 } from '../lib/labels';
-import { elementsColor, gradeColor, gradeLabel } from '../lib/palette';
+import { elementColor, elementsColor, gradeColor, gradeLabel } from '../lib/palette';
 import type { SubKey } from '../lib/score';
 import { buildScore, keySubs } from '../lib/score';
 import { formatStatValue } from '../lib/stats';
@@ -147,13 +148,17 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
 
         <p className="tags">
           {agent.elements.map((entry) => (
-            <span key={entry} className={`tag element element-${entry.toLowerCase()}`}>
+            <span
+              key={entry}
+              className="tag ne-tag-tint"
+              style={{ ['--tint' as string]: elementColor(entry) }}
+            >
               {elementLabel(entry)}
             </span>
           ))}
           {profession && <span className="tag">{profession}</span>}
           {rarity && <span className={`tag rank rank-${rarity}`}>{rarity}</span>}
-          {agent.source === 'manual' && <span className="tag tag-manual">Manual</span>}
+          <SourceTag source={agent.source} />
         </p>
 
         <div className="ne-build-figures">

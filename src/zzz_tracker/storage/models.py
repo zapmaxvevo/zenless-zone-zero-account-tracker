@@ -376,6 +376,30 @@ class DriveDisc(Base):
     agent: Mapped[Agent] = relationship(back_populates="discs")
 
 
+class AgentBuildSnapshot(Base):
+    """The raw `avatar/info` entry an import brought for one agent.
+
+    One row per account and agent, overwritten by every import: the snapshot is the escape
+    valve for whatever the mapper does not read yet, so what matters is that it mirrors the
+    build currently stored, not how it looked last month. Keeping a history here would grow
+    without bound for a value nobody reads twice; a build history, if it ever exists, belongs
+    to the tracked build and not to a copy of the payload.
+    """
+
+    __tablename__ = "agent_build_snapshots"
+    __table_args__ = (
+        UniqueConstraint("account_uid", "game_id", name="uq_agent_build_snapshots_account_game"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), index=True
+    )
+    game_id: Mapped[int] = mapped_column(Integer)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
 class Team(Base):
     __tablename__ = "teams"
 

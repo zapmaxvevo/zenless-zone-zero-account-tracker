@@ -15,7 +15,14 @@ describe('regionLabel', () => {
     expect(regionLabel(null)).toBeNull();
   });
 });
-import { elementLabel, nameOr, professionLabel, rarityLabel, skillLabel } from './labels';
+import {
+  elementLabel,
+  nameOr,
+  professionLabel,
+  rarityLabel,
+  skillLabel,
+  sourceLabel,
+} from './labels';
 
 describe('rarityLabel', () => {
   it('traduce la escala 2..4 al rango por letra que usa el juego', () => {
@@ -41,10 +48,26 @@ describe('elementLabel y professionLabel', () => {
     expect(professionLabel('Anomaly')).toBe('Anomalía');
   });
 
+  it('traducen también los nombres crudos de los datos estáticos', () => {
+    expect(elementLabel('Elec')).toBe('Eléctrico');
+    expect(elementLabel('AuricEther')).toBe('Tinta áurica');
+    expect(elementLabel('FireFrost')).toBe('Escarcha');
+    expect(elementLabel('Lumen')).toBe('Lumiflujo');
+    expect(professionLabel('Rupture')).toBe('Ruptura');
+  });
+
   it('muestran crudo un valor nuevo en vez de romperse', () => {
     expect(elementLabel('Plasma')).toBe('Plasma');
     expect(professionLabel('Trickster')).toBe('Trickster');
     expect(professionLabel(null)).toBeNull();
+  });
+});
+
+describe('sourceLabel', () => {
+  it('nombra las tres fuentes de un agente', () => {
+    expect(sourceLabel('enka')).toBe('Enka');
+    expect(sourceLabel('hoyolab')).toBe('HoYoLAB');
+    expect(sourceLabel('manual')).toBe('Manual');
   });
 });
 

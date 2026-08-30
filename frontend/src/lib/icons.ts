@@ -6,6 +6,8 @@
  * Enka —las mismas que traduce `labels.ts`—, no los nombres de archivo.
  */
 
+import { elementKey } from './elements';
+
 const FILES = import.meta.glob('../assets/icons/*/*.png', {
   eager: true,
   query: '?url',
@@ -26,9 +28,15 @@ function lookup(group: string, key: string | null): string | null {
   return BY_KEY[`${group}/${key}`] ?? null;
 }
 
-/** Atributo del agente. Enka dice `Physics` y `AuricInk`; el archivo, `physics` y `auric-ink`. */
+/**
+ * Atributo del agente. El nombre canónico dice `AuricInk`; el archivo, `auric-ink`.
+ *
+ * Pasa por `elementKey` para que los alias de Enka (`Elec`, `AuricEther`) den con el mismo
+ * archivo. Un atributo que la wiki todavía no ilustra se dibuja sin icono.
+ */
 export function elementIcon(element: string): string | null {
-  return lookup('element', element.replace(/(?<=.)([A-Z])/g, '-$1').toLowerCase());
+  const key = elementKey(element);
+  return lookup('element', key && key.replace(/(?<=.)([A-Z])/g, '-$1').toLowerCase());
 }
 
 /** Especialidad: `Attack`, `Stun`, `Anomaly`, `Support`, `Defense`, `Rupture`. */

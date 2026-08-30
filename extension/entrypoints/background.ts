@@ -1,14 +1,16 @@
 import { browser, defineBackground } from '#imports';
 import { buildImportPayload, summarizeImport } from '../lib/chronicle';
-import { DEFAULT_LANGUAGE, HOYOLAB_APP_URL, sleep, userMessage } from '../lib/hoyolab';
-import type {
-  ExtensionMessage,
-  ImportDoneMessage,
-  ImportOutcome,
-  LastImport,
-  RunSyncMessage,
-  SyncResult,
+import { DEFAULT_LANGUAGE, HOYOLAB_APP_URL, sleep } from '../lib/hoyolab';
+import {
+  failureText,
+  type ExtensionMessage,
+  type ImportDoneMessage,
+  type ImportOutcome,
+  type LastImport,
+  type RunSyncMessage,
+  type SyncResult,
 } from '../lib/messages';
+import { nextSnapshot, parseSnapshot } from '../lib/roster';
 import { accountUrl, postChronicleImport, STORAGE_KEYS, TrackerError } from '../lib/tracker';
 
 let importRunning = false;
@@ -26,7 +28,7 @@ export default defineBackground(() => {
         return;
       }
       importRunning = true;
-      runImport()
+      runImport({ reimportAll: msg.reimportAll === true })
         .catch((error): ImportOutcome => ({
           ok: false,
           message: `Falló el import: ${String(error)}`,
@@ -42,7 +44,7 @@ export default defineBackground(() => {
   });
 });
 
-async function runImport(): Promise<ImportOutcome> {
+async function runImport(options: { reimportAll: boolean }): Promise<ImportOutcome> {
   const stored = await browser.storage.sync.get([
     STORAGE_KEYS.trackerUrl,
     STORAGE_KEYS.frontendUrl,
@@ -61,6 +63,13 @@ async function runImport(): Promise<ImportOutcome> {
     };
   }
 
+  // El snapshot del roster vive en el background: el content script sólo recibe con qué
+  // comparar y devuelve qué agentes trajo de verdad.
+  const localStored = await browser.storage.local.get(STORAGE_KEYS.rosterSnapshot);
+  const rosterSnapshot = options.reimportAll
+    ? {}
+    : parseSnapshot(localStored[STORAGE_KEYS.rosterSnapshot]);
+
   const tab = await browser.tabs.create({ url: HOYOLAB_APP_URL, active: false });
   const tabId = tab.id;
   if (tabId == null) return { ok: false, message: 'No se pudo abrir la pestaña de HoYoLAB.' };
@@ -71,10 +80,12 @@ async function runImport(): Promise<ImportOutcome> {
     const result = (await browser.tabs.sendMessage(tabId, {
       type: 'zzz-run-sync',
       language: DEFAULT_LANGUAGE,
+      rosterSnapshot,
+      reimportAll: options.reimportAll,
     } satisfies RunSyncMessage)) as SyncResult;
 
     const warnings = result.failures.map(
-      (failure) => `${failure.section}: ${userMessage(failure.kind, failure)}`,
+      (failure) => `${failure.section}: ${failureText(failure)}`,
     );
 
     if (result.fatal) {
@@ -113,7 +124,16 @@ async function runImport(): Promise<ImportOutcome> {
       summary,
       accountUrl: url,
     };
-    await browser.storage.local.set({ [STORAGE_KEYS.lastImport]: lastImport });
+    // El snapshot se guarda recién ahora: si se guardara antes del POST, un import fallido
+    // dejaría a esos agentes marcados como al día y no se volverían a pedir nunca.
+    await browser.storage.local.set({
+      [STORAGE_KEYS.lastImport]: lastImport,
+      [STORAGE_KEYS.rosterSnapshot]: nextSnapshot({
+        previous: rosterSnapshot,
+        roster: result.roster,
+        fetchedIds: result.fetchedAvatarIds,
+      }),
+    });
     return { ok: true, message: summary, uid: result.role.roleId, accountUrl: url, warnings };
   } catch (error) {
     if (error instanceof TrackerError) return { ok: false, message: error.message };

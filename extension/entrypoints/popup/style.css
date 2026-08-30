@@ -61,7 +61,18 @@ h2 {
   cursor: pointer;
 }
 
-.primary:disabled {
+.secondary {
+  background: none;
+  color: #eaeaea;
+  border: 1px solid #3a3a3a;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.primary:disabled,
+.secondary:disabled {
   opacity: 0.4;
   cursor: default;
 }

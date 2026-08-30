@@ -15,20 +15,6 @@ interface ChallengeAttemptProps {
   bangbooName?: string | null;
 }
 
-/**
- * HoYoLAB manda `element_type` numérico (`"201"`), no el nombre que publica Enka.
- *
- * Se traduce acá para poder pedirle el color a la paleta en vez de inventar un hex (regla 7).
- * Un código que no esté en la tabla cae en el gris neutro y el chip se dibuja igual.
- */
-const ELEMENTS_BY_CODE: Record<string, string> = {
-  '200': 'Physics',
-  '201': 'Fire',
-  '202': 'Ice',
-  '203': 'Electric',
-  '205': 'Ether',
-};
-
 const STAR_SLOTS = [0, 1, 2];
 
 /** Un intento del Chronicle: quién lo jugó, contra qué y con qué buffs. */
@@ -132,10 +118,10 @@ function Metric({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function SquadChip({ agent, name }: { agent: ChallengeAgentRead; name: string }) {
-  const element = ELEMENTS_BY_CODE[agent.element] ?? agent.element;
+  // HoYoLAB manda `element_type` numérico (`"201"`); lo traduce `lib/elements.ts`.
   const style: CSSProperties = {
     ['--rank' as string]: rankColor(agent.rarity),
-    ['--element' as string]: elementColor(element),
+    ['--element' as string]: elementColor(agent.element),
   };
 
   return (

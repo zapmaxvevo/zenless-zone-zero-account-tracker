@@ -55,9 +55,30 @@ Vercel (`https://personal-zzz.vercel.app`); cuando exista el deploy real hay que
 2. Popup → **Importar**. La extensión abre `act.hoyolab.com` en una pestaña en segundo plano,
    descubre el UID con `getGameRecordCard`, lee perfil, roster, bangboos, Shiyu Defense ×2,
    Deadly Assault ×2 y Lost Void (en serie, con jitter de 300-800 ms), y sube los payloads
-   crudos a `POST /accounts/{uid}/chronicle/import`.
-3. El popup muestra el progreso por sección, el resumen ("Importado: N agentes, M bangboos,
-   X runs…") y el link a la cuenta en el tracker.
+   crudos a `POST /accounts/{uid}/chronicle/import`. El UID, el nickname y el nivel de la
+   cuenta viajan en la sección `record_card` (`index` no los trae): es la entrada de ZZZ de
+   `getGameRecordCard` recortada a `game_role_id`, `nickname`, `region`, `level`, `is_public`
+   y `has_role`, para que las otras cuentas de HoYoverse del usuario no lleguen al tracker.
+3. Después del roster pide las **builds** (`avatar/info`: discos con substats, W-Engine, skills,
+   stats finales). El endpoint acepta un id por request, así que el roster completo son ~36
+   requests (~50 s): por eso el import es **incremental**. La extensión guarda un snapshot de
+   `{level, rank}` por agente y sólo pide la build de los agentes nuevos o que cambiaron; el
+   snapshot se guarda recién cuando el POST al tracker vuelve OK, así un import fallido no
+   saltea a nadie. Un agente que falla no invalida el import: los demás viajan igual y el fallo
+   aparece como warning.
+4. **Reimportar todo** ignora el snapshot y pide la build de los 36 agentes. Hace falta en dos
+   casos: cuando cambia el mapper del backend y hay que rellenar builds ya importadas, y cuando
+   **le cambiaste los discos o el W-Engine a un agente sin subirlo de nivel** — el snapshot sólo
+   compara `level` y `rank`, que es lo único que da `avatar/basic`, así que ese agente no entra
+   en el import incremental.
+5. El popup muestra el progreso por sección — las builds con su avance, "Builds 12/36" —, el
+   resumen ("Importado: N agentes, M bangboos, X runs…") y el link a la cuenta en el tracker.
+
+Si el corte pasa **durante las builds**, el import no se pierde: el paquete ya tiene perfil,
+roster, bangboos y modos, así que se sube igual con las builds que alcanzaron a llegar. Los
+fallos de builds se colapsan en **una sola** advertencia ("faltaron 6 de 36 builds: … Volvé a
+importar para completarlas") en vez de una línea por agente, que enterraría el resumen. Los agentes que faltaron quedan pendientes en el snapshot, así
+que darle "Importar" de nuevo completa el resto en vez de empezar de cero.
 
 Errores esperables: sesión vencida → "Iniciá sesión en HoYoLAB" (la pestaña queda abierta para
 loguearse); rate limit (retcode `10101` o HTTP 429) → esperar y reintentar a mano, nunca se
@@ -96,7 +117,12 @@ En Chrome y en Firefox, con un build fresco:
    aparece igual (lo guardó el background en storage.local).
 9. **x-trace-id**: en la consola de la pestaña de HoYoLAB, cada sección logueó
    `http=… retcode=… x-trace-id=…`.
-10. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
+10. **Import incremental**: importar dos veces seguidas sin jugar → el segundo import muestra
+    "Builds 0/0 — sin cambios desde el último import" y termina en segundos. Subir de nivel un
+    agente en el juego → el siguiente import pide sólo esa build.
+11. **Reimportar todo**: el botón pide los 36 agentes aunque no haya cambios (~1 minuto), y el
+    contador avanza de 1 a 36.
+12. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
     `background.scripts`) y que los permisos de host están concedidos en `about:addons`.
 
 ## Estructura
@@ -112,6 +138,8 @@ extension/
   lib/
     hoyolab.ts              # URLs, headers x-rpc-*, retcodes, jitter, descubrimiento de rol
     chronicle.ts            # armado del paquete del contrato de import
+    roster.ts               # snapshot del roster y diff incremental de builds
+    builds.ts               # la pasada de avatar/info, un request por agente
     tracker.ts              # cliente del backend
     messages.ts             # protocolo de mensajes popup ↔ background ↔ content
   scripts/capture.js        # fase 0

@@ -1,3 +1,5 @@
+import { ZZZ_GAME_ID } from './hoyolab';
+
 export const IMPORT_SOURCE = 'extension' as const;
 export const EXTENSION_VERSION = '0.1.0';
 
@@ -5,6 +7,7 @@ export type ScheduleKey = '1' | '2';
 export type RawPayload = Record<string, unknown>;
 
 export interface ChroniclePayloads {
+  record_card?: RawPayload | null;
   index?: RawPayload | null;
   avatar_basic?: RawPayload | null;
   avatar_info?: RawPayload[] | null;
@@ -12,6 +15,37 @@ export interface ChroniclePayloads {
   shiyu_defense?: Partial<Record<ScheduleKey, RawPayload | null>> | null;
   deadly_assault?: Partial<Record<ScheduleKey, RawPayload | null>> | null;
   lost_void?: RawPayload | null;
+}
+
+// El `data` de `index` no trae UID, nickname ni nivel: lo único que los tiene es
+// `getGameRecordCard`. Por eso su entrada de ZZZ viaja como sección propia.
+const RECORD_CARD_FIELDS = [
+  'game_role_id',
+  'nickname',
+  'region',
+  'level',
+  'is_public',
+  'has_role',
+] as const;
+
+/**
+ * La entrada de ZZZ de `getGameRecordCard`, recortada a lo que el tracker usa. Se filtra por
+ * dos razones: la card trae también las otras cuentas de HoYoverse del usuario (Genshin, HSR…)
+ * y el tracker no tiene por qué verlas, y de la entrada de ZZZ sólo importan estos campos.
+ * Devuelve null si la card falló o no tiene una cuenta de ZZZ: la sección es opcional.
+ */
+export function recordCardSection(cardData: unknown): RawPayload | null {
+  const list = (cardData as { list?: unknown } | null | undefined)?.list;
+  if (!Array.isArray(list)) return null;
+  const zzz = list.find(
+    (entry) => Number((entry as { game_id?: unknown } | null)?.game_id) === ZZZ_GAME_ID,
+  ) as Record<string, unknown> | undefined;
+  if (!zzz) return null;
+  const section: RawPayload = {};
+  for (const field of RECORD_CARD_FIELDS) {
+    if (zzz[field] !== undefined) section[field] = zzz[field];
+  }
+  return section;
 }
 
 export interface ChronicleImportWrite {

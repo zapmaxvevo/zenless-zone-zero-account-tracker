@@ -1,13 +1,28 @@
 /** Traducciones de los valores que Enka publica en inglés; si aparece uno nuevo, se muestra crudo. */
 
-const ELEMENTS: Record<string, string> = {
+import type { AgentSource } from '../api/types';
+import type { ElementKey } from './elements';
+import { elementKey } from './elements';
+
+/** Por atributo canónico, no por clave cruda: los alias los resuelve `elements.ts`. */
+const ELEMENTS: Record<ElementKey, string> = {
   Physics: 'Físico',
   Fire: 'Fuego',
   Ice: 'Hielo',
   Electric: 'Eléctrico',
   Ether: 'Éter',
-  AuricInk: 'Tinta áurica',
   Frost: 'Escarcha',
+  AuricInk: 'Tinta áurica',
+  Assault: 'Embestida',
+  Wind: 'Viento',
+  Lumiflux: 'Lumiflujo',
+};
+
+/** De dónde salió un agente. `enka` es el import por defecto y la UI no lo marca. */
+const SOURCES: Record<AgentSource, string> = {
+  enka: 'Enka',
+  hoyolab: 'HoYoLAB',
+  manual: 'Manual',
 };
 
 const PROFESSIONS: Record<string, string> = {
@@ -35,7 +50,12 @@ const RARITIES: Record<number, string> = { 2: 'B', 3: 'A', 4: 'S' };
 export const SKILL_KEYS = ['0', '1', '2', '3', '5', '6'];
 
 export function elementLabel(element: string): string {
-  return ELEMENTS[element] ?? element;
+  const key = elementKey(element);
+  return key === null ? element : ELEMENTS[key];
+}
+
+export function sourceLabel(source: AgentSource): string {
+  return SOURCES[source];
 }
 
 export function professionLabel(profession: string | null): string | null {

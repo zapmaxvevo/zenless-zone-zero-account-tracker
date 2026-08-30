@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  avatarInfoUrl,
   chronicleUrl,
   classifyRetcode,
   discoverRole,
@@ -8,9 +9,11 @@ import {
   recordCardUrl,
   regionForUid,
   runSerialized,
+  userMessage,
   DEFAULT_REGION,
   JITTER_MAX_MS,
   JITTER_MIN_MS,
+  STOP_KINDS,
   type HttpResponseLike,
 } from './hoyolab';
 
@@ -36,8 +39,35 @@ describe('classifyRetcode', () => {
     expect(classifyRetcode(10041)).toBe('hard_limit');
   });
 
+  it('el -400005 es un bug nuestro de parámetros, no un problema de la sesión', () => {
+    expect(classifyRetcode(-400005)).toBe('bad_params');
+    const text = userMessage('bad_params');
+    expect(text).toContain('bug de la extensión');
+    expect(STOP_KINDS).not.toContain('bad_params');
+  });
+
   it('un retcode desconocido cae al error genérico', () => {
     expect(classifyRetcode(99999)).toBe('error');
+  });
+});
+
+describe('avatarInfoUrl', () => {
+  const role = { roleId: '1500123456', server: 'prod_gf_eu' };
+
+  it('arma la forma verificada: id_list[] con corchetes literales y un solo id', () => {
+    expect(avatarInfoUrl(role, 1091)).toBe(
+      'https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz/avatar/info' +
+        '?id_list[]=1091&need_wiki=false&role_id=1500123456&server=prod_gf_eu',
+    );
+  });
+
+  it('no usa la forma indexada id_list[0], que devuelve -400005', () => {
+    expect(avatarInfoUrl(role, 1091)).not.toContain('id_list[0]');
+    expect(avatarInfoUrl(role, 1091)).not.toContain('%5B%5D');
+  });
+
+  it('acepta el id como string', () => {
+    expect(avatarInfoUrl(role, '1311')).toContain('id_list[]=1311');
   });
 });
 

@@ -1,9 +1,10 @@
 import type { AgentRead } from '../api/types';
 import { elementIcon } from '../lib/icons';
 import { elementLabel, nameOr, professionLabel, rarityLabel } from '../lib/labels';
-import { elementsColor, rarityColor } from '../lib/palette';
+import { elementColor, elementsColor, rarityColor } from '../lib/palette';
 import { rosterScore } from '../lib/score';
 import '../styles/roster.css';
+import SourceTag from './SourceTag';
 import PortraitCard from './ui/PortraitCard';
 
 interface AgentCardProps {
@@ -38,12 +39,16 @@ export default function AgentCard({ agent, art = null }: AgentCardProps) {
       tags={
         <span className="ne-tag-row">
           {agent.elements.map((each) => (
-            <span key={each} className={`tag element element-${each.toLowerCase()}`}>
+            <span
+              key={each}
+              className="tag ne-tag-tint"
+              style={{ ['--tint' as string]: elementColor(each) }}
+            >
               {elementLabel(each)}
             </span>
           ))}
           {profession && <span className="tag">{profession}</span>}
-          {agent.source === 'manual' && <span className="tag tag-manual">Manual</span>}
+          <SourceTag source={agent.source} />
         </span>
       }
       footNote={

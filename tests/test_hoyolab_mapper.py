@@ -7,9 +7,12 @@ from typing import Any
 
 from zzz_tracker.hoyolab.mapper import (
     parse_bangboos,
+    parse_challenge_nickname,
     parse_chronicle_account,
+    parse_chronicle_uid,
     parse_deadly_assault,
     parse_lost_void,
+    parse_record_card,
     parse_roster_agents,
     parse_shiyu_defense,
 )
@@ -420,6 +423,49 @@ def test_the_chronicle_index_still_reads_when_the_profile_sits_at_the_top_level(
     assert account.level == 4
 
 
+def test_the_record_card_names_the_account_the_chronicle_never_names() -> None:
+    card = parse_record_card(hoyolab_payload("record_card"))
+
+    assert card is not None
+    assert card.uid == "1300000001"
+    assert card.nickname == "Proxy Phaethon"
+    assert card.level == 60
+
+
+def test_a_record_card_of_another_game_is_not_read_as_this_account() -> None:
+    genshin = dict(hoyolab_payload("record_card"), game_id=2, game_role_id="800000001")
+
+    assert parse_record_card(genshin) is None
+
+
+def test_a_record_card_with_nothing_to_say_is_no_card_at_all() -> None:
+    assert parse_record_card({}) is None
+    assert parse_record_card({"has_role": False, "game_id": 8}) is None
+
+
+def test_the_real_index_carries_no_profile_to_read() -> None:
+    """The `index` a browser receives has stats and lists, and nothing that names the player."""
+    index = {
+        "stats": {"active_days": 412, "avatar_num": 38},
+        "avatar_list": [],
+        "buddy_list": [],
+        "cat_notes_list": [],
+        "game_data_show": {},
+        "area_collections": [],
+        "award_state": "Received",
+        "challenge_schedule_list": [],
+    }
+
+    assert parse_chronicle_account(index) is None
+    assert parse_chronicle_uid(index) == ""
+
+
+def test_the_challenge_payloads_sign_their_answer_with_the_nickname() -> None:
+    assert parse_challenge_nickname(hoyolab_payload("deadly_assault")) == "Phaethon"
+    assert parse_challenge_nickname({"nick_name": "Fairy"}) == "Fairy"
+    assert parse_challenge_nickname({}) == ""
+
+
 def test_the_roster_endpoint_yields_every_owned_agent_with_its_mindscape() -> None:
     agents = parse_roster_agents(hoyolab_payload("avatar_basic"))
 
@@ -455,6 +501,30 @@ def test_bangboos_come_back_with_their_letter_rarity_turned_into_the_numeric_sca
     assert amillion.level == 60
     assert amillion.star == 5
     assert amillion.icon.endswith("/53001.png")
+
+
+def test_a_bangboo_keeps_the_icon_the_real_api_sends() -> None:
+    """`bangboo_square_url` is what a browser actually receives, and the only key that matters.
+
+    The other names in `BANGBOO_ICON_KEYS` were guessed before anyone had cookies; with none
+    of them matching, every bangboo used to be stored with an empty icon.
+    """
+    bangboos = parse_bangboos(
+        {
+            "list": [
+                {
+                    "id": 54023,
+                    "name": "Ariel",
+                    "rarity": "S",
+                    "level": 60,
+                    "star": 1,
+                    "bangboo_square_url": "https://act-webstatic.hoyoverse.com/icon/54023.png",
+                }
+            ]
+        }
+    )
+
+    assert bangboos[0].icon == "https://act-webstatic.hoyoverse.com/icon/54023.png"
 
 
 def test_a_bangboo_whose_rarity_already_comes_numeric_keeps_that_number() -> None:

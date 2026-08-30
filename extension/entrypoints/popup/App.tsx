@@ -6,6 +6,8 @@ import type {
   LastImport,
   ProgressMessage,
   SectionId,
+  SectionProgress,
+  StartImportMessage,
 } from '../../lib/messages';
 import { STORAGE_KEYS } from '../../lib/tracker';
 
@@ -13,6 +15,7 @@ const SECTION_ORDER: SectionId[] = [
   'record_card',
   'index',
   'avatar_basic',
+  'avatar_info',
   'buddy_info',
   'shiyu_defense_1',
   'shiyu_defense_2',
@@ -25,6 +28,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   record_card: 'Cuenta HoYoLAB',
   index: 'Perfil',
   avatar_basic: 'Roster de agentes',
+  avatar_info: 'Builds',
   buddy_info: 'Bangboos',
   shiyu_defense_1: 'Shiyu Defense (actual)',
   shiyu_defense_2: 'Shiyu Defense (anterior)',
@@ -39,7 +43,20 @@ const STATUS_MARKS: Record<ProgressMessage['status'], string> = {
   failed: '✗',
 };
 
-type Progress = Partial<Record<SectionId, { status: ProgressMessage['status']; detail?: string }>>;
+interface ProgressEntry {
+  status: ProgressMessage['status'];
+  detail?: string;
+  progress?: SectionProgress;
+}
+
+type Progress = Partial<Record<SectionId, ProgressEntry>>;
+
+/** "Builds 12/36": las secciones que son muchos requests llevan su avance en el label. */
+function sectionLabel(section: SectionId, entry: ProgressEntry): string {
+  const label = SECTION_LABELS[section];
+  if (!entry.progress) return label;
+  return `${label} ${entry.progress.done}/${entry.progress.total}`;
+}
 
 export default function App() {
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -77,7 +94,7 @@ export default function App() {
       if (msg?.type === 'zzz-progress') {
         setProgress((prev) => ({
           ...prev,
-          [msg.section]: { status: msg.status, detail: msg.detail },
+          [msg.section]: { status: msg.status, detail: msg.detail, progress: msg.progress },
         }));
       }
       if (msg?.type === 'zzz-import-done') {
@@ -90,13 +107,13 @@ export default function App() {
     return () => browser.runtime.onMessage.removeListener(onMessage);
   }, [refresh]);
 
-  const startImport = async () => {
+  const startImport = async (reimportAll = false) => {
     setRunning(true);
     setOutcome(null);
     setProgress({});
     try {
-      const result = (await browser.runtime.sendMessage({ type: 'zzz-start-import' })) as
-        ImportOutcome | undefined;
+      const start: StartImportMessage = { type: 'zzz-start-import', reimportAll };
+      const result = (await browser.runtime.sendMessage(start)) as ImportOutcome | undefined;
       setOutcome(result ?? { ok: false, message: 'Sin respuesta del proceso de fondo.' });
     } catch (error) {
       setOutcome({ ok: false, message: `Falló el import: ${String(error)}` });
@@ -133,6 +150,17 @@ export default function App() {
         {running ? 'Importando…' : 'Importar'}
       </button>
 
+      {/* El import normal sólo pide la build de los agentes que cambiaron; después de un
+          cambio en el mapper del backend hay que rellenar las que ya estaban. */}
+      <button
+        className="secondary"
+        disabled={running || configured !== true}
+        onClick={() => void startImport(true)}
+        title="Pide la build de los 36 agentes, ignorando lo ya importado (tarda ~1 minuto)."
+      >
+        Reimportar todo
+      </button>
+
       {visibleSections.length > 0 && (
         <ul className="progress">
           {visibleSections.map((section) => {
@@ -140,7 +168,7 @@ export default function App() {
             return (
               <li key={section} className={entry.status}>
                 <span className="mark">{STATUS_MARKS[entry.status]}</span>
-                <span>{SECTION_LABELS[section]}</span>
+                <span>{sectionLabel(section, entry)}</span>
                 {entry.detail && <span className="detail">{entry.detail}</span>}
               </li>
             );

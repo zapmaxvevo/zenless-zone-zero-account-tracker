@@ -166,10 +166,17 @@ todo lo display va en `#fff`, el texto normal en `--text`, el secundario en `--t
 Ningún color se elige por gusto: sale del dato.
 
 ```
-elemento   fire #ff7a45 · ice/frost #61d2ff · electric #8f8bff · physics #f7d64a · ether/auric-ink #ff5fa2
+elemento   fire #ff7a45 · ice/frost #61d2ff · electric #8f8bff · physics/assault #f7d64a
+           ether/auric-ink #ff5fa2 · wind #4fd9a0 · lumiflux #ffeec4
 rango      S #f3e600 · A #b06de0 · B #5aa9e6
 grade      S #f3e600 · A #b06de0 · B #5aa9e6 · C #7a808f
 ```
+
+Un sub-atributo no estrena color: hereda el de su elemento padre (Escarcha del hielo, Tinta
+áurica del éter, Embestida del físico). El nombre del atributo llega con claves distintas
+según la fuente —Enka dice `Elec` y `AuricEther`, HoYoLAB manda `"203"`—, así que todo pasa
+primero por `elementKey()` en `frontend/src/lib/elements.ts`: **un atributo nuevo se agrega
+ahí una sola vez** y la paleta, las etiquetas y los iconos lo heredan.
 
 El color de elemento aparece siempre en los mismos cinco lugares, y en ninguno más:
 
@@ -339,12 +346,12 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 `.ne-stars` / `.ne-star.is-on`
 
 **Controles** `.ne-chip` (+`.is-active`) · `.ne-data-pill` · `.ne-ghost` · `.ne-tab` (+`-menu`,
-`.is-active`) · `.ne-burger` · `.ne-menu` · `.ne-logo` / `.ne-brand`
+`.is-active`) · `.ne-burger` · `.ne-menu` · `.ne-logo` / `.ne-brand` · `.ne-tag-tint`
 
 Las custom properties que leen esas clases: `--cut` (chaflán), `--grade` (nota de un disco),
 `--element` (barra del main stat), `--fill` (relleno de una barra), `--flare` (franja de una
-fila), `--ring` (aro de un retrato), `--ring-turn` (relleno del anillo de progreso). Se pasan
-por `style={{ ['--grade' as string]: color }}`.
+fila), `--ring` (aro de un retrato), `--ring-turn` (relleno del anillo de progreso), `--tint`
+(color de un tag). Se pasan por `style={{ ['--grade' as string]: color }}`.
 
 Lo que queda en un CSS de pantalla (`styles/<pantalla>.css`) es solo lo que de verdad existe una
 sola vez: `.ne-build-*`, `.ne-team-*`, `.ne-season-*`, `.ne-attempt-*`, `.ne-boo-*`, `.ne-layer*`,

@@ -71,9 +71,12 @@ describe('AgentCard', () => {
     expect(html).toContain('Sin W-Engine');
   });
 
-  it('marca los agentes cargados a mano', () => {
-    const html = render(<AgentCard agent={{ ...AGENT, source: 'manual' }} />);
+  it('marca la fuente cuando no es el showcase de Enka', () => {
+    expect(render(<AgentCard agent={{ ...AGENT, source: 'manual' }} />)).toContain('Manual');
+    expect(render(<AgentCard agent={{ ...AGENT, source: 'hoyolab' }} />)).toContain('HoYoLAB');
+  });
 
-    expect(html).toContain('Manual');
+  it('no etiqueta a todo el roster: el import de Enka no lleva marca', () => {
+    expect(render(<AgentCard agent={AGENT} />)).not.toContain('Enka');
   });
 });

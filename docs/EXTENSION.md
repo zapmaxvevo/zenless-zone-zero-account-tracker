@@ -54,14 +54,36 @@ Verificado por el relevamiento del 2026-08-18 sobre el bundle desminificado de
   es "ya reclamado" de recompensas diarias) → revisar `RETCODES_CAPTCHA` en `client.py`.
 - HTTP 200 siempre; `x-trace-id` viene expuesto y es lo único para correlacionar un fallo.
 
-**No verificado** (se resuelve en la fase 0):
+**Verificado en la fase 0** (2026-08-30, capturas reales con la sesión del usuario; los
+scripts quedaron en `extension/scripts/`):
 
-1. Si `id_list` acepta **varios ids por request** y hasta cuántos. Es la incógnita de mayor
-   impacto: 1 request vs ~60 por sync.
-2. Cómo vienen los **valores** de las propiedades (¿`"24%"` como string? ¿hay conteo de rolls?).
-   Define si el mapeo a `DriveDisc.substats` (`prop_id`, `value`, `rolls`) es completo o parcial.
-3. Tasa real de captcha desde IP residencial (razonamiento sólido, dato no medido).
-4. Cookies en un `<iframe>` de `act.hoyolab.com` bajo Firefox (Total Cookie Protection).
+1. **`id_list` NO acepta varios ids: uno por request.** Con 3 y con 36 devuelve `-400005`
+   "Parameter Error". Y los corchetes van **repetidos** (`id_list[]=1091`), no indexados
+   (`id_list[0]=` también da `-400005`) — o sea que la lectura del bundle desminificado que
+   decía `qs` → `id_list[0]` estaba mal. Un roster de 36 agentes son 36 requests, ~50 s
+   serializados con jitter. Por eso el sync incremental dejó de ser optimización y pasó a ser
+   parte del diseño.
+2. **Los valores de las propiedades** son strings (`"38"`, `"4.8%"`), con los porcentajes ×100
+   al pasarlos a entero — exactamente la escala de Enka. Y **sí hay conteo de tiradas**:
+   `properties[].level` es el total (incluida la inicial) y `properties[].add` son las mejoras
+   posteriores. El `rolls` del modelo es `level`. Ojo con la otra mitad: HoYoLAB manda el valor
+   **acumulado** y el modelo guarda el **paso por tirada**, así que `value = base / level`.
+   Todo esto se verificó contra los seis agentes que ya estaban guardados por Enka: coinciden
+   los 137 substats, los 36 discos, los 6 W-Engines y los 36 skills. Detalle completo en
+   `HOYOLAB.md`, *`avatar/info`: la build completa*.
+3. **Tasa de captcha desde IP residencial**: ni un captcha ni un rate limit en ~17 requests
+   seguidos, en tres corridas. No es una medición larga, pero despeja el riesgo principal.
+4. **Firefox + Total Cookie Protection**: las tres capturas se corrieron en Firefox sobre
+   `act.hoyolab.com` sin problema. No se probó dentro de un `<iframe>` porque el diseño usa
+   una pestaña real.
+
+Y una que no estaba en la lista y salió sola: **el `index` real no trae perfil**. No tiene
+`role`, ni UID, ni nickname, ni nivel — solo `stats`, `avatar_list`, `buddy_list` y compañía.
+Las `PROFILE_KEYS` del mapper eran conjeturas y las fixtures inventadas las tenían, así que los
+tests pasaban contra una forma que la API no devuelve. El nickname, el nivel y el UID salen de
+`getGameRecordCard`, que la extensión ya pide para descubrir el `role_id`: por eso el paquete
+de import suma una sección `record_card` con la entrada de ZZZ (solo esa, que la card trae
+también las otras cuentas de HoYoverse del usuario).
 
 ## Arquitectura
 

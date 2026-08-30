@@ -101,20 +101,10 @@
   if (ids.length === 0) {
     console.warn('[capture] avatar/basic no trajo ids; se saltea avatar/info.');
   } else {
-    // Incógnita 2 del plan: cómo vienen los valores de las propiedades (¿"24%" como
-    // string?, ¿hay conteo de rolls?). Se resuelve mirando el data de esta request.
-    // need_wiki=false porque los links de wiki son ruido para el tracker.
-    await call(
-      'avatar_info_single',
-      `${BASE}/avatar/info?id_list[0]=${ids[0]}&need_wiki=false&${roleQs}`,
-    );
-
-    // Incógnita 1, la de mayor impacto: ¿id_list acepta varios ids por request y hasta
-    // cuántos? Se mandan TODOS los ids del roster serializados como id_list[0..n] (así
-    // serializa qs en el bundle oficial). Si la respuesta trae avatar_list con todos,
-    // el sync de la fase 3 es 1 request en vez de ~60.
-    const batchQs = ids.map((id, position) => `id_list[${position}]=${id}`).join('&');
-    await call('avatar_info_batch', `${BASE}/avatar/info?${batchQs}&need_wiki=false&${roleQs}`);
+    // Verificado el 2026-08-30: la forma buena es `id_list[]` repetido (como genshin.py),
+    // NO `id_list[0]` indexado — eso devuelve -400005 "Parameter Error". Y el endpoint
+    // acepta UN SOLO id: con 3 y con 36 también da -400005. Un request por agente.
+    await call('avatar_info', `${BASE}/avatar/info?id_list[]=${ids[0]}&need_wiki=false&${roleQs}`);
   }
 
   await call('buddy_info', `${BASE}/buddy/info?${roleQs}`);

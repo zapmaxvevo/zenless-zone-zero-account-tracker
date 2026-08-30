@@ -13,6 +13,12 @@ describe('elementIcon', () => {
     expect(elementIcon('AuricInk')).toContain('auric-ink');
   });
 
+  it('resuelve los alias con los que Enka publica el mismo atributo', () => {
+    expect(elementIcon('Elec')).toBe(elementIcon('Electric'));
+    expect(elementIcon('AuricEther')).toBe(elementIcon('AuricInk'));
+    expect(elementIcon('FireFrost')).toBe(elementIcon('Frost'));
+  });
+
   it('devuelve null para un atributo que la wiki todavía no tiene', () => {
     expect(elementIcon('Quantum')).toBeNull();
   });

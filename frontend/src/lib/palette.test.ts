@@ -9,6 +9,7 @@ import {
   initials,
   rankColor,
   rarityColor,
+  sourceColor,
 } from './palette';
 
 describe('elementColor', () => {
@@ -22,9 +23,38 @@ describe('elementColor', () => {
     expect(elementColor('Frost')).toBe(elementColor('Ice'));
   });
 
+  it('acepta los nombres crudos de los datos estáticos de Enka', () => {
+    expect(elementColor('Elec')).toBe('var(--element-electric)');
+    expect(elementColor('AuricEther')).toBe(elementColor('Ether'));
+    expect(elementColor('FireFrost')).toBe(elementColor('Ice'));
+    expect(elementColor('ZhenZhenAssault')).toBe(elementColor('Physics'));
+  });
+
+  it('cubre los atributos que la app todavía no había visto', () => {
+    expect(elementColor('Wind')).toBe('var(--element-wind)');
+    expect(elementColor('Lumen')).toBe('var(--element-lumiflux)');
+  });
+
+  it('traduce el código numérico que manda HoYoLAB', () => {
+    expect(elementColor('203')).toBe('var(--element-electric)');
+    expect(elementColor('300')).toBe('var(--element-lumiflux)');
+  });
+
   it('un atributo desconocido no rompe la pantalla', () => {
     expect(elementColor('Plasma')).toBe('var(--border-strong)');
     expect(elementColor(null)).toBe('var(--border-strong)');
+  });
+});
+
+describe('sourceColor', () => {
+  it('distingue el import vivo del dato tipeado a mano', () => {
+    expect(sourceColor('hoyolab')).toBe('var(--green)');
+    expect(sourceColor('manual')).toBe('var(--text-dim)');
+  });
+
+  it('enka es el import por defecto y no se destaca', () => {
+    expect(sourceColor('enka')).toBe('var(--border-strong)');
+    expect(sourceColor(null)).toBe('var(--border-strong)');
   });
 });
 

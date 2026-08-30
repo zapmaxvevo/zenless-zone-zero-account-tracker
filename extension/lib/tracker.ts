@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   frontendUrl: 'frontendUrl',
   apiToken: 'apiToken',
   lastImport: 'lastImport',
+  rosterSnapshot: 'rosterSnapshot',
 } as const;
 
 export interface TrackerSettings {

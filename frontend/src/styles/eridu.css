@@ -632,6 +632,18 @@
 
 /* ---------- Chips y botones de la piel ---------- */
 
+/**
+ * Tag teñido por el dato: el color entra por `--tint` (regla 7).
+ *
+ * Los `.element-*` que publica `zzz-ui` solo cubren los cinco atributos originales, así que
+ * un atributo nuevo se quedaba sin color. Acá el color lo pone `lib/palette.ts` y la clase
+ * sirve igual para el atributo y para la fuente de un agente.
+ */
+.ne-tag-tint {
+  color: var(--tint);
+  border-color: var(--tint);
+}
+
 /** Botón de sección (Chronicle): plano, chaflán chico, activo en amarillo. */
 .ne-chip {
   padding: 9px 14px;

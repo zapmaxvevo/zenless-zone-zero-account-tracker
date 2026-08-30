@@ -26,6 +26,7 @@ from zzz_tracker.errors import (
     RateLimitedError,
     ValidationError,
 )
+from zzz_tracker.hoyolab.build_mapper import parse_agent_builds, raw_agents
 from zzz_tracker.hoyolab.client import (
     SCHEDULE_CURRENT,
     SCHEDULE_PREVIOUS,
@@ -38,10 +39,12 @@ from zzz_tracker.hoyolab.mapper import (
     ParsedLostVoid,
     ParsedRosterAgent,
     parse_bangboos,
+    parse_challenge_nickname,
     parse_chronicle_account,
     parse_chronicle_uid,
     parse_deadly_assault,
     parse_lost_void,
+    parse_record_card,
     parse_roster_agents,
     parse_shiyu_defense,
 )
@@ -55,6 +58,7 @@ from zzz_tracker.storage.models import (
     SOURCE_MANUAL,
     Account,
     Agent,
+    AgentBuildSnapshot,
     Bangboo,
     ChallengeRun,
     ChallengeRunEntry,
@@ -75,6 +79,7 @@ TEAM_SLOTS = 3
 DISC_SLOTS = 6
 
 SECTION_INDEX = "index"
+SECTION_RECORD_CARD = "record_card"
 SECTION_AVATAR_BASIC = "avatar_basic"
 SECTION_AVATAR_INFO = "avatar_info"
 SECTION_BUDDY_INFO = "buddy_info"
@@ -124,12 +129,19 @@ class ChroniclePayloads:
     The server-side sync and the extension import both end up here, so persistence has a
     single path; `source` records which of the two brought the bundle. `index` is the only
     mandatory section; a `None` (or an empty season map) means that section was not
-    available and gets skipped, not refused. `avatar_info` is accepted but not persisted yet.
+    available and gets skipped, not refused. `avatar_info` holds one response per agent,
+    each with the whole build of that agent.
+
+    `record_card` is not a chronicle endpoint but the ZZZ entry of the HoYoLAB profile, and
+    the only payload that names the account: the `index` carries neither UID, nickname nor
+    level. Only the browser can fetch it, so the server-side sync never has one and it is
+    never reported as a skipped section.
     """
 
     region: str
     source: str
     index: dict[str, Any]
+    record_card: dict[str, Any] | None = None
     avatar_basic: dict[str, Any] | None = None
     buddy_info: dict[str, Any] | None = None
     shiyu_defense: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -407,6 +419,17 @@ class TrackerService:
         return account
 
     def _upsert_agent(self, account: Account, parsed: ParsedAgent) -> Agent | None:
+        return self._write_build(account, parsed, SOURCE_ENKA)
+
+    def _upsert_hoyolab_build(self, account: Account, parsed: ParsedAgent) -> Agent | None:
+        return self._write_build(account, parsed, SOURCE_HOYOLAB)
+
+    def _write_build(self, account: Account, parsed: ParsedAgent, source: str) -> Agent | None:
+        """Write a whole build, whoever read it, unless the agent was edited by hand.
+
+        Enka and HoYoLAB overwrite each other: the last sync to run wins, since both describe
+        the build as the game has it. Only `manual` is protected, and it stays protected.
+        """
         agent = self._find_agent(account.uid, parsed.game_id)
 
         if agent is not None and agent.is_manual:
@@ -423,7 +446,7 @@ class TrackerService:
         agent.skill_levels = dict(parsed.skill_levels)
         agent.weapon_effect_state = parsed.weapon_effect_state
         agent.obtained_at = parsed.obtained_at
-        agent.source = SOURCE_ENKA
+        agent.source = source
         self._session.flush()
 
         self._replace_wengine(agent, parsed.wengine)
@@ -560,14 +583,18 @@ class TrackerService:
         """Store a chronicle bundle captured in the user's browser, tracking the UID if new.
 
         The bundle carries the raw `data` of each endpoint, so it persists through the same
-        path as the server-side sync. Only `index` is mandatory: it confirms the UID the
-        bundle belongs to, and any other absent or null section is skipped and reported.
+        path as the server-side sync. Only `index` is mandatory, and any other absent or null
+        section is skipped and reported. The UID is confirmed against `record_card`, the one
+        payload that carries it; without a card there is nothing to confirm and the bundle is
+        trusted to belong to the UID in the path.
         Credentials, ttl and backoff stay untouched — no request left this backend.
         """
         index = _import_section(payloads, SECTION_INDEX)
         if not index:
             raise ValidationError("A chronicle import needs at least the index payload")
-        claimed_uid = parse_chronicle_uid(index)
+        record_card = _import_section(payloads, SECTION_RECORD_CARD)
+        card = parse_record_card(record_card) if record_card else None
+        claimed_uid = (card.uid if card else "") or parse_chronicle_uid(index)
         if claimed_uid and claimed_uid != uid:
             raise ValidationError(
                 f"The imported chronicle belongs to UID {claimed_uid}, not to {uid}"
@@ -579,6 +606,7 @@ class TrackerService:
             region=region or self._region_for(account),
             source=CHRONICLE_SOURCE_EXTENSION,
             index=index,
+            record_card=record_card,
             avatar_basic=_import_section(payloads, SECTION_AVATAR_BASIC),
             buddy_info=_import_section(payloads, SECTION_BUDDY_INFO),
             shiyu_defense=_import_seasons(payloads, SECTION_SHIYU_DEFENSE),
@@ -646,10 +674,7 @@ class TrackerService:
     ) -> ChronicleSyncReport:
         skipped_sections: list[str] = []
 
-        parsed_account = parse_chronicle_account(payloads.index)
-        if parsed_account is not None:
-            account.nickname = parsed_account.nickname or account.nickname
-            account.level = parsed_account.level or account.level
+        self._name_account(account, payloads)
         account.region = payloads.region
         account.chronicle_public = True
 
@@ -682,8 +707,11 @@ class TrackerService:
             if lost_void is not None:
                 self._upsert_lost_void(account, lost_void)
 
-        if payloads.avatar_info:
+        builds_synced = 0
+        if not payloads.avatar_info:
             skipped_sections.append(SECTION_AVATAR_INFO)
+        else:
+            builds_synced = self._persist_builds(account, payloads.avatar_info)
 
         account.chronicle_synced_at = utc_now()
         account.chronicle_import_source = payloads.source
@@ -696,10 +724,36 @@ class TrackerService:
             runs=tuple(runs),
             agents_synced=agents_synced,
             bangboos_synced=bangboos_synced,
+            builds_synced=builds_synced,
             lost_void_synced=lost_void is not None,
             unavailable_modes=tuple(dict.fromkeys(unavailable)),
             skipped_sections=tuple(skipped_sections),
         )
+
+    def _name_account(self, account: Account, payloads: ChroniclePayloads) -> None:
+        """Give the account its nickname and level, from whichever payload happens to know.
+
+        The record card is the only one that answers for sure, and the browser is the only one
+        that can fetch it. Failing that, the `index` is asked (it does carry a profile in some
+        versions) and finally the challenge payloads, which sign their answer with `nick_name`
+        and are the last chance the server-side sync has to learn the name.
+        """
+        card = parse_record_card(payloads.record_card) if payloads.record_card else None
+        profile = parse_chronicle_account(payloads.index)
+
+        nickname = (card.nickname if card else "") or (profile.nickname if profile else "")
+        level = (card.level if card else 0) or (profile.level if profile else 0)
+
+        account.nickname = nickname or self._nickname_from_challenges(payloads) or account.nickname
+        account.level = level or account.level
+
+    def _nickname_from_challenges(self, payloads: ChroniclePayloads) -> str:
+        seasons = (*payloads.shiyu_defense.values(), *payloads.deadly_assault.values())
+        for season in seasons:
+            nickname = parse_challenge_nickname(season)
+            if nickname:
+                return nickname
+        return ""
 
     def _persist_challenge_runs(
         self,
@@ -807,6 +861,34 @@ class TrackerService:
         agent.mindscape_level = parsed.mindscape_level
         self._session.flush()
         return True
+
+    def _persist_builds(self, account: Account, payloads: Sequence[dict[str, Any]]) -> int:
+        """Store the whole build of every agent the chronicle answered for.
+
+        This runs after the roster so the complete build wins over the level and mindscape
+        `avatar_basic` brought for the same agent. The raw payload is kept next to the build:
+        it costs one row per agent and it is the only way to recover a field the mapper does
+        not read yet without asking HoYoLAB again.
+        """
+        for game_id, raw in raw_agents(payloads):
+            self._upsert_build_snapshot(account, game_id, raw)
+        builds = parse_agent_builds(payloads, self._static)
+        return sum(1 for parsed in builds if self._upsert_hoyolab_build(account, parsed))
+
+    def _upsert_build_snapshot(self, account: Account, game_id: int, raw: dict[str, Any]) -> None:
+        snapshot = self._session.scalars(
+            select(AgentBuildSnapshot).where(
+                AgentBuildSnapshot.account_uid == account.uid,
+                AgentBuildSnapshot.game_id == game_id,
+            )
+        ).one_or_none()
+        if snapshot is None:
+            snapshot = AgentBuildSnapshot(account_uid=account.uid, game_id=game_id)
+            self._session.add(snapshot)
+
+        snapshot.raw = raw
+        snapshot.captured_at = utc_now()
+        self._session.flush()
 
     def _upsert_bangboo(self, account: Account, parsed: ParsedBangboo) -> Bangboo:
         bangboo = self._session.scalars(

@@ -76,7 +76,8 @@ export interface EquippedSetRead {
   bonus_props: Record<string, number>;
 }
 
-export type AgentSource = 'enka' | 'manual';
+/** `enka` es el showcase, `hoyolab` el Battle Chronicle y `manual` lo tipeado a mano. */
+export type AgentSource = 'enka' | 'hoyolab' | 'manual';
 
 export interface AgentRead {
   id: number;
