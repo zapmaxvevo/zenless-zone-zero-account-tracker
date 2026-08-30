@@ -1,8 +1,3 @@
-/**
- * Milisegundos que faltan hasta `iso`, o 0 si ya pasó / no hay fecha.
- *
- * El backend manda UTC; `Date` se encarga de la conversión al huso del navegador.
- */
 export function msUntil(iso: string | null | undefined, now: number): number {
   if (!iso) return 0;
   const target = Date.parse(iso);
@@ -10,7 +5,6 @@ export function msUntil(iso: string | null | undefined, now: number): number {
   return Math.max(0, target - now);
 }
 
-/** Cuenta regresiva corta: `'45s'`, `'2m 05s'`, `'1h 03m'`. */
 export function formatCountdown(ms: number): string {
   const total = Math.ceil(Math.max(0, ms) / 1000);
   const seconds = total % 60;
@@ -22,7 +16,6 @@ export function formatCountdown(ms: number): string {
   return `${seconds}s`;
 }
 
-/** Fecha y hora legibles en el huso del navegador; `'nunca'` si no hay. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return 'nunca';
   const date = new Date(iso);

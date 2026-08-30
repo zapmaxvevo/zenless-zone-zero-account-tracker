@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { DriveDiscRead } from '../api/types';
 import DiscCard from './DiscCard';
 
-/** Datos con la forma que devuelve el backend (ver `tests/test_agents_api.py`). */
 const DISC: DriveDiscRead = {
   slot: 1,
   game_id: 31041,
@@ -31,8 +30,6 @@ describe('DiscCard', () => {
     const html = render(DISC);
 
     expect(html).toContain('Woodpecker Electro');
-    // Lo que muestra el juego, no la base que manda Enka: 550 escalado a nivel 15 y tres
-    // rolls de 2,4% de CRIT Rate.
     expect(html).toContain('2.200');
     expect(html).toContain('7,2%');
     expect(html).toContain('19');
@@ -42,7 +39,6 @@ describe('DiscCard', () => {
   it('prende una marquita por tirada', () => {
     const html = render(DISC);
 
-    // 3 tiradas de crítico y 1 de ataque; `rolls` ya incluye la inicial.
     expect(html.match(/ne-pip is-on/g)).toHaveLength(4);
   });
 
@@ -52,7 +48,6 @@ describe('DiscCard', () => {
     expect(attack).toMatch(/ne-sub is-key"><span class="ne-sub-label">CRIT Rate/);
     expect(attack).toMatch(/ne-sub"><span class="ne-sub-label">ATK/);
 
-    // Aturdimiento sí cuenta el ataque plano: la misma card cambia de marcas.
     const stun = render(DISC, 'Stun');
 
     expect(stun).toMatch(/ne-sub is-key"><span class="ne-sub-label">ATK/);

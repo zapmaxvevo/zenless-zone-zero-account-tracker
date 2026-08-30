@@ -4,16 +4,12 @@ import { gradeLetterColor, rarityColor } from '../lib/palette';
 import { discFill, discGrade, discScore, effectiveRolls, isKeySub } from '../lib/score';
 import { formatStat, statLabel } from '../lib/stats';
 
-/** Seis marquitas por substat: las tiradas que un disco de nivel 15 puede llegar a tener. */
 const PIPS = [0, 1, 2, 3, 4, 5];
 
 interface DiscCardProps {
-  /** Casillero de la grilla: sin disco la card se dibuja igual, vacía (regla 11). */
   slot: number;
   disc: DriveDiscRead | null;
-  /** Especialidad del agente: decide qué subestadísticas suman al score. */
   profession: string | null;
-  /** Color del elemento del agente, para el borde del stat principal (regla 7). */
   elementColor: string;
 }
 

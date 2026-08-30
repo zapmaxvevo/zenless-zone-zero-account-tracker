@@ -24,7 +24,6 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
     patch({ substats });
   }
 
-  // La línea de arriba toma el color del rango elegido: el color sale del dato (regla 7).
   const grade = disc.equipped ? rarityColor(parseInt(disc.rarity, 10)) : 'var(--border)';
 
   return (
@@ -211,7 +210,6 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
                     patch({
                       substats: [
                         ...disc.substats,
-                        // Un substat nace con su tirada inicial ya contada: nunca con cero.
                         { prop_id: '', value: '0', rolls: String(LIMITS.substatRolls[0]) },
                       ],
                     })

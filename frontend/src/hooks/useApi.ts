@@ -9,18 +9,11 @@ export interface UseApiResult<T> {
 }
 
 interface Settled<T> {
-  /** Petición a la que corresponde este resultado; si no es la actual, seguimos cargando. */
   requestId: string;
   data: T | null;
   error: string | null;
 }
 
-/**
- * Ejecuta `fetcher` al montar y expone `{data, error, loading, reload}`.
- *
- * El fetcher se lee desde una ref, así que puede ser una arrow inline sin memoizar.
- * `key` identifica la petición (p. ej. el UID consultado): al cambiar, se vuelve a pedir.
- */
 export function useApi<T>(fetcher: () => Promise<T>, key: string = ''): UseApiResult<T> {
   const [reloadToken, setReloadToken] = useState(0);
   const [settled, setSettled] = useState<Settled<T> | null>(null);

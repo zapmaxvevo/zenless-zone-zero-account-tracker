@@ -29,7 +29,6 @@ import '../styles/build.css';
 
 const SLOTS = [1, 2, 3, 4, 5, 6];
 
-/** Nombres de la leyenda: los de `lib/score.ts` son claves del modelo, no texto de pantalla. */
 const SUB_NAMES: Record<SubKey, string> = {
   crit: 'Prob. CRIT',
   critdmg: 'DAÑO CRIT',
@@ -50,7 +49,6 @@ export default function AgentPage() {
     () => api.getAgent(agentId),
     `${agentId}:${version}`,
   );
-  // Los bonus de set vienen como prop id crudo: el catálogo les pone nombre y formato.
   const properties = useApi(() => api.catalogProperties(), 'properties');
 
   return (
@@ -234,12 +232,6 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
   );
 }
 
-/**
- * Lo que la API expone del agente, tal cual.
- *
- * El detalle no trae stats calculadas (ATQ, CRIT, PV finales): Enka publica las piezas, no
- * el total, así que acá van los datos crudos y ninguno inventado.
- */
 function Stats({ agent }: { agent: AgentDetailRead }) {
   const rows: [string, string][] = [
     ['Nivel', `${agent.level}`],
@@ -289,7 +281,6 @@ function WEngine({ agent }: { agent: AgentDetailRead }) {
 }
 
 function Skills({ levels }: { levels: Record<string, number> }) {
-  // Primero las seis de siempre, en el orden del juego; después cualquier índice nuevo.
   const extra = Object.keys(levels).filter((key) => !SKILL_KEYS.includes(key));
 
   return (
@@ -311,7 +302,6 @@ function Skills({ levels }: { levels: Record<string, number> }) {
 }
 
 interface KeySubsLegendProps {
-  /** La especialidad cruda de Enka, que es con la que trabaja el modelo de score. */
   profession: string | null;
   label: string | null;
 }

@@ -4,13 +4,9 @@ export type HeroSize = 'sm' | 'md' | 'lg';
 
 interface HeroProps {
   children: ReactNode;
-  /** Alto y peso de la marca de agua: `sm` cabecera de sección, `lg` hero de pantalla. */
   size?: HeroSize;
-  /** Texto de la marca de agua. Los saltos de línea se respetan. */
   watermark?: string | null;
-  /** Color de las barras diagonales: el del elemento cuando la pantalla tiene uno. */
   beamColor?: string;
-  /** Arte de cuerpo entero, apoyado en el borde inferior derecho. */
   art?: string | null;
 }
 
@@ -20,10 +16,6 @@ const SIZES: Record<HeroSize, { minHeight: string; wmSize: string; wmBottom: str
   lg: { minHeight: 'clamp(280px, 42vw, 326px)', wmSize: '150px', wmBottom: '-40px' },
 };
 
-/**
- * El bloque de cabecera de una pantalla: gradiente, marca de agua, tres barras diagonales
- * y, si hay, el arte del agente. Ver reglas 2, 4 y 5 de docs/DESIGN.md.
- */
 export default function Hero({
   children,
   size = 'lg',
@@ -61,7 +53,6 @@ export default function Hero({
   );
 }
 
-/** Van siempre de a tres: una sola barra se lee como un error de layout (regla 2). */
 function Beams({ color }: { color: string }) {
   return (
     <span aria-hidden="true">

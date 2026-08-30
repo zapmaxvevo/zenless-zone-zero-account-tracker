@@ -1,4 +1,3 @@
-/** Mismo patrón que `UID_PATTERN` en el backend. */
 export const UID_PATTERN = /^\d{6,16}$/;
 
 export function normalizeUid(raw: string): string {
@@ -9,7 +8,6 @@ export function isValidUid(raw: string): boolean {
   return UID_PATTERN.test(normalizeUid(raw));
 }
 
-/** El motivo por el que un UID no sirve, o `null` si está bien. */
 export function uidError(raw: string): string | null {
   const uid = normalizeUid(raw);
   if (!uid) return 'Escribí un UID.';

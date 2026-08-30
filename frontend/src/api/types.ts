@@ -1,5 +1,3 @@
-/** Espejo de `src/zzz_tracker/web/schemas.py`: mismos nombres, mismo snake_case. */
-
 export interface HealthResponse {
   status: string;
   app: string;
@@ -15,35 +13,24 @@ export interface AccountRead {
   avatar_id: number | null;
   title_id: number | null;
   calling_card_id: number | null;
-  /** ISO 8601 en UTC. */
   last_synced_at: string | null;
-  /** ISO 8601 en UTC; hasta ese momento el sync no vuelve a pegarle a Enka. */
   next_sync_available_at: string | null;
-  /** Servidor deducido del UID cuando la cuenta todavía no lo trae: `América`, `Asia`… */
   region: string;
-  /** Si el Battle Chronicle de HoYoLAB está público; sin eso el sync de Chronicle no ve nada. */
   chronicle_public: boolean;
-  /** ISO 8601 en UTC de la última sincronización con HoYoLAB, distinta de la de Enka. */
   chronicle_synced_at: string | null;
-  /** De dónde salió el último Chronicle; `null` mientras nunca haya entrado uno. */
   chronicle_import_source: ChronicleImportSource | null;
-  /** Hay cookies de HoYoLAB guardadas: el sync server-side puede correr. */
   has_hoyolab_credentials: boolean;
   agent_count: number;
 }
 
-/** La extensión sube el paquete desde el navegador; `server` es el sync con cookies. */
 export type ChronicleImportSource = 'extension' | 'server';
 
 export interface StatRead {
   prop_id: number;
   name: string | null;
-  /** Formato .NET de Enka (`{0:0}`, `{0:0.#}`, `{0:0.#%}`); ver `lib/stats.ts`. */
   format: string | null;
-  /** Base cruda de Enka: por roll en un substat, sin escalar por nivel en un stat principal. */
   value: number;
   rolls: number;
-  /** Lo que muestra el juego. `null` si es un stat principal de un disco sin rareza conocida. */
   total: number | null;
 }
 
@@ -75,11 +62,9 @@ export interface EquippedSetRead {
   name: string | null;
   icon_url: string | null;
   pieces: number;
-  /** Claves: prop id como string. */
   bonus_props: Record<string, number>;
 }
 
-/** `enka` es el showcase, `hoyolab` el Battle Chronicle y `manual` lo tipeado a mano. */
 export type AgentSource = 'enka' | 'hoyolab' | 'manual';
 
 export interface AgentRead {
@@ -102,7 +87,6 @@ export interface AgentRead {
 
 export interface AgentDetailRead extends AgentRead {
   image_url: string | null;
-  /** Claves: índice de habilidad como string. */
   skill_levels: Record<string, number>;
   weapon_effect_state: number | null;
   obtained_at: string | null;
@@ -142,7 +126,6 @@ export interface TeamMemberWrite {
   agent_id: number;
 }
 
-/** El equipo entero: mandarlo reemplaza nombre, notas y todos los miembros. */
 export interface TeamWrite {
   name: string;
   notes: string;
@@ -164,7 +147,6 @@ export interface WEngineWrite {
 
 export interface DriveDiscWrite {
   slot: number;
-  /** Id de la pieza, no del set; el backend deduce `set_id` y `rarity` si van en null. */
   game_id: number;
   set_id: number | null;
   rarity: number | null;
@@ -186,12 +168,6 @@ export interface AgentWrite {
   discs: DriveDiscWrite[];
 }
 
-/**
- * Corrección de un agente: solo viaja lo que cambió.
- *
- * `wengine` y `discs` reemplazan, no mergean. Omitir una clave la deja intacta; mandar
- * `wengine: null` desequipa y `discs: []` vacía los discos.
- */
 export interface AgentUpdate {
   level?: number;
   promotion_level?: number;
@@ -237,14 +213,12 @@ export interface CatalogListResponse<T> {
   items: T[];
 }
 
-/** Los dos modos que el backend guarda (`MODE_SHIYU_DEFENSE` / `MODE_DEADLY_ASSAULT`). */
 export type ChallengeMode = 'shiyu_defense' | 'deadly_assault';
 
 export const MODE_SHIYU_DEFENSE: ChallengeMode = 'shiyu_defense';
 export const MODE_DEADLY_ASSAULT: ChallengeMode = 'deadly_assault';
 export const CHALLENGE_MODES: ChallengeMode[] = [MODE_SHIYU_DEFENSE, MODE_DEADLY_ASSAULT];
 
-/** Cookies de HoYoLAB; solo viajan al backend, que nunca devuelve el `ltoken_v2`. */
 export interface CredentialWrite {
   ltuid_v2: string;
   ltoken_v2: string;
@@ -253,7 +227,6 @@ export interface CredentialWrite {
 export interface CredentialRead {
   account_uid: string;
   ltuid_v2: string;
-  /** HoYoLAB rechazó estas cookies: hay que volver a cargarlas. */
   rejected: boolean;
   last_used_at: string | null;
   created_at: string | null;
@@ -263,7 +236,6 @@ export interface CredentialRead {
 export interface ChallengeAgentRead {
   game_id: number;
   level: number;
-  /** El Chronicle manda la rareza como letra (`'S'`, `'A'`), no como número. */
   rarity: string;
   element: string;
   mindscape: number;
@@ -272,7 +244,6 @@ export interface ChallengeAgentRead {
 
 export interface ChallengeEntryRead {
   position: number;
-  /** Capa de Shiyu; los modos que no tienen capas lo mandan en null. */
   layer_index: number | null;
   layer_id: number | null;
   name: string;
@@ -284,7 +255,6 @@ export interface ChallengeEntryRead {
   challenged_at: string | null;
   boss_name: string;
   boss_icon: string;
-  /** Crudo del Chronicle: la forma de cada buff no está garantizada. */
   buffs: Record<string, unknown>[];
   agents: ChallengeAgentRead[];
   bangboo_id: number | null;
@@ -301,7 +271,6 @@ export interface ChallengeRunRead {
   score: number;
   max_score: number;
   total_stars: number;
-  /** Ya viene en porcentaje (2,5 = 2,5%); el backend divide por 100 lo que manda HoYoLAB. */
   rank_percent: number | null;
   clear_time_seconds: number | null;
   schema_version: string;
@@ -341,12 +310,10 @@ export interface LostVoidRead {
 
 export interface ChronicleSyncResponse {
   account_uid: string;
-  /** El ttl del Chronicle no venció: no se pidió nada y `runs` trae lo ya guardado. */
   skipped: boolean;
   agents_synced: number;
   bangboos_synced: number;
   lost_void_synced: boolean;
-  /** Modos que HoYoLAB no devolvió esta vez, con los valores de `ChallengeMode`. */
   unavailable_modes: string[];
   runs: ChallengeRunRead[];
 }

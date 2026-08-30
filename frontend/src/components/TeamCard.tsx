@@ -12,12 +12,10 @@ import Face from './ui/Face';
 interface TeamCardProps {
   team: TeamRead;
   busy: boolean;
-  /** El arte de cuerpo entero, pedido una sola vez por la pantalla. */
   art: AgentArt['art'];
   onDelete: () => void;
 }
 
-/** Las tres franjas del borde izquierdo: van juntas o no van (regla 2 de docs/DESIGN.md). */
 const FLARES = [
   { left: -10, width: 8, opacity: 0.6 },
   { left: 8, width: 5, opacity: 0.34 },
@@ -35,7 +33,6 @@ export default function TeamCard({ team, busy, art, onDelete }: TeamCardProps) {
   const score = average(present.map(rosterScore));
   const level = average(present.map((agent) => agent.level));
   const synergy = teamSynergy(present);
-  // La franja toma el elemento del primer miembro, no un promedio (regla 7).
   const flare = elementsColor(present[0]?.elements);
 
   return (
@@ -161,7 +158,6 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-/** Promedio redondeado, o `null` si no hay de qué promediar: el bloque se dibuja igual. */
 function average(values: readonly number[]): number | null {
   if (values.length === 0) return null;
   return Math.round(values.reduce((total, value) => total + value, 0) / values.length);

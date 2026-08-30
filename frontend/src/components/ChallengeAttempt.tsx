@@ -7,17 +7,13 @@ import '../styles/chronicle.css';
 
 interface ChallengeAttemptProps {
   entry: ChallengeEntryRead;
-  /** Shiyu puntúa con rating y nombra al jefe aparte; Asalto no tiene rating. */
   mode: 'shiyu' | 'assault';
-  /** Nombre del agente por game id; sin catálogo queda el id crudo. */
   agentName?: (gameId: number) => string;
-  /** Nombre del bangboo, ya cruzado por la página con el roster de bangboos. */
   bangbooName?: string | null;
 }
 
 const STAR_SLOTS = [0, 1, 2];
 
-/** Un intento del Chronicle: quién lo jugó, contra qué y con qué buffs. */
 export default function ChallengeAttempt({
   entry,
   mode,
@@ -118,7 +114,6 @@ function Metric({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function SquadChip({ agent, name }: { agent: ChallengeAgentRead; name: string }) {
-  // HoYoLAB manda `element_type` numérico (`"201"`); lo traduce `lib/elements.ts`.
   const style: CSSProperties = {
     ['--rank' as string]: rankColor(agent.rarity),
     ['--element' as string]: elementColor(agent.element),
@@ -139,7 +134,6 @@ function SquadChip({ agent, name }: { agent: ChallengeAgentRead; name: string })
   );
 }
 
-/** `S+` es el techo de Shiyu, no una cuarta letra: comparte el amarillo de la S. */
 function ratingColor(rating: string): string {
   return rankColor(rating.replace('+', ''));
 }
@@ -150,7 +144,6 @@ function subline(entry: ChallengeEntryRead, mode: 'shiyu' | 'assault'): string {
   return `${date} · Jefe: ${entry.boss_name}`;
 }
 
-/** Los buffs vienen crudos del Chronicle: `{title, text, icon}`, con las tres claves opcionales. */
 function readBuff(buff: Record<string, unknown>): { title: string; text: string } | null {
   const title = typeof buff.title === 'string' ? buff.title : '';
   const text = typeof buff.text === 'string' ? buff.text : '';

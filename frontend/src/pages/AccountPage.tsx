@@ -29,7 +29,6 @@ import { rosterScore } from '../lib/score';
 import { useSync } from '../lib/syncContext';
 import { formatCountdown, formatDateTime } from '../lib/time';
 
-/** Un dato que la API no trae se dibuja igual, en guión: la ausencia también es dato (regla 11). */
 const EMPTY = '—';
 
 const TOP_BUILDS = 3;
@@ -40,7 +39,6 @@ export default function AccountPage() {
   const { version } = useSync();
   const [refresh, setRefresh] = useState(0);
 
-  // Una sola clave para las tres peticiones: sincronizar —acá o en el header— recarga todo.
   const key = `${uid}:${version}:${refresh}`;
   const account = useApi(() => api.getAccount(uid), key);
   const agents = useApi(() => api.listAgents(uid), key);
@@ -68,7 +66,6 @@ export default function AccountPage() {
   );
 }
 
-/** `1 equipo` / `2 equipos`: la línea de meta del hero es demasiado visible para un plural roto. */
 function quantity(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -115,7 +112,6 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
       await api.syncAccount(uid);
       onSynced();
     } catch (caught) {
-      // El cooldown de Enka no es una falla: se avisa en acento, no en rojo (regla 11).
       const paused = caught instanceof ApiError && caught.status === 429;
       setNotice({
         title: paused ? 'Sincronización en pausa' : 'No se pudo sincronizar',
@@ -279,7 +275,6 @@ interface TilesProps {
   score: number | null;
 }
 
-/** La fila de cabecera: score de cuenta, roster, discos y nivel medio. */
 function Tiles({ account, agents, score }: TilesProps) {
   const roster = agents.length;
   const topRank = agents.filter((agent) => agent.rarity === 4).length;
@@ -372,7 +367,6 @@ function TeamRow({ team, art }: TeamRowProps) {
   );
 }
 
-/** Las franjas de una fila van de a tres, igual que las barras de un hero (regla 2). */
 function Flares({ color }: { color: string }) {
   return (
     <span aria-hidden="true">

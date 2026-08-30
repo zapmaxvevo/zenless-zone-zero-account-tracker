@@ -1,11 +1,5 @@
 import { ApiError } from './client';
 
-/**
- * Traduce un error de red o de API al mensaje que ve el usuario.
- *
- * El backend contesta en inglés y orientado al operador; acá le damos a cada status
- * el texto que le sirve a quien está mirando la pantalla.
- */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) return messageForStatus(error);
   if (error instanceof TypeError) return NETWORK_MESSAGE;

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import type { AgentRead } from '../api/types';
 import AgentCard from './AgentCard';
 
-/** Datos con la forma que devuelve el backend (ver `tests/test_agents_api.py`). */
 const AGENT: AgentRead = {
   id: 7,
   account_uid: '1300000000',
@@ -55,7 +54,6 @@ describe('AgentCard', () => {
   it('pinta el score aproximado del build y la letra de rango', () => {
     const html = render(<AgentCard agent={AGENT} art={ART} />);
 
-    // Nivel 60, seis discos, W-Engine y M2: el tope de la aproximación del roster.
     expect(html).toContain('95');
     expect(html).toContain('>S<');
   });
@@ -76,12 +74,10 @@ describe('AgentCard', () => {
 
     expect(html).toContain('icons/element/fire.png');
     expect(html).toContain('icons/profession/attack.png');
-    // El nombre sigue estando, pero solo para quien no ve el icono.
     expect(html).toContain('<span class="ne-sr-only">Fuego</span>');
     expect(html).toContain('<span class="ne-sr-only">Ataque</span>');
   });
 
-  // De dónde salió el dato es metadato del tracker, no del juego: no va en pantalla.
   it('no dice de qué fuente vino el agente', () => {
     for (const source of ['enka', 'hoyolab', 'manual'] as const) {
       const html = render(<AgentCard agent={{ ...AGENT, source }} />);
@@ -91,7 +87,6 @@ describe('AgentCard', () => {
     }
   });
 
-  // Enka le pone la misma rareza 4 que a cualquier S; el rango propio sale del `game_id`.
   it('a Pyrois le pone su propio rango, no la S de su rareza', () => {
     const html = render(<AgentCard agent={{ ...AGENT, game_id: 1551, rarity: 4 }} />);
 

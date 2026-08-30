@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import type { ChallengeEntryRead } from '../api/types';
 import ChallengeAttempt from './ChallengeAttempt';
 
-/** Un intento con la forma que devuelve el backend (ver `tests/test_chronicle_api.py`). */
 const ENTRY: ChallengeEntryRead = {
   position: 1,
   layer_index: 7,

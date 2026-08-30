@@ -25,10 +25,8 @@ import type {
 
 const BASE = '/api';
 
-/** Los defaults del backend: `force` apagado y `previous` prendido. */
 export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
 
-/** Error de una respuesta HTTP no exitosa, con el `detail` que devuelve FastAPI. */
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
@@ -41,12 +39,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Saca el mensaje de error del body de una respuesta fallida.
- *
- * FastAPI manda `{detail: string}` para errores de dominio y `{detail: [{msg, loc}, ...]}`
- * para errores de validación; cualquier otra forma cae en `fallback`.
- */
 export function extractDetail(body: unknown, fallback: string): string {
   if (typeof body !== 'object' || body === null || !('detail' in body)) return fallback;
 
@@ -69,17 +61,10 @@ export function extractDetail(body: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Mensaje por defecto cuando el body no trae un `detail` usable. */
 export function statusFallback(status: number, statusText: string): string {
   return statusText.trim() || `Error ${status}`;
 }
 
-/**
- * Query string con los parámetros presentes: `'?force=true'`, o `''` si no queda ninguno.
- *
- * Omitir un parámetro no es lo mismo que mandarlo vacío: FastAPI aplica su default solo
- * cuando la clave no viaja.
- */
 export function queryString(
   params: Record<string, string | number | boolean | null | undefined>,
 ): string {
@@ -93,12 +78,7 @@ export function queryString(
 
 async function toApiError(res: Response): Promise<ApiError> {
   const fallback = statusFallback(res.status, res.statusText);
-  let body: unknown = null;
-  try {
-    body = await res.json();
-  } catch {
-    // Respuesta sin JSON (HTML de un proxy, body vacío): queda el fallback.
-  }
+  const body: unknown = await res.json().catch(() => null);
   return new ApiError(res.status, extractDetail(body, fallback));
 }
 

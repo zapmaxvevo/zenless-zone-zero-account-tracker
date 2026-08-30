@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api, queryString } from './client';
 
-/** Deja registrada cada llamada y responde con un 200 vacío. */
 function stubFetch(): string[] {
   const urls: string[] = [];
   vi.stubGlobal('fetch', (url: string) => {

@@ -10,11 +10,8 @@ import Banner from './ui/Banner';
 
 interface ChronicleNavProps {
   uid: string;
-  /** La cuenta ya cargada; `null` mientras no se sabe. De acá sale si el sync tiene sentido. */
   account?: AccountRead | null;
-  /** La sincronización trajo datos nuevos: la pantalla vuelve a pedir lo suyo. */
   onSynced?: () => void;
-  /** La pantalla no tiene nada que mostrar: el banner explica qué falta según la cuenta. */
   empty?: boolean;
 }
 
@@ -36,16 +33,6 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_DEADLY_ASSAULT]: 'Asalto Mortal',
 };
 
-/**
- * La barra que abre las cuatro pantallas del Chronicle: secciones, conexión y sync.
- *
- * El sync de HoYoLAB es aparte del de Enka (el del header): pega contra otra API, con otras
- * cookies y otros modos de fallar. Los dos que más se ven —captcha y sync salteado— no son
- * errores sino la API diciendo "más tarde", así que van en acento (regla 11 de docs/DESIGN.md).
- *
- * El botón de sincronizar solo existe si la cuenta tiene cookies guardadas; una cuenta que
- * vino por la extensión no sincroniza desde acá: se importa de nuevo desde la extensión.
- */
 export default function ChronicleNav({
   uid,
   account = null,
@@ -124,7 +111,6 @@ export default function ChronicleNav({
   );
 }
 
-/** Qué le falta a una pantalla vacía depende de cómo está conectada la cuenta. */
 function emptyHint(uid: string, account: AccountRead | null): ReactNode {
   if (account?.chronicle_import_source === 'extension') {
     return 'Esta cuenta se importa con la extensión. Abrí el popup de la extensión y volvé a importar para traer esta sección.';
@@ -143,7 +129,6 @@ function emptyHint(uid: string, account: AccountRead | null): ReactNode {
   );
 }
 
-/** Un sync que no trajo nada tampoco es un error: se cuenta lo que pasó y se sigue. */
 function reportNotice(skipped: boolean, unavailable: string[]): Notice | null {
   if (skipped) {
     return {
@@ -165,12 +150,6 @@ function reportNotice(skipped: boolean, unavailable: string[]): Notice | null {
   return null;
 }
 
-/**
- * El error del sync, traducido acá y no en `api/errors.ts`.
- *
- * El 503 del Chronicle es el captcha, no los datos estáticos de Enka, y el 401 se resuelve
- * cargando cookies: son mensajes propios de esta pantalla.
- */
 function errorNotice(caught: unknown): Notice {
   if (!(caught instanceof ApiError)) {
     return { title: 'No se pudo sincronizar', text: describeError(caught), tone: 'info' };

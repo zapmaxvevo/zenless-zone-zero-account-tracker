@@ -43,8 +43,6 @@ describe('formatStatValue', () => {
   });
 
   it('reproduce los bonus de set que publica Enka', () => {
-    // Valores reales del catálogo: Woodpecker +8% CRIT, Hormone Punk +10% ATK,
-    // Soul Rock +16% DEF y Freedom Blues +30 de dominio (plano, sin escalar).
     expect(formatStatValue(800, '{0:0.#%}')).toBe('8%');
     expect(formatStatValue(1000, '{0:0.#%}')).toBe('10%');
     expect(formatStatValue(1600, '{0:0.#%}')).toBe('16%');
@@ -54,7 +52,6 @@ describe('formatStatValue', () => {
 
 describe('formatStat', () => {
   it('usa el total, no la base por roll', () => {
-    // 240 es la base de un roll de CRIT Rate (2,4%); con tres rolls el juego muestra 7,2%.
     const critRate = {
       prop_id: 20103,
       name: 'CRIT Rate',
@@ -63,7 +60,6 @@ describe('formatStat', () => {
       rolls: 3,
       total: 720,
     };
-    // Un stat principal de 550 en un disco S nivel 15 se lee 2200, no 550.
     const hp = { prop_id: 11103, name: 'HP', format: '{0:0}', value: 550, rolls: 0, total: 2200 };
 
     expect(formatStat(critRate)).toBe('7,2%');
@@ -71,7 +67,6 @@ describe('formatStat', () => {
   });
 
   it('sin total cae a la base cruda', () => {
-    // Pasa cuando falta la rareza del disco y el stat principal no se puede escalar.
     const hp = { prop_id: 11103, name: null, format: null, value: 550, rolls: 0, total: null };
 
     expect(formatStat(hp)).toBe('550');

@@ -3,10 +3,6 @@ import type { ReactNode } from 'react';
 interface BannerProps {
   title: string;
   children: ReactNode;
-  /**
-   * `warn` pinta el aviso de acento, no de rojo: un captcha o un sync salteado no son
-   * errores, son la API diciendo "más tarde" (regla 11 de docs/DESIGN.md).
-   */
   tone?: 'info' | 'warn';
   onDismiss?: () => void;
 }

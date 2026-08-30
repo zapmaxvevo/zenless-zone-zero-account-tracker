@@ -7,10 +7,6 @@ import ChroniclePage from './ChroniclePage';
 import CredentialsPage from './CredentialsPage';
 import LostVoidPage from './LostVoidPage';
 
-/**
- * Las cuatro pantallas dibujadas sin backend: en SSR no corren los efectos, así que esto
- * es exactamente lo que ve alguien mientras el Chronicle todavía está cargando.
- */
 function render(path: string, element: ReactNode): string {
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>

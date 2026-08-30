@@ -35,7 +35,6 @@ interface Spec {
   subtitle: string;
   current: string;
   previous: string;
-  /** Shiyu se juega por capas; Asalto es un jefe por intento. */
   layered: boolean;
 }
 
@@ -60,10 +59,8 @@ const SPECS: Record<ChronicleMode, Spec> = {
   },
 };
 
-/** Shiyu tiene siete capas fijas: las que no se jugaron también son dato (regla 11). */
 const LAYERS = [1, 2, 3, 4, 5, 6, 7];
 
-/** Lo que se muestra cuando la temporada volvió sin un intento. */
 const EMPTY = '—';
 
 export default function ChroniclePage({ mode }: ChroniclePageProps) {
@@ -77,7 +74,6 @@ export default function ChroniclePage({ mode }: ChroniclePageProps) {
     `${uid}:${spec.apiMode}:${version}`,
   );
   const bangboos = useApi(() => api.listBangboos(uid), `${uid}:${version}`);
-  // El catálogo solo aporta nombres: si no está bajado, los agentes quedan con su game id.
   const catalog = useApi(() => api.catalogAgents(), 'catalog');
 
   const seasons = useMemo(
@@ -280,7 +276,6 @@ function pad(value: number): string {
   return value.toString().padStart(2, '0');
 }
 
-/** Ventana de la temporada, corta y en mayúsculas: `16 JUL — 16 AGO 2026`. */
 function formatWindow(begin: string | null, end: string | null): string {
   const from = shortDate(begin, false);
   const to = shortDate(end, true);
@@ -288,11 +283,6 @@ function formatWindow(begin: string | null, end: string | null): string {
   return `${from || EMPTY} — ${to || EMPTY}`;
 }
 
-/**
- * Fecha corta del huso del navegador, sin los conectores del castellano.
- *
- * `es-AR` devuelve `16-jul` y `16 de jul de 2026`; el diseño las quiere como `16 JUL`.
- */
 function shortDate(iso: string | null, withYear: boolean): string {
   if (!iso) return '';
   const date = new Date(iso);

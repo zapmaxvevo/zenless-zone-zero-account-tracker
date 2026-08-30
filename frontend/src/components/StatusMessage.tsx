@@ -6,12 +6,6 @@ interface StatusMessageProps {
   onRetry?: () => void;
 }
 
-/**
- * El aviso del diseño: rombo, explicación y, si se puede reintentar, el botón a la derecha.
- *
- * Solo `error` se pinta de rojo. Cargando y vacío van en gris: la ausencia de dato es dato,
- * no una falla (regla 11 de docs/DESIGN.md).
- */
 export default function StatusMessage({ kind, children, onRetry }: StatusMessageProps) {
   const error = kind === 'error';
 

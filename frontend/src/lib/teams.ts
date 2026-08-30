@@ -3,7 +3,6 @@ import type { TeamRead, TeamWrite } from '../api/types';
 export const TEAM_SLOTS = [1, 2, 3];
 export const MAX_TEAM_NAME = 64;
 
-/** Un equipo en edición: tres slots por posición, `null` en los vacíos. */
 export interface TeamDraft {
   name: string;
   notes: string;
@@ -21,12 +20,6 @@ export function draftFromTeam(team: TeamRead): TeamDraft {
   return { name: team.name, notes: team.notes, members };
 }
 
-/**
- * Lo que el backend rechazaría, dicho antes de mandarlo.
- *
- * Los slots no pueden repetirse porque cada posición es una celda del array, pero el
- * mismo agente sí puede caer en dos, y eso es un 422.
- */
 export function teamErrors(draft: TeamDraft): string[] {
   const errors: string[] = [];
   const name = draft.name.trim();
@@ -45,7 +38,6 @@ export function teamErrors(draft: TeamDraft): string[] {
   return errors;
 }
 
-/** El payload del equipo: los slots vacíos no viajan. */
 export function toTeamWrite(draft: TeamDraft): TeamWrite {
   return {
     name: draft.name.trim(),

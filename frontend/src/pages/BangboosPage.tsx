@@ -11,7 +11,6 @@ import { initials, rarityColor } from '../lib/palette';
 import { useSync } from '../lib/syncContext';
 import '../styles/chronicle.css';
 
-/** Los bangboos se muestran con cinco estrellas, como en el juego. */
 const STAR_SLOTS = [0, 1, 2, 3, 4];
 
 export default function BangboosPage() {

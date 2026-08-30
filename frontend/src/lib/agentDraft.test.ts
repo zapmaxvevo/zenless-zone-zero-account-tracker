@@ -10,7 +10,6 @@ import {
   toAgentWrite,
 } from './agentDraft';
 
-/** Soldier 11 con un Woodpecker S en el slot 1, con la forma que sirve el backend. */
 const AGENT: AgentDetailRead = {
   id: 7,
   account_uid: '1300000000',
@@ -234,7 +233,6 @@ describe('agentDraftErrors', () => {
     const errors = agentDraftErrors(draft);
 
     expect(errors).toContain('El disco 1: los rolls de un substat va de 1 a 6.');
-    // Las mejoras del disco son otra cosa y siguen yendo de 0 a 5.
     expect(errors).not.toContain('El disco 1: los rolls va de 0 a 5.');
   });
 

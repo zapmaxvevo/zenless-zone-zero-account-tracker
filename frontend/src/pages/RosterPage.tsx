@@ -19,7 +19,6 @@ interface Option {
   label: string;
 }
 
-/** Las opciones salen de lo que el roster tiene puesto, no de una lista fija del código. */
 function options(values: readonly (string | null)[], label: (value: string) => string): Option[] {
   const present = [...new Set(values.filter((value): value is string => Boolean(value)))];
   return present
@@ -70,7 +69,6 @@ export default function RosterPage() {
       return !query || agentName(agent).toLowerCase().includes(query);
     });
 
-    // El orden se calcula sobre la copia: `data.items` es el que devuelve la API.
     return [...matching].sort((a, b) => {
       if (order === 'level') return b.level - a.level || agentName(a).localeCompare(agentName(b));
       if (order === 'name') return agentName(a).localeCompare(agentName(b));

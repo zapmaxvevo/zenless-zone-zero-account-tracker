@@ -7,7 +7,6 @@ import type {
   WEngineWrite,
 } from '../api/types';
 
-/** Mismos límites que los `Field(ge=..., le=...)` del backend. */
 export const LIMITS = {
   level: [1, 60],
   promotion_level: [0, 5],
@@ -17,18 +16,12 @@ export const LIMITS = {
   modification_level: [0, 5],
   phase: [1, 5],
   discLevel: [0, 15],
-  /** Procs que recibe el disco entero: 5 en un S. Es el `BreakLevel` de Enka. */
   discProcs: [0, 5],
-  /**
-   * Las tiradas de un substat, que ya incluyen la inicial (ver `effectiveRolls` en
-   * `lib/score.ts`): un substat existe con una tirada y llega a seis, nunca a cero.
-   */
   substatRolls: [1, 6],
   skillLevel: [0, 12],
 } as const;
 
 export const DISC_SLOTS = [1, 2, 3, 4, 5, 6];
-/** Enka solo publica piezas B, A y S; la rareza es parte del id de la pieza. */
 export const DISC_RARITIES = [2, 3, 4];
 export const MAX_SUBSTATS = 4;
 
@@ -48,7 +41,6 @@ export interface DiscDraft {
   main_stat_id: string;
   main_stat_value: string;
   substats: SubstatDraft[];
-  /** Id de la pieza que ya tenía el disco, para no perderlo si su set es desconocido. */
   known_game_id: string;
 }
 
@@ -70,12 +62,6 @@ export interface AgentDraft {
   discs: DiscDraft[];
 }
 
-/**
- * Id de una pieza de disco a partir de su set, su rareza y su slot.
- *
- * Enka no publica las piezas en el catálogo, solo los sets, pero las codifica:
- * el id es `set + rareza*10 + slot` (31000 + 40 + 1 = 31041, un Woodpecker S de slot 1).
- */
 export function discGameId(setId: number, rarity: number, slot: number): number {
   return setId + rarity * 10 + slot;
 }
@@ -156,7 +142,6 @@ export function draftFromAgent(agent: AgentDetailRead): AgentDraft {
 }
 
 interface DraftErrorOptions {
-  /** El alta manual exige elegir un agente del catálogo; la edición ya lo tiene. */
   requireGameId?: boolean;
 }
 
@@ -225,12 +210,6 @@ export function toAgentWrite(draft: AgentDraft): AgentWrite {
   };
 }
 
-/**
- * Solo lo que cambió respecto del agente que se está editando.
- *
- * El backend distingue "no vino" de "vino en null": omitir `wengine` lo deja como está y
- * mandarlo en null lo desequipa, así que la comparación con el original es lo que decide.
- */
 export function toAgentUpdate(draft: AgentDraft, original: AgentDetailRead): AgentUpdate {
   const next = buildBody(draft);
   const before = bodyFromAgent(original);
@@ -357,7 +336,6 @@ function checkRange(
   }
 }
 
-/** El id, o `null` si el campo está vacío o no es un número usable. */
 function parseId(text: string): number | null {
   const value = parseInt(text, 10);
   return Number.isNaN(value) || value <= 0 ? null : value;

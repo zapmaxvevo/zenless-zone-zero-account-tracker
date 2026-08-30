@@ -11,10 +11,6 @@ import { useApi } from '../hooks/useApi';
 import { formatDateTime } from '../lib/time';
 import '../styles/chronicle.css';
 
-/**
- * Los tres pasos del camino recomendado. La extensión todavía no está publicada: el primer
- * paso lo dice tal cual en vez de fingir un link de tienda (regla 11: la ausencia también es dato).
- */
 const STEPS: { title: string; note: React.ReactNode }[] = [
   {
     title: 'Instalá la extensión',

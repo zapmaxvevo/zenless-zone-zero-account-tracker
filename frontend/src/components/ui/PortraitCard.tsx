@@ -4,28 +4,19 @@ import { Link } from 'react-router-dom';
 interface PortraitCardProps {
   to: string;
   name: string;
-  /** Arte de cuerpo entero. Sin arte se dibuja el id del juego en su lugar. */
   art: string | null;
   fallback: ReactNode;
-  /** Letra de rango: va de marca de agua, teñida de su color. */
   rank: string | null;
   rankColor: string;
   elementColor: string;
   elementIcon?: string | null;
   meta: ReactNode;
-  /** La cifra de la píldora amarilla; sin score no se dibuja la píldora. */
   score?: ReactNode;
   scoreLabel?: string;
   tags?: ReactNode;
   footNote?: ReactNode;
 }
 
-/**
- * La card de retrato: el elemento más caro del sistema y el que da la personalidad.
- *
- * Se arma de atrás hacia adelante — marca de agua, bandas diagonales, arte, píldora, pie —
- * y es el único de la app con hover físico. Anatomía completa en la regla 10 de docs/DESIGN.md.
- */
 export default function PortraitCard({
   to,
   name,

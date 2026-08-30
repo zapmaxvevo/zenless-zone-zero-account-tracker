@@ -11,7 +11,6 @@ import Banner from './Banner';
 interface Tab {
   label: string;
   to: string;
-  /** El tab de Panel matchea exacto; los demás también con lo que cuelgue debajo. */
   end?: boolean;
 }
 
@@ -21,12 +20,6 @@ interface SyncNotice {
   tone: 'info' | 'warn';
 }
 
-/**
- * El marco de toda la app: scanlines, header pegajoso y el aviso de sincronización.
- *
- * El header se mide a sí mismo y colapsa a hamburguesa por debajo de 800px; se esconde al
- * bajar y vuelve al subir (regla 12 de docs/DESIGN.md).
- */
 export default function AppShell() {
   const nested = useMatch('/account/:uid/*');
   const root = useMatch('/account/:uid');
@@ -59,7 +52,6 @@ export default function AppShell() {
       await api.syncAccount(uid);
       setVersion((current) => current + 1);
     } catch (caught) {
-      // El cooldown de Enka no es una falla: se avisa en acento, no en rojo.
       const paused = caught instanceof ApiError && caught.status === 429;
       setNotice({
         title: paused ? 'Sincronización en pausa' : 'No se pudo sincronizar',
@@ -185,7 +177,6 @@ export default function AppShell() {
   );
 }
 
-/** Latido del backend al pie: verde si contesta, rojo si no. */
 function BackendStatus() {
   const { data, error, loading } = useApi(() => api.health());
 

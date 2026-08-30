@@ -15,12 +15,6 @@ import RosterPage from './RosterPage';
 import TeamEditorPage from './TeamEditorPage';
 import TeamsPage from './TeamsPage';
 
-/**
- * Que cada pantalla sobreviva su primer render, con el shell puesto y sin backend.
- *
- * En el render estático las peticiones nunca resuelven, así que lo que se dibuja es el estado
- * de carga: alcanza para cazar un crash de props o un hook mal puesto, que es lo que `tsc` no ve.
- */
 const SCREENS: [string, string, React.ReactElement][] = [
   ['Registro', '/', <HomePage />],
   ['Panel', '/account/1300000000', <AccountPage />],

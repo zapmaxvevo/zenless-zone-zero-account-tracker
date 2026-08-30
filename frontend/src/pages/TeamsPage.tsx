@@ -15,7 +15,6 @@ export default function TeamsPage() {
   const uid = useParams().uid ?? '';
   const { version } = useSync();
   const { data, error, loading, reload } = useApi(() => api.listTeams(uid), `${uid}:${version}`);
-  // El catálogo se pide una sola vez para toda la pantalla, no una por fila.
   const { art } = useAgentArt();
   const [removing, setRemoving] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);

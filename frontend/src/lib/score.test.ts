@@ -105,7 +105,6 @@ describe('effectiveRolls', () => {
 
 describe('discScore', () => {
   it('las subestadísticas clave valen entero y el resto un cuarto', () => {
-    // DAÑO CRIT le suma a Ataque pero no a Defensa, que puntúa DEF%, PV%, ATQ% y Prob. CRIT.
     const clave = discScore(disc([stat(21103, 4)]), 'Attack');
     const relleno = discScore(disc([stat(21103, 4)]), 'Defense');
 

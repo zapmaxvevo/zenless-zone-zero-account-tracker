@@ -14,7 +14,6 @@ export default function LostVoidPage() {
   const { version } = useSync();
 
   const account = useApi(() => api.getAccount(uid), `${uid}:${version}`);
-  // Un 404 acá no es una falla: es la cuenta que todavía no sincronizó el Vacío.
   const { data, error, loading, reload } = useApi(
     () =>
       api.getLostVoid(uid).catch((caught: unknown) => {
@@ -115,7 +114,6 @@ export default function LostVoidPage() {
 interface VoidTileProps {
   label: string;
   value: ReactNode;
-  /** Fracción de 0 a 1; sin ella el tile no lleva barra. */
   bar?: number;
   note: string;
 }
@@ -135,7 +133,6 @@ function VoidTile({ label, value, bar, note }: VoidTileProps) {
   );
 }
 
-/** Sin tope conocido la barra queda vacía: mejor eso que inventar un 100%. */
 function ratio(done: number, total: number): number {
   if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.min(1, Math.max(0, done / total));

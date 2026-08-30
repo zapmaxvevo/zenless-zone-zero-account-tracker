@@ -62,7 +62,6 @@ describe('rankColor y rarityColor', () => {
     expect(rankColor('a')).toBe('var(--rank-a)');
   });
 
-  // Pyrois no está en la escala 2..4: su rango solo llega por `agentRankLabel`.
   it('el rango propio de Pyrois toma el dorado de la S, como su icono', () => {
     expect(rankColor('I')).toBe('var(--rank-s)');
   });

@@ -48,7 +48,6 @@ describe('agentRankLabel', () => {
     expect(agentRankLabel(2, 1121)).toBe('B');
   });
 
-  // Enka le pone rareza 4, igual que a cualquier S; el rango propio solo se sabe por el id.
   it('Pyrois tiene su propio rango, no el de su rareza', () => {
     expect(agentRankLabel(4, 1551)).toBe('I');
   });
