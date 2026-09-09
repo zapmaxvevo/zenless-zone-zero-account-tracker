@@ -633,8 +633,8 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
   key. Seteado, se exige además el `Authorization: Bearer <ZZZ_API_TOKEN>` y sin él —u otro
   esquema, o token errado— responde **401** (`UnauthorizedError`), con `secrets.compare_digest`
   para comparar. Un token que viaja adentro de una extensión publicada no es un secreto, así
-  que nunca puede ser la única defensa. (`ImportDisabledError` sigue definida en `errors.py`
-  pero ya no la levanta nadie.)
+  que nunca puede ser la única defensa. (`ImportDisabledError` se borró junto con la regla que
+  la levantaba.)
 - **Body**: `ChronicleImportWrite` (`extra="ignore"`): `source`, `extension_version`,
   `captured_at`, `region`, `language` y `payloads`. Cada clave de `payloads` es el `data` ya
   desenvuelto de un endpoint —lo mismo que devuelve `HoyolabClient._get`—, así los `parse_*`
