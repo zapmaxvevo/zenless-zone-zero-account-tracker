@@ -9,6 +9,7 @@ dependencies = [
     "cryptography>=50.0.0",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.5",
     "pydantic-settings>=2.14.2",
     "sqlalchemy>=2.0.51",
     "typer>=0.27.1",
@@ -32,6 +33,12 @@ extend-exclude = ["frontend"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.format]
+# Ruff also formats the python blocks inside markdown. The docs quote code that is meant to
+# read the way it was written — snippets from other projects, `.claude/rules` examples in
+# another style — so the formatter stays on the code that actually runs.
+exclude = ["*.md"]
 
 [tool.mypy]
 python_version = "3.12"
