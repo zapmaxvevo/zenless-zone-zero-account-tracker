@@ -1,85 +1,95 @@
 # Pendientes — ZZZ Account Tracker
 
 Relevamiento del 2026-08-14, sobre la rama `design-system-sync`.
-Actualizado el mismo día, después de bajar el diseño New Eridu.
+Rehecho el 2026-09-09, sobre la rama `pendientes`, después de la propiedad de cuentas, el
+deploy preparado y el botón unificado. Lo de agosto que quedó cerrado se resume en una línea;
+lo que sigue abierto está abajo con el detalle que haga falta.
 
-Estado de los checks: `uv run pytest` 262 ✅, `uv run ruff check .` ✅, `uv run mypy src` ✅,
-`npm run lint` ✅, `npm run build` ✅, `npm run test` 174 ✅. Nada está roto — lo que sigue son
-huecos, no bugs.
+Los checks los corre CI en cada push (`.github/workflows/ci.yml`): lint, formato, tipos y
+tests de las dos mitades, más un job que aplica y revierte las migraciones contra Postgres y
+comprueba que no haya deriva contra los modelos. En local sigue estando `/verify`.
 
-Diagnóstico general: el backend se había adelantado al frontend; con el rediseño el frontend
-lo alcanzó. Lo que queda es deploy, seguridad y deuda de duplicación.
+Diagnóstico general: no queda deuda de producto. Lo que falta es publicar —y eso ya no es
+código, son pasos con credenciales que sólo puede correr Maxi— más un resto chico de
+duplicación latente y de limpieza.
 
-## 1. El hueco de UI: cerrado
+## Lo que se cerró desde agosto
 
-Resuelto el 2026-08-14 con la bajada del diseño New Eridu (ver `docs/DESIGN.md`).
+- **El hueco de UI** (§1 de agosto): lo cerró el rediseño New Eridu. Y el hueco de contrato que
+  quedaba —el frontend deducía "esta cuenta tiene credenciales" de que no volviera ningún
+  dato— también: existe `GET /accounts/{uid}/credentials` y `client.ts` lo consume con
+  `getCredentialsStatus`.
+- **La duplicación de `.zui-button*`** (§3): las cuatro clases se fueron de `index.css`, que
+  quedó como reset puro, y viven una sola vez en `styles/eridu.css`. La puerta hacia ellas es
+  `components/ui/Button.tsx` (`Button` y `LinkButton`, con `tone` y `size`); ninguna pantalla
+  escribe la clase a mano. Anotado en `docs/DESIGN.md` y en `.design-sync/NOTES.md`, que es
+  quien tiene que saberlo en el próximo sync.
+- **La falta de auth** (§4): la reemplazó el modelo de propiedad de `docs/OWNERSHIP.md` — leer
+  es público, escribir pide la key de la cuenta. Ya no cualquiera que sepa un UID dispara
+  `chronicle/sync` con las cookies de HoYoLAB de otro.
+- **La falta de CI** (§4): existe `.github/workflows/ci.yml`.
+- **Las docs desfasadas** (§4): esto, más `README.md`, `docs/PLAN.md`, `docs/DESIGN.md` y
+  `docs/EXTENSION.md`, al día al 2026-09-09.
 
-- **HoYoLAB Chronicle ya tiene UI.** `frontend/src/api/client.ts` expone los seis endpoints
-  (`storeCredentials`, `deleteCredentials`, `syncChronicle`, `listChallenges`, `listBangboos`,
-  `getLostVoid`) y hay cuatro pantallas nuevas: Defensa Shiyu, Asalto Mortal, Vacío Perdido y
-  Bangboos, más la de credenciales.
-- **Los iconos se usan.** `lib/icons.ts` entra por `AgentCard`, `AgentPage` y `DiscCard`; el
-  build ahora emite los PNG en `dist/assets/`.
-- **Shiyu por capas se ve.** Los intentos se agrupan por capa y hay una fila con las siete,
-  marcando las jugadas y sus estrellas.
+## 1. El deploy está preparado, no hecho
 
-Queda un hueco de contrato: no hay `GET /accounts/{uid}/credentials`, así que el frontend no
-puede saber si una cuenta tiene credenciales guardadas y lo deduce de que no vuelva ningún dato.
+Todo lo que era código ya está en la rama: `vercel.json` con el ruteo de las dos mitades,
+`api/index.py`, `api/requirements.txt` exportado del lock, `.env.example` con cada setting
+explicado, los estáticos de Enka commiteados bajo `data/static/` y las migraciones verificadas
+contra Postgres 17 por CI.
 
-## 2. Deploy (fase 8 del plan) sigue en cero
+Falta correr los pasos de `docs/DEPLOY.md`, que son los que piden credenciales y no puede dar
+un agente: crear la base Postgres y copiar la connection string **pooleada**, generar la clave
+de credenciales con `new-credentials-key`, correr `alembic upgrade head` contra esa base,
+cargar las variables en Vercel e importar el proyecto. Después, el paso 8: las cuentas que ya
+existían quedaron `unclaimed` por la migración, así que son de sólo lectura hasta que
+`zzz-tracker claim <uid>` les dé una key.
 
-- No hay `vercel.json`, ni entrypoint serverless para FastAPI, ni `.env.example`.
-- La base sigue en SQLite (`data/zzz.db`); falta migrar `ZZZ_DATABASE_URL` a Postgres
-  hosteado (Neon / Vercel Postgres) y correr las migraciones ahí.
-- **Es más complicado que cuando se escribió el plan**: `ZZZ_CREDENTIALS_KEY` (Fernet,
-  ver `storage/crypto.py`) pasó a ser un secreto obligatorio para guardar credenciales, y
-  las cookies de HoYoLAB desde IPs de Vercel tienen riesgo de captcha. Puede que el sync
-  de Chronicle no pueda vivir en el serverless y tenga que quedar como job aparte
-  (cron local, máquina propia).
+Dos cosas quedan afuera del serverless a propósito, y están explicadas allá: el cron de
+Chronicle —desde IPs de Vercel el captcha de HoYoLAB es cuestión de tiempo— y `sync-static`,
+porque el filesystem es de sólo lectura. Las dos van a una máquina propia.
 
-## 3. El design system: adoptado a medias
+Y un cabo suelto que se ata recién cuando exista el dominio real: `extension/wxt.config.ts`
+declara `https://personal-zzz.vercel.app` como placeholder en los `host_permissions`. Con el
+dominio verdadero hay que reemplazarlo y volver a buildear la extensión.
 
-- **Las fuentes ya cargan.** `frontend/index.html` trae Archivo Black, Chakra Petch e Inter, así
-  que la app renderiza con la tipografía del diseño y no en `system-ui`. La app las pide a Google
-  Fonts; el DS sirve las mismas woff2 desde `design-system/fonts/`.
-- **La piel New Eridu vive en un solo lugar**: `frontend/src/styles/tokens.css` +
-  `styles/eridu.css` (clases `.ne-*`) y las primitivas de `components/ui/`. La filosofía está
-  escrita en `docs/DESIGN.md` y enganchada desde `CLAUDE.md`.
-- **Los tokens duplicados no son el problema** (revisado el 2026-09-09). La app nunca carga
-  `zzz-ui.css`: `index.css` importa sólo `styles/tokens.css` y `styles/eridu.css`, y
-  `frontend/package.json` no depende de `design-system/`. En runtime hay un único set. Comparados
-  nombre por nombre contra `design-system/src/styles/tokens.css` y contra el `dist/zzz-ui.css`
-  compilado, los 27 tokens del DS están en el frontend **con el mismo valor exacto**: ninguno
-  difiere, ninguno falta. La única diferencia es el formato de la minificación.
-- **`styles/tokens.css` es la fuente única.** Es un superset: le sobran `--element-wind`,
-  `--element-lumiflux` y toda la piel New Eridu (`--ink`, `--font-display`, `--font-tech`, los
-  tres gradientes, los skews/rot, los cuatro `--cut-*`, `--key-bg`) — 15 tokens que el DS no
-  tiene y que habría que mantener acá igual. Adoptar `zzz-ui` no borraría el archivo. El DS se
-  regenera desde acá en el próximo sync, no al revés.
-- **Lo que sí está copiado a mano son los componentes, no los tokens**: `index.css:74-130`
-  reimplementa `.zui-button`, `.zui-button-accent`, `.zui-button-danger` y `.zui-button-sm`
-  (usadas en ~8 componentes), mientras el DS además publica `.zui-input*` que el frontend no
-  tiene. Ahí un cambio de estilo sí queda en dos lados sin que nadie avise. Es la duplicación
-  que vale la pena cerrar.
-- **Consumir el paquete tiene un costo real**: `design-system/dist/` está gitignoreado
-  (`.gitignore:8`), así que el build del frontend pasaría a depender de
-  `cd design-system && npm install && npm run build` — y todavía no hay CI (§4).
+## 2. La propiedad de cuentas, recién aterrizada
 
-## 4. Más chicas, pero van a doler
+Está implementada de punta a punta en esta rama: el backend (modelo, migración `0006`,
+dependencias por cuenta y por fila, `claim` y `rotate-key` en el CLI), la extensión (una key
+por UID, el header en el import, el `#key=` en el link de vuelta) y el frontend (la key
+guardada por UID, el header sólo en las escrituras, el cartel que la muestra una vez y las
+pantallas en modo lectura cuando no hay key). Lo que queda es mergear la rama.
 
-- **Sin auth y ahora se guardan cookies de HoYoLAB.** Cualquiera que sepa un UID puede
-  disparar `/accounts/{uid}/chronicle/sync` usando las credenciales guardadas de esa
-  cuenta. En local da igual; publicado en Vercel, no. Decidir antes del deploy.
-- **Docs desfasadas.** Ni `README.md` ni `docs/PLAN.md` mencionan HoYoLAB (existe
-  `docs/HOYOLAB.md`, pero el plan sigue terminando en Enka + fase 8). El README tampoco
-  documenta los comandos `new-credentials-key`, `set-credentials` ni `sync-chronicle`.
-- **Sin CI.** No hay `.github/workflows`; `/verify` corre solo si uno se acuerda.
-- **`design-system-sync` ya está mergeada** (`2e006f8`, ancestro de `main`). Lo único que
-  queda es borrar la rama, local y en `origin`.
+Lo que se decidió y conviene no perder: una cuenta `verified` **no** se puede tomar con un
+import que no presente la key vigente (403). El precio es que perder la key no se arregla desde
+el navegador: se arregla con `zzz-tracker rotate-key <uid>`, que exige acceso a la base. El
+porqué está en `docs/OWNERSHIP.md`; sin esa regla, forjar un bundle alcanzaba para robarse una
+cuenta y quedarse con las cookies de HoYoLAB guardadas.
+
+## 3. `.zui-input*` sigue duplicado en potencia
+
+Los botones dejaron de estar en dos lados; los inputs nunca llegaron a estarlo, pero pueden.
+El design system publica `.zui-input` (más `-mono` y `-invalid`) con sus componentes
+`TextInput` y `Select`, y la app estila sus formularios con `.field input/select/textarea` de
+`App.css`, a partir de la línea 435. Hoy no hay
+divergencia porque no hay copia: hay dos implementaciones distintas del mismo control.
+
+Adoptar el paquete entero seguiría costando lo mismo que en agosto: `design-system/dist/` está
+gitignoreado, así que el build del frontend pasaría a depender de
+`cd design-system && npm install && npm run build`. Con CI eso ya es visible cuando se rompe,
+que era la mitad de la objeción; la otra mitad —que los tokens ya están sincronizados y no
+ganamos nada moviéndolos— sigue en pie. Es una decisión de gusto, no una deuda que sangre.
+
+## 4. Limpieza
+
+`design-system-sync` sigue existiendo en `origin` (local ya no está). Está mergeada en `main`
+desde `2e006f8`; borrarla es un comando.
 
 ## Orden sugerido
 
-1. Deploy (§2), decidiendo primero qué pasa con el sync de HoYoLAB y con la falta de auth.
-2. Auth (§4) — ahora que hay UI para cargar credenciales de HoYoLAB, pesa más que antes.
-3. Cerrar la duplicación de `.zui-button*` (§3). Adoptar `zzz-ui` entero no urge: los tokens
-   ya están sincronizados y el paquete arrastra un paso de build sin CI que lo cubra.
+1. Mergear la rama con la propiedad de cuentas (§2).
+2. Deploy (§1), que es lo único que separa al proyecto de estar publicado.
+3. Después del deploy, el dominio real en la extensión y el cron de Chronicle en la máquina
+   propia.
+4. Lo de §3 y §4 cuando molesten.

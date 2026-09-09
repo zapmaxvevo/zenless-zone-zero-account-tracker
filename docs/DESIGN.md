@@ -382,7 +382,11 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 
 **Controles** `.ne-chip` (+`.is-active`) · `.ne-data-pill` · `.ne-ghost` · `.ne-tab` (+`-menu`,
 `.is-active`) · `.ne-burger` · `.ne-menu` · `.ne-logo` / `.ne-brand` · `.ne-tag-tint` · `.ne-tag-row` /
-`.ne-tag-icon` · `.ne-sr-only`
+`.ne-tag-icon` · `.ne-sr-only` · `.zui-button` (+`-accent`, `-danger`, `-sm`)
+
+`.zui-button*` es la excepción al prefijo: es el botón base de `zzz-ui`, no una forma New Eridu,
+pero su única definición en la app vive igual en `eridu.css`. Ninguna pantalla escribe esas
+clases a mano — se piden como `<Button>` o `<LinkButton>`, que son la puerta hacia ellas.
 
 Las custom properties que leen esas clases: `--cut` (chaflán), `--grade` (nota de un disco),
 `--element` (barra del main stat), `--fill` (relleno de una barra), `--flare` (franja de una
@@ -404,7 +408,8 @@ frontend/src/styles/tokens.css      colores, fuentes, gradientes, ángulos, chaf
 frontend/src/styles/eridu.css       todas las clases .ne-*
 frontend/src/lib/palette.ts         color por elemento / rango / grade
 frontend/src/lib/icons.ts           icono por elemento / especialidad / rango / habilidad
-frontend/src/components/ui/         AppShell, Hero, Tile, SectionHead, PortraitCard, IconTag, …
+frontend/src/components/ui/         AppShell, Hero, Tile, SectionHead, PortraitCard, IconTag,
+                                    Button / LinkButton (tone, size), …
 design-system/                      paquete zzz-ui: Button, Panel, Tag, Field, … (base)
 ```
 

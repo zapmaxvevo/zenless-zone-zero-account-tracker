@@ -4,6 +4,14 @@ Escrito el 2026-08-18. Complementa a `HOYOLAB.md` (la integración server-side, 
 vigente) y a `PLAN.md`. Cuando algo de acá se implemente, la referencia técnica pasa a
 `HOYOLAB.md`; este documento es el plan, no la memoria.
 
+**Actualización del 2026-09-09 — la auth del import cambió.** Donde este plan dice que
+`ZZZ_API_TOKEN` es obligatorio, ya no lo es: quien autoriza a escribir una cuenta es su
+**account key** (`X-Account-Key`), una por UID, y el token quedó como reja opcional encima.
+El modelo completo está en `docs/OWNERSHIP.md`, y lo que hace la extensión con la key
+(dónde la guarda, cuándo rota, cómo se copia a otro navegador) en `extension/README.md`.
+Las secciones de abajo quedan como se escribieron, con las correcciones marcadas donde la
+afirmación vieja confundiría.
+
 ## Por qué una extensión
 
 `HOYOLAB.md` documenta tres límites de la integración actual que **no se arreglan desde el
@@ -97,7 +105,7 @@ también las otras cuentas de HoYoverse del usuario).
 │                                       │                          │         │
 └───────────────────────────────────────┼──────────────────────────┼─────────┘
                                         │ POST /chronicle/import   │ fetch same-site
-                                        │ Authorization: Bearer    │ credentials: include
+                                        │ X-Account-Key: zzk_…     │ credentials: include
                                         ▼                          ▼
                               tracker (FastAPI)          sg-act-public-api.hoyolab.com
                               parse_* + _upsert_*
@@ -127,6 +135,9 @@ Decisiones:
   configurable en las opciones de la extensión. Es la primera pieza de auth del proyecto
   (`PENDIENTES.md` §4); no resuelve el problema general, pero evita que cualquiera escriba
   builds en cualquier UID. Cuando haya auth de verdad, el import se cuelga de ella.
+  → **Eso pasó** (2026-09-09): el import se cuelga ahora de la account key del UID, y el
+  token pasó a ser opcional. Vacío, la extensión ni manda el `Authorization`; seteado, se
+  exige además de la key. El campo sigue en las opciones, explicado como lo que es.
 - **CORS en el backend: no hace falta.** El POST lo hace el service worker con
   `host_permissions` sobre el dominio del tracker, y eso saltea CORS. Sí hay que declarar
   ese host en el manifest (configurable: local `http://127.0.0.1:8000/*` y el dominio de Vercel).
@@ -144,7 +155,8 @@ Decisiones:
 
 ## Contrato del import
 
-`POST /accounts/{uid}/chronicle/import` — `Authorization: Bearer <ZZZ_API_TOKEN>`.
+`POST /accounts/{uid}/chronicle/import` — `X-Account-Key: <key del UID>` (y
+`Authorization: Bearer <ZZZ_API_TOKEN>` sólo si el backend tiene el token seteado).
 
 ```jsonc
 {
@@ -171,12 +183,15 @@ Decisiones:
 - Toda clave es opcional salvo `index` (de ahí salen nickname/nivel y se confirma el UID): un
   import parcial es válido. `avatar_info` es una lista de respuestas crudas, no un merge, para
   no perder la forma exacta.
-- Respuesta: `ChronicleSyncResponse` extendida con `builds_synced` y `skipped_sections`.
+- Respuesta: `ChronicleSyncResponse` extendida con `builds_synced` y `skipped_sections` —
+  y, desde el modelo de propiedad, `account_key`: viene con la key nueva cuando el import se
+  quedó con el UID, y `null` cuando el que llamó ya presentó la vigente.
 - El `uid` del path se valida contra `index.role.game_role_id` (o el campo real): si no
   coincide → 422. La cuenta **se crea si no existe** (`POST /accounts` implícito), porque el
   flujo de la extensión no pasa por la home del tracker.
-- Errores: 401 sin token o token inválido; 422 payload malformado o UID que no coincide;
-  el resto como hoy.
+- Errores: 401 sin token o token inválido, **sólo donde el token está configurado**; 403
+  cuando la cuenta ya fue reclamada por un import y el bundle no trae su key; 422 payload
+  malformado o UID que no coincide; el resto como hoy.
 - El import **no** toca `HoyolabCredential`, no arma backoff (no hubo red del lado del backend)
   y sí escribe `chronicle_synced_at`, `region`, `chronicle_public = True`.
 
@@ -218,7 +233,9 @@ Salida: fixtures reales + `HOYOLAB.md` corregido (`avatar/info` en la tabla, ret
 ### Fase 1 — Backend: endpoint de import (1 día)
 
 - `Settings.api_token` (`ZZZ_API_TOKEN`, default `""` = import deshabilitado con 503, igual que
-  el cipher).
+  el cipher). → Terminó al revés: el default vacío **no** deshabilita nada, sólo saltea la reja
+  del token (`web/deps.py::require_api_token`), porque el import ya está protegido por la
+  account key.
 - `web/deps.py::require_api_token` (Bearer); `errors.py`: `UnauthorizedError` 401.
 - `web/schemas.py`: `ChronicleImportWrite` (el contrato de arriba, `payloads` como
   `dict[str, Any]` tolerante, con `extra="ignore"`), `ChronicleImportResponse`.
@@ -247,7 +264,7 @@ extension/
     background.ts            # orquesta: abre act.hoyolab.com, pide el sync, sube al tracker
     hoyolab.content.ts       # matches https://act.hoyolab.com/*  — todos los fetch a HoYoLAB
     popup/                   # React: estado de sesión, botón Importar, progreso, último import
-    options/                 # URL del tracker + ZZZ_API_TOKEN (chrome.storage.sync)
+    options/                 # URL del tracker + token opcional + keys por UID (chrome.storage.sync)
   lib/
     hoyolab.ts               # URLs, headers x-rpc-*, retcodes, jitter, tipos crudos
     chronicle.ts             # armado del paquete de import
@@ -255,7 +272,8 @@ extension/
   scripts/capture.js         # de la fase 0
 ```
 
-Flujo del usuario: instalar → opciones (URL + token) → estar logueado en hoyolab.com → popup
+Flujo del usuario: instalar → opciones (URL; el token sólo si el backend lo pide) → estar
+logueado en hoyolab.com → popup
 "Importar" → progreso por sección → "Importado: N agentes, M bangboos, runs…" → link a la
 cuenta en el tracker.
 
@@ -337,7 +355,9 @@ reales; 4 y 5 después.
   fase 0 confirma batch, desaparece.
 - **Captcha**: solo se ve en el content script, y ahí es resoluble. Nunca reintentar en bucle.
 - **Token filtrado**: es un secreto de una sola cuenta de tracker; se rota cambiando la env.
-  Cuando llegue auth real, se reemplaza.
+  Cuando llegue auth real, se reemplaza. → Ya no es el riesgo que importa: el token filtrado
+  no alcanza para escribir ninguna cuenta. El riesgo equivalente hoy es la **key filtrada**,
+  y se corta con `zzz-tracker rotate-key <uid>`, que emite una nueva y mata la anterior.
 - **Firefox + iframe**: no se usa iframe en Firefox; pestaña real.
 - **Deriva de contrato entre `payloads` y el mapper**: los tests del backend corren contra las
   mismas fixtures que la extensión produce (`capture.js` escribe en `tests/fixtures/`), así

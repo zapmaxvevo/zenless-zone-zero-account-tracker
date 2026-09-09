@@ -97,6 +97,51 @@ Los stats se guardan como IDs de propiedad de Enka + valores crudos; la resoluci
 7. **Edición manual**: PATCH/POST de agents + formularios (crear agente no exhibido, corregir discos).
 8. **Deploy (post-MVP)**: adaptar a Vercel — entrada serverless para FastAPI y migrar `database_url` a Postgres hosteado (Neon/Vercel Postgres); solo cambia la URL de SQLAlchemy + migraciones.
 
+## Lo que pasó después del MVP
+
+Las fases 1 a 7 cerraron el 2026-08-06 y el plan de arriba queda como está: es lo que se
+decidió y lo que se hizo. Lo que sigue es lo que vino después, que no estaba previsto cuando
+se escribió y que hoy pesa más que la mitad del plan original.
+
+**HoYoLAB entró como segunda fuente de datos** (`docs/HOYOLAB.md`). Enka sólo muestra los
+agentes del showcase, y el Battle Chronicle muestra la cuenta entera: roster completo con sus
+builds, bangboos, Shiyu Defense, Deadly Assault y Lost Void. Trajo cosas que el plan no tenía:
+cookies de usuario guardadas cifradas (`ZZZ_CREDENTIALS_KEY`, un secreto obligatorio nuevo),
+un ttl y un backoff propios, un mapper tolerante a dos versiones de esquema, y el `raw` de
+cada respuesta guardado como válvula de escape. La regla de precedencia sigue siendo la misma
+que la del plan, ampliada a tres fuentes: `manual` no se pisa nunca, y entre `enka` y
+`hoyolab` gana el último en escribir.
+
+**La extensión de navegador** (`docs/EXTENSION.md`) resolvió lo que el backend no podía: el
+captcha de HoYoLAB es irresoluble headless y las IPs de datacenter se lo comen, así que el
+camino recomendado pasó a ser leer HoYoLAB desde el navegador del usuario y subir los payloads
+crudos a `POST /accounts/{uid}/chronicle/import`. El backend no sale a la red en ese camino y
+nunca ve una cookie. Está implementada hasta las builds completas (`avatar/info`, incremental
+por agente); el sync server-side queda para quien prefiera pegar cookies y para el cron.
+
+**El rediseño New Eridu** (`docs/DESIGN.md`) reemplazó al CSS del andamiaje. La app dejó de ser
+"CSS plano con tokens" a secas: hay trece reglas escritas, una piel en `styles/eridu.css`, un
+juego de primitivas en `components/ui/` y un paquete `design-system/` (`zzz-ui`) del que la app
+toma el botón base. `CLAUDE.md` engancha ese documento como lectura obligatoria antes de tocar
+una pantalla.
+
+**El modelo de propiedad** (`docs/OWNERSHIP.md`) corrige la decisión del 2026-08-05 que decía
+"sin auth por ahora". Sigue sin haber login, pero ya no cualquiera escribe: leer es público y
+escribir pide la key de la cuenta (`X-Account-Key`), que la web entrega al reclamar un UID y
+que un import del Chronicle rota a su favor. Era lo que había que decidir antes de publicar,
+porque publicado significa cookies de HoYoLAB ajenas al alcance de cualquiera que sepa un UID.
+
+**CI** (`.github/workflows/ci.yml`) corre en cada push lo mismo que `/verify` —lint, formato,
+tipos y tests de las dos mitades— más un job que aplica y revierte las migraciones contra
+Postgres y comprueba que no haya deriva contra los modelos.
+
+**La fase 8 está preparada, no ejecutada**: `vercel.json`, `api/index.py`, `.env.example` y los
+estáticos de Enka versionados ya están en el repo, y los pasos exactos —base Postgres, clave
+de credenciales, migraciones, variables— están en `docs/DEPLOY.md`. Falta correrlos. Dos cosas
+que el plan daba por triviales no lo son: el cron de Chronicle **no** puede vivir en el
+serverless (IPs de datacenter → captcha) y se va a una máquina propia, y `sync-static` tampoco,
+porque el filesystem de Vercel es de sólo lectura — por eso los JSON viajan commiteados.
+
 ## Verificación
 
 - Cada fase termina con el skill `/verify` en verde (pytest + ruff + mypy + build/lint/test del frontend).
