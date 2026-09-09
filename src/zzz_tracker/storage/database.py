@@ -49,6 +49,11 @@ class DatabaseManager:
 
     @staticmethod
     def _connect_args(database_url: str) -> dict[str, object]:
+        # Note: SQLite ignores every `ON DELETE CASCADE` unless `PRAGMA foreign_keys=ON` is
+        # issued per connection, and nothing here issues it. Locally the cascades you see in
+        # the models are enforced by the ORM's `delete-orphan` alone; only Postgres, which is
+        # where this deploys, enforces them in the database. Do not read a passing local test
+        # as proof that a foreign key holds.
         url = make_url(database_url)
         if url.get_backend_name() == "sqlite":
             return {"check_same_thread": False}

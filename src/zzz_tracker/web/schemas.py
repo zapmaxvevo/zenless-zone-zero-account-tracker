@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Any, Self
+from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from zzz_tracker.discs.values import MAX_SUBSTAT_ROLLS, main_stat_total, substat_total
 from zzz_tracker.enka.mapper import ParsedAgent, ParsedDisc, ParsedStat, ParsedWEngine
 from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.storage.models import (
+    KNOWN_REGIONS,
     Account,
     Agent,
     ChallengeRun,
@@ -51,10 +52,40 @@ MAX_DISC_PROCS = 5
 MIN_SUBSTAT_ROLLS = 1
 
 
+def _known_region(region: str) -> str:
+    """Refuse a region HoYoLAB does not serve.
+
+    The region decides which host the server-side sync will call for this account later, so
+    a typo would not fail here but much later, as an unrelated network error. Empty is the
+    honest answer for "I do not know", and the UID answers it instead.
+    """
+    if region and region not in KNOWN_REGIONS:
+        known = ", ".join(sorted(KNOWN_REGIONS))
+        raise ValueError(f"{region!r} is not a HoYoLAB region; expected one of: {known}")
+    return region
+
+
+RegionField = Annotated[
+    str,
+    Field(
+        description=(
+            "HoYoLAB region of the account; empty to derive it from the UID. "
+            f"One of: {', '.join(sorted(KNOWN_REGIONS))}."
+        ),
+    ),
+    AfterValidator(_known_region),
+]
+
+
 class ErrorResponse(BaseModel):
-    """Body of every error the tracker answers with."""
+    """Body of every error the tracker answers with.
+
+    `code` is the stable half: clients branch on it, and it does not change when the wording
+    of `detail` does. The codes live next to the exceptions in `errors.py`.
+    """
 
     detail: str
+    code: str
 
 
 class HealthResponse(BaseModel):
@@ -827,7 +858,7 @@ class ChronicleImportWrite(BaseModel):
     source: str = "extension"
     extension_version: str = ""
     captured_at: datetime | None = None
-    region: str = ""
+    region: RegionField = ""
     language: str = ""
     payloads: dict[str, Any]
 

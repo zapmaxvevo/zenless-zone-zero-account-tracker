@@ -20,6 +20,7 @@ from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.errors import (
     CaptchaRequiredError,
     ConflictError,
+    ForbiddenError,
     InvalidCredentialsError,
     MissingCredentialsError,
     NotFoundError,
@@ -56,6 +57,7 @@ from zzz_tracker.storage.models import (
     CHRONICLE_SOURCE_SERVER,
     CLAIM_PROVISIONAL,
     CLAIM_VERIFIED,
+    KNOWN_REGIONS,
     SOURCE_ENKA,
     SOURCE_HOYOLAB,
     SOURCE_MANUAL,
@@ -646,13 +648,14 @@ class TrackerService:
 
         The bundle carries the raw `data` of each endpoint, so it persists through the same
         path as the server-side sync. Only `index` is mandatory, and any other absent or null
-        section is skipped and reported. The UID is confirmed against `record_card` and
-        against whatever `role_id` the `index` carries; without either there is nothing to
-        confirm and the bundle is trusted to belong to the UID in the path.
+        section is skipped and reported.
 
-        The bundle is also the proof of ownership: producing one takes the HoYoLAB session of
-        that very UID. So an import claims the account, and takes it over from a provisional
-        squatter — see `_claim_by_import`.
+        **A bundle proves nothing.** Every byte of it is chosen by whoever sends it, the UID
+        it names included, and a UID is public. So naming the right UID only buys the import
+        the right to take an account *nobody has taken yet*; from the first claim onwards it
+        is the key that says who writes, and no bundle can talk over it — see
+        `_ensure_import_allowed`. An owner who lost the key gets a new one from the CLI,
+        which takes access to the database.
         Credentials, ttl and backoff stay untouched — no request left this backend.
         """
         index = _import_section(payloads, SECTION_INDEX)
@@ -667,9 +670,13 @@ class TrackerService:
             )
 
         account = self._find_or_create_account(uid)
+        # Naming the UID is the least an import can do, not proof of anything: it decides
+        # how good a claim on a free account is, never whether a taken one can be written.
+        named = bool(claimed_uid)
+        self._ensure_import_allowed(account, account_key, named)
 
         bundle = ChroniclePayloads(
-            region=region or self._region_for(account),
+            region=self._import_region(account, region),
             source=CHRONICLE_SOURCE_EXTENSION,
             index=index,
             record_card=record_card,
@@ -681,23 +688,67 @@ class TrackerService:
             avatar_info=_import_builds(payloads),
         )
         report = self._persist_chronicle(account, bundle)
-        return replace(report, account_key=self._claim_by_import(account, account_key))
+        return replace(report, account_key=self._claim_by_import(account, account_key, named))
 
-    def _claim_by_import(self, account: Account, given: str) -> str | None:
+    def _import_region(self, account: Account, region: str) -> str:
+        """Take the region the bundle claims only if it is one that exists.
+
+        The region decides which HoYoLAB host the server-side sync will call later, and it
+        arrives in the body like everything else, so a typo — or a made-up string — would
+        quietly point the account at nothing. Anything unrecognised falls back to what the
+        UID itself implies, which is the answer that never depended on the caller.
+        """
+        if region in KNOWN_REGIONS:
+            return region
+        return self._region_for(account)
+
+    def _ensure_import_allowed(self, account: Account, given: str, named: bool) -> None:
+        """Decide whether this bundle may be written into this account at all.
+
+        A `verified` account is one somebody already took with an import, and from then on
+        the key is the only thing that speaks for it: a second import cannot talk over the
+        first, however well it names the UID, because naming a public UID costs nothing.
+        Without that rule anyone could rotate the owner out and then drive the stored
+        HoYoLAB cookies with `chronicle/sync`.
+
+        Below that, there is nothing to steal yet: an unclaimed account takes any bundle,
+        and a `provisional` one — a web claim, which proved nothing either — yields to a
+        bundle that at least names the UID.
+        """
+        if not account.is_claimed:
+            return
+        if account.key is not None and keys.verify_key(account.key.key_hash, given):
+            return
+        if account.claim_level == CLAIM_VERIFIED:
+            raise ForbiddenError(
+                f"Account {account.uid} was already claimed by an import, so only its key "
+                "can write it; send it in `X-Account-Key`, or get a new one from the "
+                f"machine that holds the database with `zzz-tracker rotate-key {account.uid}`"
+            )
+        if not named:
+            raise ForbiddenError(
+                f"This chronicle bundle does not say it belongs to {account.uid}, so it "
+                "cannot take an account that already has an owner; send the owner's key in "
+                "`X-Account-Key`"
+            )
+
+    def _claim_by_import(self, account: Account, given: str, named: bool) -> str | None:
         """Settle who owns the UID now that a bundle for it came in, returning any new key.
 
         Presenting the key in force keeps it: the owner importing twice does not have to
-        write down a new secret every time. Anyone else — no key, a stale one, or nobody at
-        all — gets the account rotated into a fresh `verified` key, which is what lets the
-        real owner walk back in after losing theirs and what makes a provisional claim lose
-        against the proof an import carries.
+        write down a new secret every time. Everything else that got this far is an account
+        with nothing to lose — nobody had claimed it, or a provisional claim that a named
+        bundle outranks — and gets rotated onto a fresh key. The claim only counts as
+        `verified`, and so only becomes untouchable, when the bundle named the UID.
         """
+        level = CLAIM_VERIFIED if named else CLAIM_PROVISIONAL
         if account.key is not None and keys.verify_key(account.key.key_hash, given):
             account.key.last_used_at = utc_now()
-            account.key.claim_level = CLAIM_VERIFIED
+            if named:
+                account.key.claim_level = CLAIM_VERIFIED
             self._session.commit()
             return None
-        return self.rotate_key(account.uid, CLAIM_VERIFIED)
+        return self.rotate_key(account.uid, level)
 
     def _find_or_create_account(self, uid: str) -> Account:
         """Track the UID if it is new, surviving the race of two imports creating it at once."""

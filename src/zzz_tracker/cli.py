@@ -14,6 +14,7 @@ from zzz_tracker.errors import ZZZTrackerError
 from zzz_tracker.hoyolab.client import HoyolabClient
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
+from zzz_tracker.storage.models import CLAIM_UNCLAIMED
 from zzz_tracker.tracker.service import ChronicleSyncReport, TrackerService
 
 app = typer.Typer(help="ZZZ Tracker command line entrypoint.")
@@ -130,7 +131,9 @@ def set_credentials(
 @app.command(
     "claim",
     help="Claim a tracked account and print its key, the secret every write to it needs. "
-    "Meant for accounts that predate account keys; the web claims new ones by itself.",
+    "Meant for accounts that predate account keys; the web claims new ones by itself. "
+    "It refuses an account that already has an owner — to replace the key of one of those, "
+    "use `rotate-key`.",
 )
 def claim(
     uid: str = typer.Argument(..., help="UID of the account to take ownership of."),
@@ -145,7 +148,42 @@ def claim(
     typer.echo(account_key)
     typer.echo(
         f"That is the only time {uid}'s key can be read. Store it; whoever holds it can "
-        "write to the account, and losing it takes a chronicle import to recover.",
+        f"write to the account, and losing it takes `zzz-tracker rotate-key {uid}` here to "
+        "recover — an import cannot take a claimed account back.",
+        err=True,
+    )
+
+
+@app.command(
+    "rotate-key",
+    help="Issue a new key for an account and invalidate the one it had. This is how the "
+    "owner of an account gets back in after losing their key: an import cannot take over "
+    "an account that was already claimed, so recovery deliberately costs access to the "
+    "database. Whoever runs this becomes the owner, so run it only for the real one.",
+)
+def rotate_key(
+    uid: str = typer.Argument(..., help="UID of the account to issue a new key for."),
+) -> None:
+    settings = get_settings()
+    try:
+        with tracker_service(settings) as service:
+            had_key = service.get_account(uid).claim_level != CLAIM_UNCLAIMED
+            account_key = service.rotate_key(uid)
+    except ZZZTrackerError as error:
+        typer.echo(f"{uid}: {error.detail}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(account_key)
+    if had_key:
+        typer.echo(
+            f"{uid}: the previous key stopped working right now — anything still using it "
+            "(a browser, the extension on another machine) has to be given this one.",
+            err=True,
+        )
+    else:
+        typer.echo(f"{uid}: the account had no key; this one claims it.", err=True)
+    typer.echo(
+        "This is the only time it can be read; it is stored hashed.",
         err=True,
     )
 

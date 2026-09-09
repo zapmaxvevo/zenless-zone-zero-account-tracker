@@ -560,13 +560,16 @@ def test_an_import_keeps_the_raw_payload_of_every_build_it_read(
 def test_importing_twice_overwrites_the_snapshot_instead_of_piling_them_up(
     import_client: TestClient, session: Session
 ) -> None:
-    import_chronicle(import_client)
+    """The second import is the same owner coming back, so it carries the key it was given."""
+    account_key = import_chronicle(import_client).json()["account_key"]
 
     payloads = full_payloads()
     levelled = build_payloads()[0]
     levelled["avatar_list"][0]["level"] = 55
     payloads["avatar_info"] = [levelled]
-    import_chronicle(import_client, import_body(payloads))
+    import_chronicle(
+        import_client, import_body(payloads), headers={**AUTH, **key_headers(account_key)}
+    )
 
     session.expire_all()
     snapshots = list(
@@ -872,3 +875,152 @@ def test_with_a_token_configured_the_import_needs_the_bearer_even_holding_the_ke
 
     assert response.status_code == 401
     assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_PROVISIONAL
+
+
+def test_a_bundle_that_names_no_uid_cannot_take_over_an_account_that_has_an_owner(
+    import_client: TestClient,
+) -> None:
+    """The `index` alone carries no UID, so on its own it could be anybody's chronicle."""
+    owner_key = claimed_from_the_web(import_client)
+    payloads = full_payloads()
+    payloads["index"] = real_index_payload()
+
+    response = import_chronicle(import_client, import_body(payloads))
+
+    assert response.status_code == 403
+    assert TRACKED_UID in response.json()["detail"]
+    account = import_client.get(f"/accounts/{TRACKED_UID}").json()
+    assert account["claim_level"] == CLAIM_PROVISIONAL
+    assert account["chronicle_synced_at"] is None
+    assert (
+        import_client.patch(
+            f"/agents/{any_agent_of(import_client)}",
+            json={"level": 41},
+            headers=key_headers(owner_key),
+        ).status_code
+        == 200
+    )
+
+
+def test_the_owner_can_import_a_bundle_that_names_no_uid_with_the_key(
+    import_client: TestClient,
+) -> None:
+    owner_key = claimed_from_the_web(import_client)
+    payloads = full_payloads()
+    payloads["index"] = real_index_payload()
+
+    response = import_chronicle(
+        import_client, import_body(payloads), headers={**AUTH, **key_headers(owner_key)}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["agents_synced"] == ROSTER_SIZE
+    assert response.json()["account_key"] is None
+
+
+def test_a_bundle_that_names_no_uid_claims_a_free_account_no_better_than_the_web_would(
+    import_client: TestClient,
+) -> None:
+    """Nothing to steal here, but a nameless bundle is no proof: the claim stays provisional."""
+    payloads = full_payloads()
+    payloads["index"] = real_index_payload()
+
+    response = import_chronicle(import_client, import_body(payloads))
+
+    assert response.status_code == 200
+    assert response.json()["account_key"].startswith("zzk_")
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_PROVISIONAL
+
+
+def forged_bundle(uid: str = TRACKED_UID) -> dict[str, Any]:
+    """What an attacker can put together knowing only a UID, which is public."""
+    return import_body({"index": {"role": {"role_id": uid, "nickname": "pwned"}}})
+
+
+def test_a_forged_bundle_cannot_take_over_an_account_an_import_already_claimed(
+    import_client: TestClient,
+) -> None:
+    """Naming the UID is free — a UID is public — so it cannot outrank a claim in force."""
+    owner_key = import_chronicle(import_client).json()["account_key"]
+    before = import_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    response = import_chronicle(import_client, forged_bundle())
+
+    assert response.status_code == 403
+    assert TRACKED_UID in response.json()["detail"]
+
+    account = import_client.get(f"/accounts/{TRACKED_UID}").json()
+    assert account["claim_level"] == CLAIM_VERIFIED
+    assert account["nickname"] == before["nickname"] != "pwned"
+    assert account["chronicle_synced_at"] == before["chronicle_synced_at"]
+    assert (
+        import_client.patch(
+            f"/agents/{any_agent_of(import_client)}",
+            json={"level": 41},
+            headers=key_headers(owner_key),
+        ).status_code
+        == 200
+    )
+
+
+def test_the_owner_of_a_verified_account_imports_again_with_the_key_and_keeps_it(
+    import_client: TestClient,
+) -> None:
+    owner_key = import_chronicle(import_client).json()["account_key"]
+
+    response = import_chronicle(import_client, headers={**AUTH, **key_headers(owner_key)})
+
+    assert response.status_code == 200
+    assert response.json()["account_key"] is None
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+
+
+def test_a_named_bundle_still_outranks_a_claim_that_came_from_the_web(
+    import_client: TestClient,
+) -> None:
+    """A provisional claim proved nothing either, so the first import still wins it."""
+    squatter_key = claimed_from_the_web(import_client)
+
+    response = import_chronicle(import_client)
+
+    assert response.status_code == 200
+    rotated = response.json()["account_key"]
+    assert rotated and rotated != squatter_key
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+
+
+def test_a_verified_account_does_not_yield_to_a_stranger_holding_another_accounts_key(
+    import_client: TestClient, session: Session
+) -> None:
+    import_chronicle(import_client)
+    session.add(Account(uid=ANOTHER_UID, nickname="Belle"))
+    session.commit()
+    stranger_key = import_client.post(f"/accounts/{ANOTHER_UID}/claim").json()["account_key"]
+
+    response = import_chronicle(import_client, headers={**AUTH, **key_headers(stranger_key)})
+
+    assert response.status_code == 403
+
+
+def test_an_import_that_names_a_region_that_does_not_exist_is_refused_at_the_door(
+    import_client: TestClient,
+) -> None:
+    """The region picks the host the server-side sync calls later, so it cannot be invented."""
+    body = import_body()
+    body["region"] = "prod_gf_pwned"
+
+    response = import_chronicle(import_client, body)
+
+    assert response.status_code == 422
+    assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+
+
+def test_a_region_the_service_cannot_place_falls_back_to_the_one_the_uid_implies(
+    chronicle_service: TrackerService,
+) -> None:
+    """The use case does not trust its caller either, however it was reached."""
+    report = chronicle_service.import_chronicle(
+        TRACKED_UID, full_payloads(), region="prod_gf_pwned"
+    )
+
+    assert report.account.region == "prod_gf_jp"

@@ -22,10 +22,10 @@ quién puede escribir.
 | Operación | Sin key | Con `X-Account-Key` |
 | --- | --- | --- |
 | `GET` de perfil, roster, builds, teams, Chronicle, catálogo | ✅ | ✅ |
-| `POST /accounts` (empezar a trackear un UID) | ✅ | — |
+| `POST /accounts` (empezar a trackear un UID; **reclama** si nadie lo tenía) | ✅ | — |
 | `POST /accounts/{uid}/claim` (reclamar uno ya trackeado y sin dueño) | ✅ | — |
 | `POST /accounts/{uid}/sync` (refrescar desde Enka) | ✅ | ✅ |
-| `POST /accounts/{uid}/chronicle/import` | ✅ (reclama) | ✅ |
+| `POST /accounts/{uid}/chronicle/import` | ✅ mientras nadie la haya reclamado | ✅ |
 | `POST/PATCH/DELETE` de agentes y teams | ❌ | ✅ |
 | `PUT/DELETE /accounts/{uid}/credentials` | ❌ | ✅ |
 | `POST /accounts/{uid}/chronicle/sync` | ❌ | ✅ |
@@ -39,41 +39,95 @@ razón — es dato público y el TTL ya frena el abuso.
 Una cuenta tiene un `claim_level`:
 
 - **`unclaimed`** — existe pero nadie la reclamó (filas viejas, anteriores a este cambio).
-  No se puede escribir. Se sale de acá con `POST /accounts/{uid}/claim`.
+  No se puede escribir. Se sale de acá reclamándola, y hay tres puertas que reclaman:
+  `POST /accounts/{uid}/claim`, un import, y `POST /accounts` — trackear un UID que nadie
+  tenía lo reclama de paso y devuelve la key en el mismo `account_key` (si ya tenía dueño,
+  refresca desde Enka y devuelve `account_key: null`).
 - **`provisional`** — alguien escribió el UID en la web y se llevó una key. Puede editar a
   mano ya mismo, sin instalar nada. **No prueba nada**: el que llegó primero se quedó con el
   UID, sea suyo o no.
-- **`verified`** — alguien importó el Chronicle de ese UID con la extensión. Eso sí prueba
-  propiedad: producir un bundle de HoYoLAB para un UID exige la sesión del dueño de ese UID.
+- **`verified`** — alguien importó el Chronicle de ese UID. **Tampoco prueba nada por sí
+  solo**, y esto es importante: un bundle es un JSON que manda el cliente, así que el UID que
+  nombra lo elige el que lo manda, y un UID es público. No hay forma de verificar del lado
+  del servidor que un bundle salió de una sesión de HoYoLAB. Lo que hace fuerte al nivel
+  `verified` no es el bundle: es que **a partir de ahí manda la key y ningún bundle la
+  puede pisar**.
 
-**El reclamo verificado le gana al provisional.** Cuando entra un import y la cuenta está
-`unclaimed` o `provisional`, la key rota, el nivel pasa a `verified` y la key vieja muere.
-El dueño real siempre puede recuperar su UID: le alcanza con importar una vez.
+**Un reclamo verificado no se pisa.** El import solo reclama lo que todavía no tiene dueño:
 
-Regla exacta del import, que resuelve además el "perdí la key":
+- Cuenta `unclaimed` → se importa y se reclama. `verified` si el bundle nombra el UID,
+  `provisional` si no lo nombra (el `index` real no trae UID; ver abajo).
+- Cuenta `provisional` → un bundle que nombra el UID le gana al ocupante: la key rota, el
+  nivel pasa a `verified` y la key vieja muere. Un bundle que no lo nombra, no.
+- Cuenta `verified` **sin la key vigente** → **403**. No se importa, no rota, no se escribe
+  nada. Ni siquiera con un bundle que nombre el UID.
+- Con la key vigente, en cualquier nivel → se importa y la key **no** rota.
 
-- Si el que llama presenta la key vigente → se importa y la key **no** rota.
-- Si no presenta key, o presenta una inválida → el bundle es la prueba: la key rota a una
-  nueva `verified` y se devuelve en la respuesta.
+El 403 sobre `verified` es la regla que sostiene todo lo demás. Sin ella, cualquiera que
+supiera un UID mandaba `{"index":{"role":{"role_id":"<uid>"}}}`, se llevaba una key nueva,
+dejaba al dueño afuera y después disparaba `chronicle/sync` con las cookies de HoYoLAB
+guardadas de la víctima.
 
-Consecuencia aceptada: dos navegadores del mismo dueño se pelean la key (cada import sin key
-rota e invalida al otro). La salida es copiar la key a la otra instalación desde las
-opciones de la extensión, no un mecanismo nuevo.
+Costo aceptado: el dueño real que pierde la key **no** se recupera desde el navegador.
+Importar de nuevo ya no alcanza. La única salida es el CLI, y por eso el CLI exige acceso a
+la base:
+
+```
+zzz-tracker rotate-key <uid>
+```
+
+que imprime una key nueva y mata la anterior. El que lo corre pasa a ser el dueño, así que
+se corre solo para el dueño real.
+
+Consecuencia relacionada: dos navegadores del mismo dueño no se pelean la key, pero el
+segundo tampoco entra solo — hay que copiarle la key desde las opciones de la extensión.
 
 Si al rotar había ediciones manuales del ocupante anterior, no se borran: quedan marcadas
 como `source='manual'` y la UI le ofrece al dueño nuevo descartarlas.
 
 ## Qué se valida del import
 
-No podemos verificar criptográficamente que un bundle vino de HoYoLAB. Lo único que sí se
-chequea, y es la única prueba disponible:
+No podemos verificar que un bundle vino de HoYoLAB, ni criptográficamente ni de ninguna otra
+forma: todo lo que llega lo eligió el que lo mandó. Así que lo que se chequea no es "¿esto es
+auténtico?" sino "¿esto alcanza para escribir *esta* cuenta?".
 
-1. El payload trae la sección `index` con un `role` (sin eso el import ya se rechaza hoy).
-2. El `role_id` del payload **coincide** con el `{uid}` del path. Hoy no se chequea.
-3. Opcional y aparte: si `ZZZ_API_TOKEN` está seteado, se sigue exigiendo el `Bearer` además
+1. El payload trae la sección `index` y no está vacía. **No** se le exige un `role`: el
+   `index` que devuelve HoYoLAB de verdad no trae perfil — ni nickname, ni nivel, ni UID.
+2. Si el bundle nombra un UID —`record_card`, o un `role` con `game_role_id` / `game_uid` /
+   `uid` / `role_id`— tiene que ser el `{uid}` del path; si no, 422. Nombrar el UID correcto
+   no prueba nada (es público), pero es el piso para reclamar una cuenta libre.
+3. Si el bundle **no** nombra ningún UID, solo se acepta contra una cuenta que nadie reclamó
+   —o con la key vigente—, y el reclamo que consigue es apenas `provisional`.
+4. La `region` del body se acepta solo si es una región que existe; cualquier otra cosa se
+   reemplaza por la que implica el prefijo del UID. La región elige a qué host le pega
+   después el sync server-side, así que no puede salir libre del body.
+5. Opcional y aparte: si `ZZZ_API_TOKEN` está seteado, se sigue exigiendo el `Bearer` además
    de la key. Deja de ser obligatorio, pero queda como reja extra para el deploy propio —
    un token que viaja adentro de una extensión publicada no es secreto, así que no puede ser
    la única defensa.
+
+## Cómo se leen los errores
+
+El cuerpo de todo error es `{"detail": "...", "code": "..."}`. El `detail` es el texto para
+una persona y puede cambiar de redacción cuando haga falta; **el `code` es contrato** y un
+cliente ramifica por ahí, nunca buscando substrings en el `detail`. Hace falta porque el
+status no alcanza: 409 es tanto `conflict` (esa cuenta ya trackea ese agente) como
+`unclaimed_account` (reclamala antes de escribirla).
+
+Los que aparecen en este flujo:
+
+| status | `code` | cuándo |
+| --- | --- | --- |
+| 403 | `forbidden` | la cuenta tiene dueño y falta la key, o la key no es la de esa cuenta; también el import forjado contra una cuenta `verified` |
+| 409 | `unclaimed_account` | la cuenta existe pero nadie la reclamó: reclamala primero |
+| 409 | `conflict` | choque de dominio, p. ej. ese agente ya está trackeado |
+| 401 | `unauthorized` | falta el `Bearer` y `ZZZ_API_TOKEN` está seteado |
+| 404 | `not_found` | el UID, el agente o el team no existen |
+| 422 | `validation_error` | el payload rompe una regla del dominio (UID que no coincide, región inexistente) |
+
+La lista completa vive en `src/zzz_tracker/errors.py` y está fijada por `tests/test_errors.py`.
+Los 422 que genera FastAPI por el schema (un campo con el tipo equivocado) mantienen su
+propio formato y no traen `code`.
 
 ## Formato de la key
 
@@ -102,6 +156,13 @@ Tabla nueva `account_keys`, espejo de `hoyolab_credentials` (migración `0006_ac
 Backfill de la migración: **ninguno**. Las cuentas que ya existen quedan `unclaimed` y por lo
 tanto de solo lectura hasta que alguien las reclame. Para la base local de Maxi eso es un
 `POST /accounts/{uid}/claim` por UID, o un comando `zzz-tracker claim <uid>` que imprime la key.
+
+Los dos comandos del CLI, que son los que exigen acceso a la base:
+
+| comando | para qué |
+| --- | --- |
+| `zzz-tracker claim <uid>` | reclamar una cuenta sin dueño (falla con 409 si ya lo tiene) |
+| `zzz-tracker rotate-key <uid>` | emitir una key nueva y matar la anterior: la recuperación |
 
 ## La key es de una cuenta, no del que llama
 
@@ -201,7 +262,12 @@ Backend, por escenario:
 - un import sin key sobre cuenta `provisional` rota, devuelve key nueva y deja `verified`,
   y la key vieja deja de funcionar;
 - un import **con** la key vigente no rota;
+- **un bundle forjado (sin key, nombrando el UID) contra una cuenta `verified` da 403, no
+  rota, no escribe nada, y la key del dueño sigue funcionando**;
 - un import cuyo `role_id` no coincide con el uid del path se rechaza;
+- un import que no nombra ningún UID no puede tomar una cuenta que ya tiene dueño;
+- un import que nombra una región inexistente no le cambia la región a la cuenta;
+- `zzz-tracker rotate-key` emite una key nueva e invalida la anterior;
 - con `ZZZ_API_TOKEN` seteado, el import sigue exigiendo el `Bearer`;
 - `PATCH /agents/{id}` resuelve la cuenta dueña por el agente y no por el path;
 - **la key de la cuenta A no puede editar ni borrar un agente ni un team de la cuenta B**,

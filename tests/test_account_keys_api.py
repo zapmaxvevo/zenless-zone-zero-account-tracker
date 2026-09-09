@@ -50,6 +50,11 @@ def first_agent_of(client: TestClient, uid: str = TRACKED_UID) -> int:
     return int(roster[0]["id"])
 
 
+def first_agent_game_id(client: TestClient, uid: str = TRACKED_UID) -> int:
+    roster = client.get(f"/accounts/{uid}/agents").json()["items"]
+    return int(roster[0]["game_id"])
+
+
 def comp(agent_id: int, name: str = "Fire team") -> dict[str, Any]:
     return {"name": name, "notes": "", "members": [{"slot": 1, "agent_id": agent_id}]}
 
@@ -320,3 +325,29 @@ def test_a_malformed_uid_is_still_refused_by_the_path_before_any_key_is_asked_fo
 
     # Then
     assert response.status_code == 422
+
+
+def test_the_two_conflicts_of_a_write_are_told_apart_by_their_code_not_their_status(
+    client: TestClient, session: Session
+) -> None:
+    """403 and 409 both cover two cases each; only the code says which one happened."""
+    # Given
+    untracked_account(session)
+    account_key = account_key_of(track_account(client))
+    agent_id = first_agent_of(client)
+
+    # When
+    unclaimed = client.post(f"/accounts/{OTHER_UID}/agents", json={"game_id": BURNICE})
+    wrong_key = client.patch(
+        f"/agents/{agent_id}", json={"level": 12}, headers=key_headers(WRONG_KEY)
+    )
+    repeated = client.post(
+        f"/accounts/{TRACKED_UID}/agents",
+        json={"game_id": first_agent_game_id(client)},
+        headers=key_headers(account_key),
+    )
+
+    # Then
+    assert (unclaimed.status_code, unclaimed.json()["code"]) == (409, "unclaimed_account")
+    assert (wrong_key.status_code, wrong_key.json()["code"]) == (403, "forbidden")
+    assert (repeated.status_code, repeated.json()["code"]) == (409, "conflict")
