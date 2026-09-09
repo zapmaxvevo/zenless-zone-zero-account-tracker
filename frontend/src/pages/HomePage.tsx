@@ -19,7 +19,9 @@ export default function HomePage() {
   const [uid, setUid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
-  const [claimed, setClaimed] = useState<{ uid: string; key: string } | null>(null);
+  const [claimed, setClaimed] = useState<{ uid: string; key: string; stored: boolean } | null>(
+    null,
+  );
 
   const items = accounts.data?.items ?? [];
 
@@ -39,8 +41,11 @@ export default function HomePage() {
         navigate(`/account/${account.uid}`);
         return;
       }
-      saveKey(account.uid, account.account_key);
-      setClaimed({ uid: account.uid, key: account.account_key });
+      setClaimed({
+        uid: account.uid,
+        key: account.account_key,
+        stored: saveKey(account.uid, account.account_key),
+      });
       setTracking(false);
     } catch (caught) {
       setError(describeError(caught));
@@ -84,7 +89,7 @@ export default function HomePage() {
 
         {claimed && (
           <>
-            <AccountKeyBanner uid={claimed.uid} accountKey={claimed.key} />
+            <AccountKeyBanner uid={claimed.uid} accountKey={claimed.key} stored={claimed.stored} />
             <div className="ne-actions">
               <LinkButton tone="accent" to={`/account/${claimed.uid}`}>
                 Ya la guardé, ver la cuenta

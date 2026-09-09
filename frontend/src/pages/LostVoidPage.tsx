@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
+import { isNotFound } from '../api/errors';
 import ChronicleNav from '../components/ChronicleNav';
 import StatusMessage from '../components/StatusMessage';
 import Hero from '../components/ui/Hero';
@@ -17,7 +18,7 @@ export default function LostVoidPage() {
   const { data, error, loading, reload } = useApi(
     () =>
       api.getLostVoid(uid).catch((caught: unknown) => {
-        if (caught instanceof ApiError && caught.status === 404) return null;
+        if (isNotFound(caught)) return null;
         throw caught;
       }),
     `${uid}:${version}`,

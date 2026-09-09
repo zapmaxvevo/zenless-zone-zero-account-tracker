@@ -2,13 +2,15 @@ import { ApiError } from './client';
 import type { ErrorCode } from './types';
 
 export const FORBIDDEN_MESSAGE =
-  'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Pegá la key en «Conectar HoYoLAB», o importá el Chronicle con la extensión para recuperarla.';
+  'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Si la key vigente está en otra instalación, pegala en «Conectar HoYoLAB».';
 
 export const UNCLAIMED_MESSAGE =
   'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Reclamalo y quedate con la key que te devuelve.';
 
 const CODE_FORBIDDEN: ErrorCode = 'forbidden';
 const CODE_UNCLAIMED: ErrorCode = 'unclaimed_account';
+const CODE_RATE_LIMITED: ErrorCode = 'rate_limited';
+const CODE_NOT_FOUND: ErrorCode = 'not_found';
 
 const MESSAGES_BY_CODE: Partial<Record<ErrorCode, string>> = {
   [CODE_FORBIDDEN]: FORBIDDEN_MESSAGE,
@@ -21,6 +23,14 @@ export function isMissingKeyError(error: unknown): boolean {
 
 export function isUnclaimedError(error: unknown): boolean {
   return error instanceof ApiError && error.code === CODE_UNCLAIMED;
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === CODE_NOT_FOUND || error.status === 404);
+}
+
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === CODE_RATE_LIMITED || error.status === 429);
 }
 
 export function describeError(error: unknown): string {

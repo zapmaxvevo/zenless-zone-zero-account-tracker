@@ -34,7 +34,7 @@ const STEPS: { title: string; note: React.ReactNode }[] = [
   },
   {
     title: 'Importá',
-    note: 'Con la sesión de HoYoLAB abierta en el navegador, tocá Importar en el popup. Los datos van directo de tu navegador al tracker, y el import te devuelve la key que escribe este UID.',
+    note: 'Con la sesión de HoYoLAB abierta en el navegador, tocá Importar en el popup. Los datos van directo de tu navegador al tracker, y el import que reclama el UID te devuelve la key que lo escribe.',
   },
 ];
 
@@ -301,6 +301,7 @@ function AccountKeySection({ uid, access }: AccountKeySectionProps) {
           <AccountKeyBanner
             uid={uid}
             accountKey={access.issuedKey}
+            stored={access.issuedKeyStored}
             onDismiss={access.dismissIssuedKey}
           />
         )}

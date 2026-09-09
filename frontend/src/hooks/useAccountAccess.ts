@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { api } from '../api/client';
-import { describeError } from '../api/errors';
+import { describeError, isNotFound } from '../api/errors';
 import type { AccountRead, ClaimLevel } from '../api/types';
 import { CLAIM_UNCLAIMED } from '../api/types';
 import { useAccountKey } from './useAccountKey';
@@ -13,8 +13,11 @@ export interface AccountAccess {
   claimLevel: ClaimLevel | null;
   claimable: boolean;
   claiming: boolean;
+  untracked: boolean;
+  resolving: boolean;
   error: string | null;
   issuedKey: string | null;
+  issuedKeyStored: boolean;
   claim: () => void;
   dismissIssuedKey: () => void;
   saveKey: (value: string) => boolean;
@@ -28,7 +31,7 @@ export function useAccountAccess(uid: string, account?: AccountRead | null): Acc
   const { key, hasKey, save, forget } = useAccountKey(uid);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [issuedKey, setIssuedKey] = useState<string | null>(null);
+  const [issued, setIssued] = useState<{ key: string; stored: boolean } | null>(null);
   const [claimedLevel, setClaimedLevel] = useState<ClaimLevel | null>(null);
 
   const fetchesAccount = account === undefined;
@@ -38,6 +41,7 @@ export function useAccountAccess(uid: string, account?: AccountRead | null): Acc
   );
 
   const claimLevel = claimedLevel ?? account?.claim_level ?? fetched.data?.claim_level ?? null;
+  const untracked = fetchesAccount && isNotFound(fetched.cause);
 
   const claim = useCallback(() => {
     void (async () => {
@@ -47,8 +51,7 @@ export function useAccountAccess(uid: string, account?: AccountRead | null): Acc
         const claimed = await api.claimAccount(uid);
         setClaimedLevel(claimed.claim_level);
         if (claimed.account_key) {
-          setIssuedKey(claimed.account_key);
-          if (!save(claimed.account_key)) setError(STORAGE_BLOCKED_MESSAGE);
+          setIssued({ key: claimed.account_key, stored: save(claimed.account_key) });
         }
       } catch (caught) {
         setError(describeError(caught));
@@ -58,7 +61,7 @@ export function useAccountAccess(uid: string, account?: AccountRead | null): Acc
     })();
   }, [uid, save]);
 
-  const dismissIssuedKey = useCallback(() => setIssuedKey(null), []);
+  const dismissIssuedKey = useCallback(() => setIssued(null), []);
 
   return {
     uid,
@@ -67,8 +70,11 @@ export function useAccountAccess(uid: string, account?: AccountRead | null): Acc
     claimLevel,
     claimable: !hasKey && claimLevel === CLAIM_UNCLAIMED,
     claiming,
+    untracked,
+    resolving: claimLevel === null && !untracked,
     error,
-    issuedKey,
+    issuedKey: issued?.key ?? null,
+    issuedKeyStored: issued?.stored ?? false,
     claim,
     dismissIssuedKey,
     saveKey: save,

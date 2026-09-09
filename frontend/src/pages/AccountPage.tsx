@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
-import { describeError } from '../api/errors';
+import { api } from '../api/client';
+import { describeError, isRateLimited } from '../api/errors';
 import type { AccountRead, AgentRead, TeamRead } from '../api/types';
 import AccountKeyBanner from '../components/AccountKeyBanner';
 import StatusMessage from '../components/StatusMessage';
@@ -119,7 +119,7 @@ function Dashboard({ account, access, agents, teams, onSynced }: DashboardProps)
       await api.syncAccount(uid);
       onSynced();
     } catch (caught) {
-      const paused = caught instanceof ApiError && caught.status === 429;
+      const paused = isRateLimited(caught);
       setNotice({
         title: paused ? 'Sincronización en pausa' : 'No se pudo sincronizar',
         text: describeError(caught),
@@ -178,6 +178,7 @@ function Dashboard({ account, access, agents, teams, onSynced }: DashboardProps)
         <AccountKeyBanner
           uid={uid}
           accountKey={access.issuedKey}
+          stored={access.issuedKeyStored}
           onDismiss={access.dismissIssuedKey}
         />
       )}

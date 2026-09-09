@@ -12,7 +12,6 @@ export type ErrorCode =
   | 'external_service_error'
   | 'static_data_unavailable'
   | 'captcha_required'
-  | 'import_disabled'
   | 'internal_error';
 
 export interface HealthResponse {
@@ -44,6 +43,8 @@ export interface AccountRead {
 export type ClaimLevel = 'unclaimed' | 'provisional' | 'verified';
 
 export const CLAIM_UNCLAIMED: ClaimLevel = 'unclaimed';
+export const CLAIM_PROVISIONAL: ClaimLevel = 'provisional';
+export const CLAIM_VERIFIED: ClaimLevel = 'verified';
 
 export interface AccountCreatedRead extends AccountRead {
   account_key: string | null;

@@ -1300,6 +1300,20 @@ a.ne-ghost {
 /* ---------- Propiedad de una cuenta ---------- */
 
 /**
+ * Un nombre que hay que tipear igual: una variable de entorno, una cookie, un comando de la
+ * CLI. Se lee carácter por carácter, así que va en mono como el UID. Subió acá desde
+ * `chronicle.css` cuando el aviso de modo lectura lo necesitó fuera de la pantalla de conexión.
+ */
+.ne-connect-token {
+  padding: 2px 6px;
+  background: var(--ink);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+}
+
+/**
  * La key de una cuenta, en la única pantalla donde se puede leer.
  *
  * Es la cifra que importa del banner, así que va en acento (regla 6). Se lee carácter por

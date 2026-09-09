@@ -5,6 +5,7 @@ import {
   UNCLAIMED_MESSAGE,
   describeError,
   isMissingKeyError,
+  isRateLimited,
   isUnclaimedError,
 } from './errors';
 
@@ -81,5 +82,12 @@ describe('los dos 409 del modelo de propiedad', () => {
     expect(describeError(new ApiError(409, 'Agent 1041 is already tracked'))).toContain(
       'ya tiene ese agente',
     );
+  });
+
+  it('reconoce el freno de la API por code o por status, que acá no se pisan', () => {
+    expect(isRateLimited(new ApiError(429, 'slow down', 'rate_limited'))).toBe(true);
+    expect(isRateLimited(new ApiError(429, 'slow down'))).toBe(true);
+    expect(isRateLimited(new ApiError(403, 'x', 'forbidden'))).toBe(false);
+    expect(isRateLimited(new TypeError('Failed to fetch'))).toBe(false);
   });
 });

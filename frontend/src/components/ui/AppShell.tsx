@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useMatch } from 'react-router-dom';
-import { api, ApiError } from '../../api/client';
-import { describeError } from '../../api/errors';
+import { api } from '../../api/client';
+import { describeError, isRateLimited } from '../../api/errors';
 import { useKeyFromUrlFragment } from '../../hooks/useAccountKey';
 import { useApi } from '../../hooks/useApi';
 import { useCompactHeader } from '../../hooks/useCompactHeader';
@@ -55,7 +55,7 @@ export default function AppShell() {
       await api.syncAccount(uid);
       setVersion((current) => current + 1);
     } catch (caught) {
-      const paused = caught instanceof ApiError && caught.status === 429;
+      const paused = isRateLimited(caught);
       setNotice({
         title: paused ? 'Sincronización en pausa' : 'No se pudo sincronizar',
         text: describeError(caught),

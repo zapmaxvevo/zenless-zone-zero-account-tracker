@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
-import { describeError } from '../api/errors';
+import { api } from '../api/client';
 import type { AccountRead } from '../api/types';
-import { MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE } from '../api/types';
 import { useAccountKey } from '../hooks/useAccountKey';
+import type { Notice } from '../lib/notices';
+import { errorNotice, reportNotice } from '../lib/notices';
 import '../styles/chronicle.css';
 import Banner from './ui/Banner';
 import Button from './ui/Button';
@@ -17,23 +17,12 @@ interface ChronicleNavProps {
   empty?: boolean;
 }
 
-interface Notice {
-  title: string;
-  text: string;
-  tone: 'info' | 'warn';
-}
-
 const SECTIONS: { slug: string; label: string }[] = [
   { slug: 'shiyu', label: 'Defensa Shiyu' },
   { slug: 'assault', label: 'Asalto Mortal' },
   { slug: 'void', label: 'Vacío Perdido' },
   { slug: 'bangboos', label: 'Bangboos' },
 ];
-
-const MODE_LABELS: Record<string, string> = {
-  [MODE_SHIYU_DEFENSE]: 'Defensa Shiyu',
-  [MODE_DEADLY_ASSAULT]: 'Asalto Mortal',
-};
 
 export default function ChronicleNav({
   uid,
@@ -125,65 +114,4 @@ function emptyHint(uid: string, account: AccountRead | null): ReactNode {
       cookies— y volvé a esta pantalla.
     </>
   );
-}
-
-function reportNotice(skipped: boolean, unavailable: string[]): Notice | null {
-  if (skipped) {
-    return {
-      title: 'Sincronización salteada',
-      text: 'Los datos ya estaban al día — HoYoLAB no devolvió cambios.',
-      tone: 'warn',
-    };
-  }
-
-  if (unavailable.length > 0) {
-    const names = unavailable.map((mode) => MODE_LABELS[mode] ?? mode).join(' y ');
-    return {
-      title: 'Modos sin datos',
-      text: `HoYoLAB no devolvió ${names} esta vez. El resto del Chronicle se guardó igual; probá de nuevo más tarde.`,
-      tone: 'warn',
-    };
-  }
-
-  return null;
-}
-
-function errorNotice(caught: unknown): Notice {
-  if (!(caught instanceof ApiError)) {
-    return { title: 'No se pudo sincronizar', text: describeError(caught), tone: 'info' };
-  }
-
-  if (caught.detail.toLowerCase().includes('captcha')) {
-    return {
-      title: 'HoYoLAB pidió un captcha',
-      text: 'No es un error: HoYoLAB pide una verificación que el tracker no puede resolver. La cuenta queda en pausa unos minutos; volvé a sincronizar más tarde.',
-      tone: 'warn',
-    };
-  }
-
-  if (caught.status === 429) {
-    return {
-      title: 'HoYoLAB está frenando las consultas',
-      text: 'No es un error: la cuenta queda en pausa unos minutos y después se puede sincronizar de nuevo.',
-      tone: 'warn',
-    };
-  }
-
-  if (caught.status === 401) {
-    return {
-      title: 'Credenciales de HoYoLAB',
-      text: 'HoYoLAB no aceptó las cookies guardadas (o no hay ninguna). Cargalas de nuevo desde la pantalla de conexión.',
-      tone: 'info',
-    };
-  }
-
-  if (caught.status === 403) {
-    return {
-      title: 'Chronicle privado',
-      text: 'Esa cuenta tiene el Battle Chronicle en privado. Hay que hacerlo público desde HoYoLAB para poder leerlo.',
-      tone: 'info',
-    };
-  }
-
-  return { title: 'No se pudo sincronizar', text: caught.detail, tone: 'info' };
 }
