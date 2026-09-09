@@ -85,9 +85,13 @@ describe('los dos 409 del modelo de propiedad', () => {
   });
 
   it('un code que la unión no conoce llega crudo y cae al fallback por status', () => {
-    const unknown = new ApiError(503, 'el backend inventó un error nuevo', 'import_disabled');
+    const unknown = new ApiError(
+      503,
+      'el backend inventó un error nuevo',
+      'a_code_from_the_future',
+    );
 
-    expect(unknown.code).toBe('import_disabled');
+    expect(unknown.code).toBe('a_code_from_the_future');
     expect(describeError(unknown)).toContain('sync-static');
     expect(isMissingKeyError(unknown)).toBe(false);
     expect(isUnclaimedError(unknown)).toBe(false);

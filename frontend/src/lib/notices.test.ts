@@ -61,7 +61,7 @@ describe('el aviso de un sync que falló', () => {
   });
 
   it('un code que la unión no conoce tampoco se disfraza de otro cartel', () => {
-    const notice = errorNotice(new ApiError(503, 'algo nuevo', 'import_disabled'));
+    const notice = errorNotice(new ApiError(503, 'algo nuevo', 'a_code_from_the_future'));
 
     expect(notice.title).toBe('No se pudo sincronizar');
     expect(notice.text).not.toContain('captcha');
