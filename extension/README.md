@@ -46,8 +46,34 @@ Vercel (`https://personal-zzz.vercel.app`); cuando exista el deploy real hay que
 3. **URL del frontend del tracker** (opcional): la del SPA, `http://localhost:5173` en dev.
    Es la base del link "Ver la cuenta en el tracker" (`/account/<uid>`); si queda vacía el
    popup no muestra el link (la URL del backend daría un 404 del SPA).
-4. **Token de la API**: el valor de `ZZZ_API_TOKEN` del backend. Sin token el endpoint de
-   import responde 401 (y 503 si el backend no tiene la variable configurada).
+4. **Token de la API** (opcional): el valor de `ZZZ_API_TOKEN` del backend. Sólo hace falta si
+   ese backend lo tiene seteado, donde sigue siendo una reja extra sobre el import; si está
+   vacío, la extensión ni siquiera manda el header `Authorization`. Quien autoriza a escribir
+   es la key de la cuenta (abajo): un token que viaja adentro de una extensión publicada no es
+   un secreto, así que no puede ser la única defensa.
+
+## La key de la cuenta
+
+Leer el tracker es público; **escribir una cuenta pide su key** (`X-Account-Key`). El modelo
+completo está en `docs/OWNERSHIP.md`; lo que importa acá:
+
+- La key es de un UID, no de la extensión. La emite el backend y se muestra **una sola vez**,
+  en la respuesta del import: la guarda hasheada y no la vuelve a devolver.
+- La extensión la guarda sola en `chrome.storage.sync`, bajo `accountKeys` (`{ "<uid>": "zzk_…" }`,
+  una key por UID), y la manda como `X-Account-Key` en el import siguiente de ese UID.
+- **Regla de rotación**: si el import presenta la key vigente, no rota nada. Si no presenta key
+  o presenta una inválida, el bundle de HoYoLAB es la prueba de propiedad — producirlo exige la
+  sesión del dueño del UID —, así que el backend rota la key, la devuelve en la respuesta y la
+  vieja muere. La extensión persiste siempre la que vuelve, reemplazando a la anterior.
+- **Perdiste la key**: importá de nuevo desde la extensión. Vuelve una key nueva y la cuenta
+  queda otra vez a tu nombre.
+- **Copiarla a otra instalación** (otro navegador, otra máquina): opciones → *Keys de cuenta* →
+  *Ver* / *Copiar* en el UID, y en la otra instalación pegar el UID y la key en el formulario
+  de abajo de esa misma lista. Es el único camino para importar el mismo UID desde dos
+  navegadores: si el segundo importa **sin** la key, la key rota y el primero se queda afuera.
+- Después de un import, el link "Ver la cuenta en el tracker" lleva la key en el fragmento
+  (`/account/<uid>#key=…`), así el frontend queda autenticado sin copiar y pegar nada. El
+  fragmento no viaja al servidor y el frontend lo limpia de la URL apenas lo guarda.
 
 ## Uso
 
@@ -99,7 +125,8 @@ En Chrome y en Firefox, con un build fresco:
 
 1. **Opciones vacías**: popup recién instalado → el botón Importar está deshabilitado y el
    aviso lleva a las opciones.
-2. **Guardar opciones**: URL + token quedan persistidos al cerrar y reabrir (storage.sync).
+2. **Guardar opciones**: URL (y token, si el backend lo pide) quedan persistidos al cerrar y
+   reabrir (storage.sync).
 3. **Sin sesión de HoYoLAB**: Importar → mensaje "Iniciá sesión en HoYoLAB" y la pestaña de
    act.hoyolab.com queda abierta y activa para loguearse.
 4. **Import feliz**: con sesión y backend corriendo (`ZZZ_API_TOKEN` seteado) → progreso por
@@ -108,8 +135,8 @@ En Chrome y en Firefox, con un build fresco:
    HoYoLAB en segundo plano se cierra sola.
 5. **Cuenta nueva**: importar un UID que el tracker no tiene → la cuenta se crea
    (`GET /accounts/{uid}` la devuelve).
-6. **Token inválido**: cambiar el token en opciones → Importar → error 401 con el detail del
-   backend, sin payload persistido.
+6. **Token inválido**: con un backend que tenga `ZZZ_API_TOKEN` seteado, cambiar el token en
+   opciones → Importar → error 401 con el detail del backend, sin payload persistido.
 7. **Backend caído**: parar el backend → Importar → "No se pudo conectar con el tracker…".
 8. **Popup cerrado a mitad**: cerrar el popup durante el import → al reabrirlo el botón vuelve
    deshabilitado en "Importando…" (el popup le consulta el estado al background, que además
@@ -122,7 +149,14 @@ En Chrome y en Firefox, con un build fresco:
     agente en el juego → el siguiente import pide sólo esa build.
 11. **Reimportar todo**: el botón pide los 36 agentes aunque no haya cambios (~1 minuto), y el
     contador avanza de 1 a 36.
-12. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
+12. **Key de la cuenta**: primer import de un UID → en opciones aparece su key bajo *Keys de
+    cuenta* y el link del popup termina en `#key=…`. Segundo import del mismo UID → la key
+    guardada **no** cambia (se mandó como `X-Account-Key` y el backend no rotó). Borrarla desde
+    opciones e importar de nuevo → aparece una key distinta, y la vieja queda reemplazada, no
+    duplicada (sigue habiendo una sola entrada para ese UID).
+13. **Key en otro navegador**: copiar la key del UID y pegarla en la otra instalación (UID +
+    key) → esa instalación importa sin rotar nada y las dos siguen sirviendo.
+14. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
     `background.scripts`) y que los permisos de host están concedidos en `about:addons`.
 
 ## Estructura
@@ -134,7 +168,7 @@ extension/
     background.ts           # orquesta: abre la pestaña, pide el sync, POST al tracker
     hoyolab.content.ts      # matches act.hoyolab.com — todos los fetch a HoYoLAB salen de acá
     popup/                  # React: estado, Importar, progreso, último import
-    options/                # URL del tracker + ZZZ_API_TOKEN (chrome.storage.sync)
+    options/                # URL del tracker, token opcional y keys de cuenta (storage.sync)
   lib/
     hoyolab.ts              # URLs, headers x-rpc-*, retcodes, jitter, descubrimiento de rol
     chronicle.ts            # armado del paquete del contrato de import

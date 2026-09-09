@@ -11,7 +11,15 @@ import {
   type SyncResult,
 } from '../lib/messages';
 import { nextSnapshot, parseSnapshot } from '../lib/roster';
-import { accountUrl, postChronicleImport, STORAGE_KEYS, TrackerError } from '../lib/tracker';
+import {
+  accountKeyFor,
+  accountKeysAfterImport,
+  accountUrl,
+  parseAccountKeys,
+  postChronicleImport,
+  STORAGE_KEYS,
+  TrackerError,
+} from '../lib/tracker';
 
 let importRunning = false;
 
@@ -49,17 +57,20 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
     STORAGE_KEYS.trackerUrl,
     STORAGE_KEYS.frontendUrl,
     STORAGE_KEYS.apiToken,
+    STORAGE_KEYS.accountKeys,
   ]);
   const storedUrl: unknown = stored[STORAGE_KEYS.trackerUrl];
   const storedFrontendUrl: unknown = stored[STORAGE_KEYS.frontendUrl];
   const storedToken: unknown = stored[STORAGE_KEYS.apiToken];
   const trackerUrl = typeof storedUrl === 'string' ? storedUrl : '';
   const frontendUrl = typeof storedFrontendUrl === 'string' ? storedFrontendUrl : '';
+  // El token dejó de ser obligatorio: un backend sin ZZZ_API_TOKEN no lo pide (docs/OWNERSHIP.md).
   const apiToken = typeof storedToken === 'string' ? storedToken : '';
-  if (!trackerUrl || !apiToken) {
+  const accountKeys = parseAccountKeys(stored[STORAGE_KEYS.accountKeys]);
+  if (!trackerUrl) {
     return {
       ok: false,
-      message: 'Configurá la URL del tracker y el token en las opciones de la extensión.',
+      message: 'Configurá la URL del tracker en las opciones de la extensión.',
     };
   }
 
@@ -108,18 +119,28 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
       language: DEFAULT_LANGUAGE,
       sections: result.sections,
     });
+    const uid = result.role.roleId;
     const response = await postChronicleImport({
-      settings: { trackerUrl, apiToken },
-      uid: result.role.roleId,
+      settings: { trackerUrl, apiToken, accountKey: accountKeyFor(accountKeys, uid) },
+      uid,
       payload,
     });
 
+    // Si la respuesta trae key, la vieja ya murió en el backend: hay que persistir la nueva
+    // sí o sí, es la única vez que se puede leer.
+    const nextKeys = accountKeysAfterImport(accountKeys, uid, response);
+    if (nextKeys !== accountKeys) {
+      await browser.storage.sync.set({ [STORAGE_KEYS.accountKeys]: nextKeys });
+    }
+    const accountKey = accountKeyFor(nextKeys, uid);
+
     const summary = summarizeImport(response);
     // Sin URL del frontend configurada no hay link: la del backend daría un 404 del SPA.
-    const url = frontendUrl ? accountUrl(frontendUrl, result.role.roleId) : undefined;
+    // Con key, viaja en el fragmento para que el frontend quede autenticado sin copiar y pegar.
+    const url = frontendUrl ? accountUrl(frontendUrl, uid, accountKey) : undefined;
     const lastImport: LastImport = {
       at: new Date().toISOString(),
-      uid: result.role.roleId,
+      uid,
       nickname: result.role.nickname,
       summary,
       accountUrl: url,
@@ -134,7 +155,7 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
         fetchedIds: result.fetchedAvatarIds,
       }),
     });
-    return { ok: true, message: summary, uid: result.role.roleId, accountUrl: url, warnings };
+    return { ok: true, message: summary, uid, accountUrl: url, warnings };
   } catch (error) {
     if (error instanceof TrackerError) return { ok: false, message: error.message };
     return { ok: false, message: `Falló el import: ${String(error)}` };

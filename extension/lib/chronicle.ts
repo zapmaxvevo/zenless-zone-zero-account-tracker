@@ -77,6 +77,11 @@ export function buildImportPayload(args: {
 
 export interface ChronicleImportResponse {
   account_uid?: string;
+  /**
+   * Sólo viene cuando la key rotó (import sin key o con una inválida). Se muestra una vez y
+   * hay que guardarla: el backend la tiene hasheada y no la vuelve a devolver.
+   */
+  account_key?: string | null;
   skipped?: boolean;
   agents_synced?: number;
   bangboos_synced?: number;
