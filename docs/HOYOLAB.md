@@ -254,7 +254,8 @@ compartidas) es el escenario de rate limit más probable de los dos.
 
 Fuera del throttle, HoYoLAB responde **HTTP 200 para todo**; el estado real viene en `retcode`
 dentro del body. `HoyolabClient._raise_for_retcode` lo traduce a excepciones de dominio
-(`errors.py`), y `register_exception_handlers` las convierte en `{"detail": …}` con su status:
+(`errors.py`), y `register_exception_handlers` las convierte en `{"detail": …, "code": …}` con
+su status (los codes, en *API HTTP*):
 
 | Retcodes | Constante | Excepción | HTTP |
 |---|---|---|---|
@@ -613,22 +614,50 @@ Reglas exactas:
 en `EXTENSION.md`) captura con la sesión del usuario: **el backend no sale a la red**, solo
 parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1.
 
-- **Auth**: `Authorization: Bearer <ZZZ_API_TOKEN>` (`Settings.api_token`,
-  `web/deps.py::require_api_token`). Con la variable vacía el endpoint está deshabilitado y
-  responde **503** (`ImportDisabledError`) — mismo patrón que el cipher: env vacía = feature
-  apagada. Sin header, con otro esquema o con token errado, **401** (`UnauthorizedError`). La
-  comparación usa `secrets.compare_digest`, y el 503 se evalúa antes que el 401.
+- **Auth**: la manda el modelo de propiedad (`docs/OWNERSHIP.md`), no el token. Quien autoriza
+  a escribir una cuenta es su **account key**, que viaja en `X-Account-Key`, y la regla del
+  import la decide `TrackerService._ensure_import_allowed`:
+  - cuenta **`unclaimed`** → entra cualquier bundle, y lo reclama;
+  - cuenta **`provisional`** (alguien la reclamó desde la web) → un bundle que **nombra** el
+    UID le gana al ocupante: rota la key, la vieja muere y el nivel pasa a `verified`;
+  - cuenta **`verified`** sin la key vigente → **403** (`ForbiddenError`, code `forbidden`) y
+    no se escribe **nada**. Nombrar el UID no alcanza: un bundle es un JSON que elige el que
+    lo manda y un UID es público, así que si un bundle pudiera pisar al dueño, cualquiera se
+    quedaría con la cuenta —y, con ella, con el `chronicle/sync` que usa las cookies
+    guardadas de la víctima. La recuperación del dueño que perdió su key **no** pasa por el
+    navegador: es `zzz-tracker rotate-key <uid>`, que exige acceso a la base;
+  - con la key vigente, en cualquier nivel → se importa y la key **no** rota.
+- **El token quedó como reja opcional.** `ZZZ_API_TOKEN` (`Settings.api_token`,
+  `web/deps.py::require_api_token`) **ya no es obligatorio y su ausencia no deshabilita nada**:
+  con la variable vacía la dependencia sale temprano y el import entra igual, protegido por la
+  key. Seteado, se exige además el `Authorization: Bearer <ZZZ_API_TOKEN>` y sin él —u otro
+  esquema, o token errado— responde **401** (`UnauthorizedError`), con `secrets.compare_digest`
+  para comparar. Un token que viaja adentro de una extensión publicada no es un secreto, así
+  que nunca puede ser la única defensa. (`ImportDisabledError` sigue definida en `errors.py`
+  pero ya no la levanta nadie.)
 - **Body**: `ChronicleImportWrite` (`extra="ignore"`): `source`, `extension_version`,
   `captured_at`, `region`, `language` y `payloads`. Cada clave de `payloads` es el `data` ya
   desenvuelto de un endpoint —lo mismo que devuelve `HoyolabClient._get`—, así los `parse_*`
   del mapper se aplican sin adaptador: `index`, `avatar_basic`, `buddy_info`,
   `shiyu_defense` / `deadly_assault` (objeto `{"1": …, "2": …}` por `schedule_type`),
   `lost_void` y `avatar_info` (lista de respuestas crudas).
-- **`index` es la única clave obligatoria**: de ahí salen nickname y nivel, y se valida el
-  UID. `parse_chronicle_uid` (mapper) busca `game_role_id` / `game_uid` / `uid` / `role_id`
-  en la raíz y en las variantes de `PROFILE_KEYS`; si lo que encuentra difiere del `{uid}`
-  del path → **422**. Si el `index` no trae ningún UID, no hay nada que refutar y el import
-  se acepta. Sin `index` (o `null`) → 422.
+- **`index` es la única clave obligatoria**, y alcanza con que esté y no venga vacía: no se le
+  exige un `role`, porque el `index` real de HoYoLAB no trae perfil (el nickname, el nivel y el
+  UID salen de `record_card`, abajo). Sin `index` (o `null`) → **422**. El UID se busca primero
+  en `record_card` y si no en el `index`, con `parse_chronicle_uid` (`game_role_id` /
+  `game_uid` / `uid` / `role_id`, en la raíz y en las variantes de `PROFILE_KEYS`); si lo que
+  encuentra difiere del `{uid}` del path → **422**.
+- **Nombrar el UID no prueba nada, pero decide cuánto vale el reclamo.** Un bundle que lo
+  nombra puede tomar una cuenta libre o ganarle a un reclamo `provisional`, y queda
+  `verified`; uno que no lo nombra sólo entra en una cuenta que nadie reclamó —o con la key
+  vigente— y el reclamo que consigue es apenas `provisional`. Contra una cuenta ya reclamada,
+  sin key, cualquiera de los dos da **403**.
+- **La `region` del body se acepta sólo si existe** (`_import_region` la compara contra
+  `KNOWN_REGIONS`); cualquier otra cosa se reemplaza por la que implica el prefijo del UID. La
+  región elige a qué host le pega después el sync server-side, así que no puede salir libre de
+  un body que elige el que llama. `KNOWN_REGIONS` incluye a China, así que el rechazo de los
+  UIDs chinos aparece recién en el fallback (`_region_for` → **422**): un body que nombra
+  `prod_gf_cn` guarda esa región y el 422 llega después, cuando alguien intente sincronizar.
 - **La cuenta se crea si no existe** (el flujo de la extensión no pasa por la home del
   tracker). Cualquier otra sección ausente o `null` se salta y se lista en
   `skipped_sections`; una temporada presente pero con `has_data == false` va a
@@ -648,8 +677,8 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
   del chronicle y el sync server-side no puede pedirlo, así que **nunca** se reporta como
   sección saltada.
 - El import **no** toca `HoyolabCredential` (ni `last_used_at`), ni TTL, ni backoff: no hubo
-  red del lado del backend. Sí escribe `chronicle_synced_at`, `region` (la del body; si viene
-  vacía se deriva del UID, rechazando China), `chronicle_public = True` y
+  red del lado del backend. Sí escribe `chronicle_synced_at`, `region` (la del body si es una
+  región conocida; si no, la que se deriva del UID, rechazando China), `chronicle_public = True` y
   `chronicle_import_source = "extension"` (el sync server-side escribe `"server"`; gana el
   último en correr).
 - **Un solo camino de persistencia.** `TrackerService._persist_chronicle(account,
@@ -658,12 +687,18 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
   `import_chronicle`. La regla de fuentes no cambia: `manual` inmune, y el roster importado
   solo escribe `level` + `mindscape_level`, sin tocar las builds de Enka.
 - **Respuesta**: `ChronicleImportResponse` = `ChronicleSyncResponse` + `builds_synced` +
-  `skipped_sections`.
+  `skipped_sections` + `account_key`. `account_key` trae la key nueva **sólo** cuando el import
+  se quedó con el UID (una cuenta que nadie había reclamado, o un `provisional` al que le ganó);
+  el que ya presentó la vigente recibe `null`, así un cliente nunca guarda una key que no le
+  están entregando. Se devuelve una sola vez: la base guarda el `sha256`.
 - **CORS**: el plan asumía que no hacía falta (el POST sale del background con
   `host_permissions`, que saltea CORS), pero en Firefox MV3 los permisos de host son opcionales
   y el fetch del background puede terminar sujeto a CORS igual (preflight `OPTIONS` → 405 sin
   middleware). El app registra `CORSMiddleware` permisivo (`allow_origins=["*"]`, sin
-  credenciales): la auth del import es el bearer token, nunca cookies, así que no abre nada.
+  credenciales): la auth del import viaja en headers que el cliente pone a propósito —la
+  account key, y el bearer si está configurado—, nunca en cookies, así que no abre nada. Un
+  navegador cualquiera no tiene la key de la cuenta por el solo hecho de estar logueado en
+  algún lado.
 
 ## API HTTP
 
@@ -671,12 +706,20 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
 contra `UID_PATTERN` (`^\d{6,16}$`); lo que no matchea lo rechaza FastAPI con su propio 422,
 antes de llegar al servicio.
 
+**Leer es público; escribir pide la key de la cuenta** (`docs/OWNERSHIP.md`). Las tres lecturas
+de abajo, más `GET /{uid}/credentials`, no piden nada. Las escrituras cuelgan de
+`Depends(require_account_key)`, que en ese orden devuelve **404** si la cuenta no está
+trackeada, **409** (`unclaimed_account`) si nadie la reclamó todavía —no hay key que presentar,
+hay que reclamarla— y **403** (`forbidden`) si la key falta o no es la de esa cuenta. El import
+es el único que no usa esa dependencia: tiene su propia regla, la de arriba.
+
 | Método | Ruta | Query / body | Respuesta | Errores |
 |---|---|---|---|---|
-| `PUT` | `/accounts/{uid}/credentials` | body `{ltuid_v2, ltoken_v2}` (1–32 y 1–512 chars) | `CredentialRead`, **sin el token** | 404 cuenta no trackeada · 422 sin `ZZZ_CREDENTIALS_KEY` o cookies en blanco |
-| `DELETE` | `/accounts/{uid}/credentials` | — | 204 sin body | 404 cuenta no trackeada, o cuenta sin credenciales guardadas |
-| `POST` | `/accounts/{uid}/chronicle/sync` | `?force=false&previous=true` | `ChronicleSyncResponse` | 401 sin cookies o rechazadas · 403 Chronicle privado · 404 cuenta · 422 UID chino, sin clave o integración no configurada · 429 rate limit · 502 upstream · 503 captcha |
-| `POST` | `/accounts/{uid}/chronicle/import` | header `Authorization: Bearer <ZZZ_API_TOKEN>`; body `ChronicleImportWrite` (ver *Import desde la extensión*) | `ChronicleImportResponse` | 401 sin token o token inválido · 422 sin `index`, UID que no coincide, o UID chino sin región · 503 `ZZZ_API_TOKEN` sin configurar |
+| `GET` | `/accounts/{uid}/credentials` | — | `CredentialStatusRead`: `stored`, `rejected` y fechas; **nada de lo que dicen las cookies** | 404 cuenta no trackeada (una cuenta sin credenciales responde `stored: false`, no 404) |
+| `PUT` | `/accounts/{uid}/credentials` | header `X-Account-Key`; body `{ltuid_v2, ltoken_v2}` (1–32 y 1–512 chars) | `CredentialRead`, **sin el token** | 403 sin la key · 404 cuenta no trackeada · 409 cuenta sin dueño · 422 sin `ZZZ_CREDENTIALS_KEY` o cookies en blanco |
+| `DELETE` | `/accounts/{uid}/credentials` | header `X-Account-Key` | 204 sin body | 403 sin la key · 404 cuenta no trackeada, o cuenta sin credenciales guardadas · 409 cuenta sin dueño |
+| `POST` | `/accounts/{uid}/chronicle/sync` | header `X-Account-Key`; `?force=false&previous=true` | `ChronicleSyncResponse` | 401 sin cookies o rechazadas · 403 **por dos motivos distintos**: falta la key (`forbidden`) o el Chronicle es privado (`data_not_public`) · 404 cuenta · 409 cuenta sin dueño · 422 UID chino, sin clave o integración no configurada · 429 rate limit · 502 upstream · 503 captcha |
+| `POST` | `/accounts/{uid}/chronicle/import` | header `X-Account-Key` (opcional según el nivel de reclamo) y `Authorization: Bearer <ZZZ_API_TOKEN>` **sólo si el backend tiene el token seteado**; body `ChronicleImportWrite` (ver *Import desde la extensión*) | `ChronicleImportResponse` | 401 token faltante o inválido, únicamente donde hay token configurado · 403 cuenta `verified` sin su key, o bundle que no nombra el UID sobre una cuenta ya reclamada · 422 sin `index`, UID que no coincide, o UID chino sin región |
 | `GET` | `/accounts/{uid}/challenges` | `?mode=shiyu_defense\|deadly_assault` | `{items: [ChallengeRunRead]}`, ordenado por `mode` y `schedule_id` desc | 404 cuenta no trackeada |
 | `GET` | `/accounts/{uid}/bangboos` | — | `{items: [BangbooRead]}`, ordenado por `game_id` | 404 cuenta no trackeada |
 | `GET` | `/accounts/{uid}/lost-void` | — | `LostVoidRead` | 404 cuenta no trackeada, o sin progreso sincronizado |
@@ -704,7 +747,27 @@ que cada schema los pasa por `as_utc()` al serializar: `AccountRead`, `Credentia
 `as_utc` se serializaría como hora local implícita y mentiría por la diferencia horaria.
 
 Los status salen de `errors.py` (`ZZZTrackerError.status_code`) y los sirve
-`register_exception_handlers` como `{"detail": "…"}`.
+`register_exception_handlers` como `{"detail": "…", "code": "…"}`. **El cliente ramifica por
+`code`, nunca por el texto ni por el status solo**: el `detail` está escrito para una persona y
+puede cambiar sin aviso, y hay statuses que significan dos cosas distintas en la misma ruta.
+Los codes que puede devolver el Chronicle:
+
+| status | code | cuándo |
+|---|---|---|
+| 401 | `missing_credentials` | la cuenta no tiene cookies guardadas |
+| 401 | `invalid_credentials` | HoYoLAB rechazó las guardadas; no se arreglan reintentando |
+| 401 | `unauthorized` | falta el `Bearer` donde `ZZZ_API_TOKEN` está configurado |
+| 403 | `forbidden` | la escritura no trae la `X-Account-Key` de esa cuenta |
+| 403 | `data_not_public` | el jugador tiene el Chronicle privado |
+| 404 | `not_found` | la cuenta no está trackeada, o no hay lo que se pide |
+| 409 | `unclaimed_account` | la cuenta existe pero nadie la reclamó: no hay key posible |
+| 422 | `validation_error` | UID que no coincide, región china, falta `index`, falta el cipher |
+| 429 | `rate_limited` | HoYoLAB frenó; arma backoff |
+| 502 | `external_service_error` | upstream caído o respuesta ininteligible |
+| 503 | `captcha_required` | geetest; arma backoff |
+
+Los codes son parte de la API: renombrar uno es un cambio incompatible, y `tests/test_errors.py`
+los pinea uno por uno.
 
 ## CLI
 
@@ -770,7 +833,7 @@ que tocan a HoYoLAB:
 | `ZZZ_HOYOLAB_LANGUAGE` | `hoyolab_language` | `en-us` | valor de `x-rpc-lang`; define el idioma de los nombres que se persisten |
 | `ZZZ_HOYOLAB_SYNC_TTL_SECONDS` | `hoyolab_sync_ttl_seconds` | `3600` | ventana mínima entre syncs de una misma cuenta |
 | `ZZZ_HOYOLAB_BACKOFF_SECONDS` | `hoyolab_backoff_seconds` | `900` | cuánto se deja de golpear a HoYoLAB después de un rate limit o un captcha (ver *Backoff*) |
-| `ZZZ_API_TOKEN` | `api_token` | `""` | bearer token del import de la extensión. Vacío = endpoint de import deshabilitado (503). Se rota cambiando la env (ver *Import desde la extensión*) |
+| `ZZZ_API_TOKEN` | `api_token` | `""` | bearer **opcional** del import de la extensión: reja extra encima de la account key, no la que autoriza. Vacío = no se pide (el import entra igual, protegido por la key); seteado = además hay que mandarlo o 401. Se rota cambiando la env (ver *Import desde la extensión*) |
 
 `ZZZ_DATABASE_URL` la comparten las dos integraciones; el resto (`ZZZ_ENKA_BASE_URL`,
 `ZZZ_STATIC_DATA_DIR`, `ZZZ_APP_NAME`) es de Enka y está en `PLAN.md`.
