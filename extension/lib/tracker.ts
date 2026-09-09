@@ -118,6 +118,25 @@ export function ownedAccountHelp(uid: string, sentKey = false): string {
   );
 }
 
+/**
+ * El `detail` de un error del backend, como texto. FastAPI lo manda como string en los errores
+ * propios, pero como **lista** de `{loc, msg, …}` cuando lo que falla es la validación del
+ * schema — el 422 del import, por ejemplo, cuando la región no está en el allowlist. Sin
+ * desarmar esa lista el usuario lee sólo "El tracker respondió 422." y no se entera de qué
+ * rechazó el backend.
+ */
+export function extractDetail(body: unknown): string {
+  if (typeof body !== 'object' || body === null) return '';
+  const { detail } = body as { detail?: unknown };
+  if (typeof detail === 'string') return detail.trim();
+  if (!Array.isArray(detail)) return '';
+  return detail
+    .map((item) => (item as { msg?: unknown } | null)?.msg)
+    .filter((msg): msg is string => typeof msg === 'string' && msg.trim() !== '')
+    .map((msg) => msg.trim())
+    .join(', ');
+}
+
 /** El texto que ve el usuario cuando el import falla, a partir de lo que devolvió el backend. */
 export function importErrorMessage(args: {
   status: number;
@@ -167,9 +186,9 @@ export async function postChronicleImport(args: {
     body = null;
   }
   if (response.status >= 400) {
-    const error = body as { detail?: unknown; code?: unknown } | null;
-    const detail = typeof error?.detail === 'string' ? error.detail : '';
-    const code = typeof error?.code === 'string' ? error.code : '';
+    const detail = extractDetail(body);
+    const rawCode = (body as { code?: unknown } | null)?.code;
+    const code = typeof rawCode === 'string' ? rawCode : '';
     throw new TrackerError(
       response.status,
       importErrorMessage({

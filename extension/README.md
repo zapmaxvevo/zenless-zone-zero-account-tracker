@@ -62,12 +62,12 @@ completo está en `docs/OWNERSHIP.md`; lo que importa acá:
 - La extensión la guarda sola en `chrome.storage.sync`, bajo `accountKeys` (`{ "<uid>": "zzk_…" }`,
   una key por UID), y la manda como `X-Account-Key` en el import siguiente de ese UID.
 - **Regla de rotación**: el primer import de un UID libre (`unclaimed`/`provisional`) lo reclama
-  y emite la key; el bundle de HoYoLAB es la prueba de propiedad, porque producirlo exige la
-  sesión del dueño del UID. A partir de ahí la cuenta queda `verified` y **cada import tiene que
-  presentar la key vigente**: un import sin ella responde **403 y no escribe nada** (el
-  `role_id` del bundle es público, así que un bundle solo no puede desalojar al dueño). Un
-  import con la key vigente no rota nada. La extensión persiste siempre la key que vuelve,
-  reemplazando a la anterior.
+  y emite la key. A partir de ahí la cuenta queda `verified` y **cada import tiene que presentar
+  la key vigente**: uno sin ella responde **403 y no escribe nada**. Lo que sostiene el nivel
+  `verified` es la key, no el bundle: un bundle es un JSON que elige el cliente y el `role_id`
+  es público, así que por sí solo no prueba nada y no puede desalojar a nadie. Un import con la
+  key vigente no rota nada. La extensión persiste siempre la key que vuelve, reemplazando a la
+  anterior.
 - **"Esta cuenta ya tiene dueño y no tengo la key acá"**: es el 403 de arriba, y el popup lo
   dice con esas palabras. Copiá la key desde la instalación que sí la tiene (abajo); si no
   quedó en ninguna, la única salida es `zzz-tracker rotate-key <uid>` en el servidor —

@@ -4,6 +4,7 @@ import type { FetchLike, HttpResponseLike } from './hoyolab';
 import {
   type AccountKeys,
   accountKeyFor,
+  extractDetail,
   accountKeysAfterImport,
   accountUrl,
   importUrl,
@@ -108,6 +109,33 @@ describe('keys de cuenta guardadas', () => {
   });
 });
 
+describe('extractDetail', () => {
+  it('devuelve el string tal cual, recortado', () => {
+    expect(extractDetail({ detail: '  esta cuenta tiene dueño  ' })).toBe(
+      'esta cuenta tiene dueño',
+    );
+  });
+
+  it('junta los msg de la lista de errores de schema', () => {
+    expect(
+      extractDetail({ detail: [{ msg: 'Field required' }, { msg: 'región desconocida' }] }),
+    ).toBe('Field required, región desconocida');
+  });
+
+  it('ignora las entradas sin msg usable', () => {
+    expect(
+      extractDetail({ detail: [{ msg: 'ok' }, { loc: ['body'] }, { msg: '  ' }, 'texto'] }),
+    ).toBe('ok');
+  });
+
+  it('sin detail reconocible devuelve vacío para que decida quien llama', () => {
+    expect(extractDetail({})).toBe('');
+    expect(extractDetail(null)).toBe('');
+    expect(extractDetail({ detail: 42 })).toBe('');
+    expect(extractDetail({ detail: [] })).toBe('');
+  });
+});
+
 describe('postChronicleImport', () => {
   it('hace el POST con Bearer y el payload en JSON', async () => {
     let seenUrl = '';
@@ -146,7 +174,7 @@ describe('postChronicleImport', () => {
     expect(headers['x-account-key']).toBe('zzk_vigente');
   });
 
-  it('sin key guardada no manda el header: el bundle es la prueba y el backend rota', async () => {
+  it('sin key guardada no manda el header: si el UID está libre, el import lo reclama', async () => {
     let seenInit: RequestInit | undefined;
     const response = await postChronicleImport({
       settings,
@@ -257,6 +285,36 @@ describe('postChronicleImport', () => {
         uid: '1500000001',
         payload,
         fetchFn: async () => jsonResponse(422, {}),
+      }),
+    ).rejects.toThrowError('El tracker respondió 422.');
+  });
+
+  it('un 422 de schema trae el detail como lista y se lee igual', async () => {
+    // Forma exacta de FastAPI cuando falla la validación del body: el backend la devuelve, por
+    // ejemplo, si la región del import no está en el allowlist.
+    await expect(
+      postChronicleImport({
+        settings,
+        uid: '1500000001',
+        payload,
+        fetchFn: async () =>
+          jsonResponse(422, {
+            detail: [
+              { type: 'literal_error', loc: ['body', 'region'], msg: 'región desconocida: xx' },
+              { type: 'missing', loc: ['body', 'payloads', 'index'], msg: 'Field required' },
+            ],
+          }),
+      }),
+    ).rejects.toThrowError('región desconocida: xx, Field required');
+  });
+
+  it('un detail en lista sin ningún msg usable cae al status', async () => {
+    await expect(
+      postChronicleImport({
+        settings,
+        uid: '1500000001',
+        payload,
+        fetchFn: async () => jsonResponse(422, { detail: [{ loc: ['body'] }] }),
       }),
     ).rejects.toThrowError('El tracker respondió 422.');
   });
