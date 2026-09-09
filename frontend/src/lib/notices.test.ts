@@ -60,6 +60,13 @@ describe('el aviso de un sync que falló', () => {
     expect(notice.text).not.toContain('has no owner yet');
   });
 
+  it('un code que la unión no conoce tampoco se disfraza de otro cartel', () => {
+    const notice = errorNotice(new ApiError(503, 'algo nuevo', 'import_disabled'));
+
+    expect(notice.title).toBe('No se pudo sincronizar');
+    expect(notice.text).not.toContain('captcha');
+  });
+
   it('sin code cae en el status, y un 403 mudo no diagnostica nada', () => {
     expect(errorNotice(new ApiError(429, 'rate limited')).title).toBe(
       'HoYoLAB está frenando las consultas',

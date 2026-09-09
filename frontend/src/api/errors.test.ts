@@ -84,6 +84,15 @@ describe('los dos 409 del modelo de propiedad', () => {
     );
   });
 
+  it('un code que la unión no conoce llega crudo y cae al fallback por status', () => {
+    const unknown = new ApiError(503, 'el backend inventó un error nuevo', 'import_disabled');
+
+    expect(unknown.code).toBe('import_disabled');
+    expect(describeError(unknown)).toContain('sync-static');
+    expect(isMissingKeyError(unknown)).toBe(false);
+    expect(isUnclaimedError(unknown)).toBe(false);
+  });
+
   it('reconoce el freno de la API por code o por status, que acá no se pisan', () => {
     expect(isRateLimited(new ApiError(429, 'slow down', 'rate_limited'))).toBe(true);
     expect(isRateLimited(new ApiError(429, 'slow down'))).toBe(true);
