@@ -57,15 +57,15 @@ Inter **sí** se envía: 6 woff2 (pesos 400/600/700 × subconjuntos latin y lati
 descargados de Google Fonts a `design-system/fonts/`, referenciados por `fonts/inter.css` con
 rutas locales. Sin CDN.
 
-## Hallazgo sobre la app (pendiente, no es del sync)
+## Hallazgo sobre la app (resuelto)
 
-`frontend/src/index.css` declara `--ui: 'Inter', system-ui, …` pero **la app nunca carga
-Inter** — no hay `@font-face` ni `<link>` a un servicio de fuentes en `index.html`. Hoy el
-tracker renderiza en `system-ui`.
+Cuando se escribió esta nota, `frontend/src/index.css` declaraba `--ui: 'Inter', system-ui, …`
+pero la app no cargaba Inter por ningún lado y renderizaba en `system-ui`.
 
-El DS sí envía Inter, así que los diseños hechos en Claude Design van a verse con Inter y la
-app real no. Para alinearlos, la app tiene que servir las mismas woff2 (están en
-`design-system/fonts/`) o hay que sacar `'Inter'` del stack.
+**Ya no.** `frontend/index.html` trae Archivo Black, Chakra Petch e Inter desde Google Fonts
+(`<link>` con `preconnect`), así que la app y los previews del DS comparten tipografía. La
+diferencia que queda es de origen, no de familia: el DS sirve sus woff2 locales desde
+`design-system/fonts/` y la app las pide a la red.
 
 ## Riesgos para el próximo sync
 
