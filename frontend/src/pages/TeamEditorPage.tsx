@@ -4,10 +4,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AgentRead, TeamRead } from '../api/types';
+import ReadOnlyNotice from '../components/ReadOnlyNotice';
 import StatusMessage from '../components/StatusMessage';
 import Button, { LinkButton } from '../components/ui/Button';
 import Face from '../components/ui/Face';
 import SectionHead from '../components/ui/SectionHead';
+import { useAccountAccess } from '../hooks/useAccountAccess';
+import type { AccountAccess } from '../hooks/useAccountAccess';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { nameOr } from '../lib/labels';
@@ -28,6 +31,7 @@ const PICK_FACE = 56;
 
 export default function TeamEditorPage() {
   const { uid = '', teamId } = useParams();
+  const access = useAccountAccess(uid);
   const { version } = useSync();
   const roster = useApi(() => api.listAgents(uid), `${uid}:${version}`);
   const team = useApi(
@@ -52,7 +56,7 @@ export default function TeamEditorPage() {
       {!loading && error && <StatusMessage kind="error">{error}</StatusMessage>}
 
       {!loading && !error && (
-        <TeamForm uid={uid} team={team.data} roster={roster.data?.items ?? []} />
+        <TeamForm uid={uid} access={access} team={team.data} roster={roster.data?.items ?? []} />
       )}
     </>
   );
@@ -60,11 +64,12 @@ export default function TeamEditorPage() {
 
 interface TeamFormProps {
   uid: string;
+  access: AccountAccess;
   team: TeamRead | null;
   roster: AgentRead[];
 }
 
-function TeamForm({ uid, team, roster }: TeamFormProps) {
+function TeamForm({ uid, access, team, roster }: TeamFormProps) {
   const navigate = useNavigate();
   const { art } = useAgentArt();
   const [draft, setDraft] = useState<TeamDraft>(() =>
@@ -84,7 +89,7 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
     try {
       const payload = toTeamWrite(draft);
       if (team) {
-        await api.updateTeam(team.id, payload);
+        await api.updateTeam(uid, team.id, payload);
       } else {
         await api.createTeam(uid, payload);
       }
@@ -119,72 +124,76 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
     <form className="panel ne-team-form" onSubmit={handleSubmit}>
       <SectionHead title={title} />
 
-      <div className="ne-team-field">
-        <label className="ne-label" htmlFor="team-name">
-          Nombre
-        </label>
-        <input
-          id="team-name"
-          maxLength={MAX_TEAM_NAME}
-          value={draft.name}
-          onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-        />
-      </div>
+      <ReadOnlyNotice access={access} what="armar equipos" />
 
-      <div className="ne-team-field">
-        <label className="ne-label" htmlFor="team-notes">
-          Notas
-        </label>
-        <textarea
-          id="team-notes"
-          rows={3}
-          value={draft.notes}
-          onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
-        />
-      </div>
+      <fieldset className="ne-lock" disabled={!access.canWrite}>
+        <div className="ne-team-field">
+          <label className="ne-label" htmlFor="team-name">
+            Nombre
+          </label>
+          <input
+            id="team-name"
+            maxLength={MAX_TEAM_NAME}
+            value={draft.name}
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          />
+        </div>
 
-      <div className="ne-team-picks">
-        {TEAM_SLOTS.map((slot, index) => {
-          const chosen = roster.find((agent) => agent.id === draft.members[index]) ?? null;
+        <div className="ne-team-field">
+          <label className="ne-label" htmlFor="team-notes">
+            Notas
+          </label>
+          <textarea
+            id="team-notes"
+            rows={3}
+            value={draft.notes}
+            onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
+          />
+        </div>
 
-          return (
-            <div className="ne-team-pick" key={slot}>
-              {chosen ? (
-                <Face
-                  art={art(chosen.game_id)}
-                  fallback={initials(nameOr(chosen.name, 'Agente', chosen.game_id))}
-                  ring={elementsColor(chosen.elements)}
-                  size={PICK_FACE}
-                />
-              ) : (
-                <span
-                  className="ne-team-free"
-                  style={{ width: PICK_FACE, height: PICK_FACE }}
-                  aria-hidden="true"
-                />
-              )}
+        <div className="ne-team-picks">
+          {TEAM_SLOTS.map((slot, index) => {
+            const chosen = roster.find((agent) => agent.id === draft.members[index]) ?? null;
 
-              <div className="ne-team-field">
-                <label className="ne-label" htmlFor={`team-slot-${slot}`}>
-                  Slot {slot}
-                </label>
-                <select
-                  id={`team-slot-${slot}`}
-                  value={draft.members[index] ?? ''}
-                  onChange={(event) => chooseMember(index, event.target.value)}
-                >
-                  <option value="">— vacío —</option>
-                  {roster.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {nameOr(agent.name, 'Agente', agent.game_id)} · Nv. {agent.level}
-                    </option>
-                  ))}
-                </select>
+            return (
+              <div className="ne-team-pick" key={slot}>
+                {chosen ? (
+                  <Face
+                    art={art(chosen.game_id)}
+                    fallback={initials(nameOr(chosen.name, 'Agente', chosen.game_id))}
+                    ring={elementsColor(chosen.elements)}
+                    size={PICK_FACE}
+                  />
+                ) : (
+                  <span
+                    className="ne-team-free"
+                    style={{ width: PICK_FACE, height: PICK_FACE }}
+                    aria-hidden="true"
+                  />
+                )}
+
+                <div className="ne-team-field">
+                  <label className="ne-label" htmlFor={`team-slot-${slot}`}>
+                    Slot {slot}
+                  </label>
+                  <select
+                    id={`team-slot-${slot}`}
+                    value={draft.members[index] ?? ''}
+                    onChange={(event) => chooseMember(index, event.target.value)}
+                  >
+                    <option value="">— vacío —</option>
+                    {roster.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {nameOr(agent.name, 'Agente', agent.game_id)} · Nv. {agent.level}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </fieldset>
 
       {errors.map((message) => (
         <StatusMessage key={message} kind="error">
@@ -193,10 +202,14 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
       ))}
 
       <div className="ne-team-actions">
-        <Button type="submit" tone="accent" disabled={saving}>
-          {saving ? 'Guardando…' : 'Guardar'}
-        </Button>
-        <LinkButton to={`/account/${uid}/teams`}>Cancelar</LinkButton>
+        {access.canWrite && (
+          <Button type="submit" tone="accent" disabled={saving}>
+            {saving ? 'Guardando…' : 'Guardar'}
+          </Button>
+        )}
+        <LinkButton to={`/account/${uid}/teams`}>
+          {access.canWrite ? 'Cancelar' : 'Volver'}
+        </LinkButton>
       </div>
     </form>
   );

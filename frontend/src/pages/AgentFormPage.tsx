@@ -11,9 +11,12 @@ import type {
   CatalogWEngineRead,
 } from '../api/types';
 import DiscFields from '../components/DiscFields';
+import ReadOnlyNotice from '../components/ReadOnlyNotice';
 import StatusMessage from '../components/StatusMessage';
 import Button from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
+import { useAccountAccess } from '../hooks/useAccountAccess';
+import type { AccountAccess } from '../hooks/useAccountAccess';
 import { useApi } from '../hooks/useApi';
 import type { AgentDraft, WEngineDraft } from '../lib/agentDraft';
 import {
@@ -30,6 +33,7 @@ import '../styles/forms.css';
 
 export default function AgentFormPage() {
   const { uid = '', agentId } = useParams();
+  const access = useAccountAccess(uid);
   const agent = useApi(
     () => (agentId ? api.getAgent(agentId) : Promise.resolve(null)),
     agentId ?? 'nuevo',
@@ -64,6 +68,7 @@ export default function AgentFormPage() {
       {!loading && !agent.error && (
         <AgentForm
           uid={uid}
+          access={access}
           agent={agent.data}
           catalogError={catalogError}
           agents={catalogAgents.data?.items ?? []}
@@ -78,6 +83,7 @@ export default function AgentFormPage() {
 
 interface AgentFormProps {
   uid: string;
+  access: AccountAccess;
   agent: AgentDetailRead | null;
   catalogError: string | null;
   agents: CatalogAgentRead[];
@@ -88,6 +94,7 @@ interface AgentFormProps {
 
 function AgentForm({
   uid,
+  access,
   agent,
   catalogError,
   agents,
@@ -111,7 +118,7 @@ function AgentForm({
     setSaving(true);
     try {
       const saved = agent
-        ? await api.updateAgent(agent.id, toAgentUpdate(draft, agent))
+        ? await api.updateAgent(uid, agent.id, toAgentUpdate(draft, agent))
         : await api.createAgent(uid, toAgentWrite(draft));
       navigate(`/account/${uid}/agents/${saved.id}`);
     } catch (caught) {
@@ -125,135 +132,141 @@ function AgentForm({
 
   return (
     <form className="ne-stack" onSubmit={handleSubmit}>
-      <section className="panel">
-        <SectionHead
-          title={agent ? `Editar ${nameOr(agent.name, 'agente', agent.game_id)}` : 'Agregar agente'}
-        />
+      <ReadOnlyNotice access={access} what={agent ? 'editar esta build' : 'cargar un agente'} />
 
-        <StatusMessage kind="empty">
-          Lo que se carga a mano queda marcado como manual: a partir de ahí el sync con Enka no
-          vuelve a pisar este agente.
-        </StatusMessage>
-
-        {catalogError && <StatusMessage kind="error">{catalogError}</StatusMessage>}
-
-        {!agent && (
-          <div className="field">
-            <label className="ne-label" htmlFor="agent-game-id">
-              Agente
-            </label>
-            <select
-              id="agent-game-id"
-              value={draft.game_id}
-              onChange={(event) => setDraft({ ...draft, game_id: event.target.value })}
-            >
-              <option value="">— elegir —</option>
-              {agents.map((option) => (
-                <option key={option.game_id} value={option.game_id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="field-row ne-field-row">
-          <NumberField
-            id="agent-level"
-            label="Nivel"
-            limits={LIMITS.level}
-            value={draft.level}
-            onChange={(level) => setDraft({ ...draft, level })}
+      <fieldset className="ne-lock" disabled={!access.canWrite}>
+        <section className="panel">
+          <SectionHead
+            title={
+              agent ? `Editar ${nameOr(agent.name, 'agente', agent.game_id)}` : 'Agregar agente'
+            }
           />
-          <NumberField
-            id="agent-promotion"
-            label="Ascensión"
-            limits={LIMITS.promotion_level}
-            value={draft.promotion_level}
-            onChange={(promotion_level) => setDraft({ ...draft, promotion_level })}
-          />
-          <NumberField
-            id="agent-mindscape"
-            label="Mindscape"
-            limits={LIMITS.mindscape_level}
-            value={draft.mindscape_level}
-            onChange={(mindscape_level) => setDraft({ ...draft, mindscape_level })}
-          />
-          <NumberField
-            id="agent-core"
-            label="Hab. central"
-            limits={LIMITS.core_skill_enhancement}
-            value={draft.core_skill_enhancement}
-            onChange={(core_skill_enhancement) => setDraft({ ...draft, core_skill_enhancement })}
-          />
-        </div>
-      </section>
 
-      <section className="panel">
-        <SectionHead title="Habilidades" />
-        <div className="field-row ne-field-row">
-          {skillKeys.map((key) => (
+          <StatusMessage kind="empty">
+            Lo que se carga a mano queda marcado como manual: a partir de ahí el sync con Enka no
+            vuelve a pisar este agente.
+          </StatusMessage>
+
+          {catalogError && <StatusMessage kind="error">{catalogError}</StatusMessage>}
+
+          {!agent && (
+            <div className="field">
+              <label className="ne-label" htmlFor="agent-game-id">
+                Agente
+              </label>
+              <select
+                id="agent-game-id"
+                value={draft.game_id}
+                onChange={(event) => setDraft({ ...draft, game_id: event.target.value })}
+              >
+                <option value="">— elegir —</option>
+                {agents.map((option) => (
+                  <option key={option.game_id} value={option.game_id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="field-row ne-field-row">
             <NumberField
-              key={key}
-              id={`agent-skill-${key}`}
-              label={skillLabel(key)}
-              limits={LIMITS.skillLevel}
-              value={draft.skill_levels[key] ?? ''}
-              onChange={(value) =>
-                setDraft({ ...draft, skill_levels: { ...draft.skill_levels, [key]: value } })
-              }
+              id="agent-level"
+              label="Nivel"
+              limits={LIMITS.level}
+              value={draft.level}
+              onChange={(level) => setDraft({ ...draft, level })}
             />
-          ))}
-        </div>
-      </section>
+            <NumberField
+              id="agent-promotion"
+              label="Ascensión"
+              limits={LIMITS.promotion_level}
+              value={draft.promotion_level}
+              onChange={(promotion_level) => setDraft({ ...draft, promotion_level })}
+            />
+            <NumberField
+              id="agent-mindscape"
+              label="Mindscape"
+              limits={LIMITS.mindscape_level}
+              value={draft.mindscape_level}
+              onChange={(mindscape_level) => setDraft({ ...draft, mindscape_level })}
+            />
+            <NumberField
+              id="agent-core"
+              label="Hab. central"
+              limits={LIMITS.core_skill_enhancement}
+              value={draft.core_skill_enhancement}
+              onChange={(core_skill_enhancement) => setDraft({ ...draft, core_skill_enhancement })}
+            />
+          </div>
+        </section>
 
-      <section className="panel">
-        <SectionHead
-          title="W-Engine"
-          action={
-            <Button
-              size="sm"
-              onClick={() =>
-                setDraft({ ...draft, wengine: draft.wengine ? null : emptyWEngineDraft() })
-              }
-            >
-              {draft.wengine ? 'Desequipar' : 'Equipar'}
-            </Button>
-          }
-        />
+        <section className="panel">
+          <SectionHead title="Habilidades" />
+          <div className="field-row ne-field-row">
+            {skillKeys.map((key) => (
+              <NumberField
+                key={key}
+                id={`agent-skill-${key}`}
+                label={skillLabel(key)}
+                limits={LIMITS.skillLevel}
+                value={draft.skill_levels[key] ?? ''}
+                onChange={(value) =>
+                  setDraft({ ...draft, skill_levels: { ...draft.skill_levels, [key]: value } })
+                }
+              />
+            ))}
+          </div>
+        </section>
 
-        {draft.wengine ? (
-          <WEngineFields
-            wengine={draft.wengine}
-            catalog={wengines}
-            onChange={(wengine) => setDraft({ ...draft, wengine })}
+        <section className="panel">
+          <SectionHead
+            title="W-Engine"
+            action={
+              <Button
+                size="sm"
+                onClick={() =>
+                  setDraft({ ...draft, wengine: draft.wengine ? null : emptyWEngineDraft() })
+                }
+              >
+                {draft.wengine ? 'Desequipar' : 'Equipar'}
+              </Button>
+            }
           />
-        ) : (
-          <p className="ne-empty">Sin W-Engine equipado</p>
-        )}
-      </section>
 
-      <section className="panel">
-        <SectionHead title="Discos" count={`${equipped}/${draft.discs.length}`} />
-        <div className="ne-grid-discs">
-          {draft.discs.map((disc, index) => (
-            <DiscFields
-              key={disc.slot}
-              disc={disc}
-              discSets={discSets}
-              properties={properties}
-              onChange={(next) =>
-                setDraft({
-                  ...draft,
-                  discs: draft.discs.map((current, position) =>
-                    position === index ? next : current,
-                  ),
-                })
-              }
+          {draft.wengine ? (
+            <WEngineFields
+              wengine={draft.wengine}
+              catalog={wengines}
+              onChange={(wengine) => setDraft({ ...draft, wengine })}
             />
-          ))}
-        </div>
-      </section>
+          ) : (
+            <p className="ne-empty">Sin W-Engine equipado</p>
+          )}
+        </section>
+
+        <section className="panel">
+          <SectionHead title="Discos" count={`${equipped}/${draft.discs.length}`} />
+          <div className="ne-grid-discs">
+            {draft.discs.map((disc, index) => (
+              <DiscFields
+                key={disc.slot}
+                disc={disc}
+                discSets={discSets}
+                properties={properties}
+                onChange={(next) =>
+                  setDraft({
+                    ...draft,
+                    discs: draft.discs.map((current, position) =>
+                      position === index ? next : current,
+                    ),
+                  })
+                }
+              />
+            ))}
+          </div>
+        </section>
+      </fieldset>
 
       <section className="panel ne-stack">
         {errors.map((message) => (
@@ -263,14 +276,16 @@ function AgentForm({
         ))}
 
         <div className="ne-actions">
-          <Button type="submit" tone="accent" disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar'}
-          </Button>
+          {access.canWrite && (
+            <Button type="submit" tone="accent" disabled={saving}>
+              {saving ? 'Guardando…' : 'Guardar'}
+            </Button>
+          )}
           <Link
             className="ne-ghost"
             to={agent ? `/account/${uid}/agents/${agent.id}` : `/account/${uid}/agents`}
           >
-            Cancelar
+            {access.canWrite ? 'Cancelar' : 'Volver'}
           </Link>
         </div>
       </section>

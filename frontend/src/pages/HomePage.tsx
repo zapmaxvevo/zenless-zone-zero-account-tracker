@@ -3,11 +3,13 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError } from '../api/errors';
+import AccountKeyBanner from '../components/AccountKeyBanner';
 import StatusMessage from '../components/StatusMessage';
-import Button from '../components/ui/Button';
+import Button, { LinkButton } from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
+import { saveKey } from '../lib/accountKey';
 import { formatDateTime } from '../lib/time';
 import { normalizeUid, uidError } from '../lib/uid';
 
@@ -17,6 +19,7 @@ export default function HomePage() {
   const [uid, setUid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
+  const [claimed, setClaimed] = useState<{ uid: string; key: string } | null>(null);
 
   const items = accounts.data?.items ?? [];
 
@@ -32,7 +35,13 @@ export default function HomePage() {
     setError(null);
     try {
       const account = await api.trackAccount(normalizeUid(uid));
-      navigate(`/account/${account.uid}`);
+      if (!account.account_key) {
+        navigate(`/account/${account.uid}`);
+        return;
+      }
+      saveKey(account.uid, account.account_key);
+      setClaimed({ uid: account.uid, key: account.account_key });
+      setTracking(false);
     } catch (caught) {
       setError(describeError(caught));
       setTracking(false);
@@ -72,6 +81,17 @@ export default function HomePage() {
         </div>
 
         {error && <StatusMessage kind="error">{error}</StatusMessage>}
+
+        {claimed && (
+          <>
+            <AccountKeyBanner uid={claimed.uid} accountKey={claimed.key} />
+            <div className="ne-actions">
+              <LinkButton tone="accent" to={`/account/${claimed.uid}`}>
+                Ya la guardé, ver la cuenta
+              </LinkButton>
+            </div>
+          </>
+        )}
       </Hero>
 
       <section className="ne-panel ne-cut ne-cut-lg">

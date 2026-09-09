@@ -14,7 +14,7 @@ interface TeamCardProps {
   team: TeamRead;
   busy: boolean;
   art: AgentArt['art'];
-  onDelete: () => void;
+  onDelete?: () => void;
 }
 
 const FLARES = [
@@ -131,11 +131,13 @@ export default function TeamCard({ team, busy, art, onDelete }: TeamCardProps) {
 
         <div className="ne-team-actions">
           <LinkButton size="sm" to={`/account/${team.account_uid}/teams/${team.id}/edit`}>
-            Editar
+            {onDelete ? 'Editar' : 'Ver'}
           </LinkButton>
-          <Button tone="danger" size="sm" onClick={onDelete} disabled={busy}>
-            {busy ? 'Borrando…' : 'Borrar'}
-          </Button>
+          {onDelete && (
+            <Button tone="danger" size="sm" onClick={onDelete} disabled={busy}>
+              {busy ? 'Borrando…' : 'Borrar'}
+            </Button>
+          )}
         </div>
       </div>
     </article>

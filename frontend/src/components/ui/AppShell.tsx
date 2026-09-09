@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useMatch } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { describeError } from '../../api/errors';
+import { useKeyFromUrlFragment } from '../../hooks/useAccountKey';
 import { useApi } from '../../hooks/useApi';
 import { useCompactHeader } from '../../hooks/useCompactHeader';
 import { SyncContext } from '../../lib/syncContext';
@@ -26,6 +27,7 @@ export default function AppShell() {
   const root = useMatch('/account/:uid');
   const uid = nested?.params.uid ?? root?.params.uid ?? '';
   const { narrow, hidden, ref } = useCompactHeader();
+  useKeyFromUrlFragment(uid);
   const [menuOpen, setMenuOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<SyncNotice | null>(null);

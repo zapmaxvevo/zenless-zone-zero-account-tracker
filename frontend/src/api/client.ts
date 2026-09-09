@@ -1,4 +1,6 @@
+import { readKey } from '../lib/accountKey';
 import type {
+  AccountCreatedRead,
   AccountListResponse,
   AccountRead,
   AgentDetailRead,
@@ -14,7 +16,9 @@ import type {
   ChallengeMode,
   ChallengeRunListResponse,
   ChronicleSyncResponse,
+  ClaimResponse,
   CredentialRead,
+  CredentialStatusRead,
   CredentialWrite,
   HealthResponse,
   LostVoidRead,
@@ -24,6 +28,8 @@ import type {
 } from './types';
 
 const BASE = '/api';
+
+export const KEY_HEADER = 'X-Account-Key';
 
 export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
 
@@ -82,10 +88,21 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, extractDetail(body, fallback));
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  owner?: string,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  const key = owner ? readKey(owner) : null;
+  if (key) headers[KEY_HEADER] = key;
+
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw await toApiError(res);
@@ -97,50 +114,54 @@ export function get<T>(path: string): Promise<T> {
   return request<T>('GET', path);
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>('POST', path, body ?? {});
+export function post<T>(path: string, body?: unknown, owner?: string): Promise<T> {
+  return request<T>('POST', path, body ?? {}, owner);
 }
 
-export function put<T>(path: string, body: unknown): Promise<T> {
-  return request<T>('PUT', path, body);
+export function put<T>(path: string, body: unknown, owner?: string): Promise<T> {
+  return request<T>('PUT', path, body, owner);
 }
 
-export function patch<T>(path: string, body: unknown): Promise<T> {
-  return request<T>('PATCH', path, body);
+export function patch<T>(path: string, body: unknown, owner?: string): Promise<T> {
+  return request<T>('PATCH', path, body, owner);
 }
 
-export function del<T>(path: string): Promise<T> {
-  return request<T>('DELETE', path);
+export function del<T>(path: string, owner?: string): Promise<T> {
+  return request<T>('DELETE', path, undefined, owner);
 }
 
 export const api = {
   health: () => get<HealthResponse>('/health'),
 
-  trackAccount: (uid: string) => post<AccountRead>('/accounts', { uid }),
+  trackAccount: (uid: string) => post<AccountCreatedRead>('/accounts', { uid }),
+  claimAccount: (uid: string) => post<ClaimResponse>(`/accounts/${uid}/claim`),
+
   listAccounts: () => get<AccountListResponse>('/accounts'),
   getAccount: (uid: string) => get<AccountRead>(`/accounts/${uid}`),
-  syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`),
+  syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`, {}, uid),
 
   listAgents: (uid: string) => get<AgentListResponse>(`/accounts/${uid}/agents`),
   getAgent: (agentId: number | string) => get<AgentDetailRead>(`/agents/${agentId}`),
   createAgent: (uid: string, body: AgentWrite) =>
-    post<AgentDetailRead>(`/accounts/${uid}/agents`, body),
-  updateAgent: (agentId: number | string, body: AgentUpdate) =>
-    patch<AgentDetailRead>(`/agents/${agentId}`, body),
-  deleteAgent: (agentId: number | string) => del<void>(`/agents/${agentId}`),
+    post<AgentDetailRead>(`/accounts/${uid}/agents`, body, uid),
+  updateAgent: (uid: string, agentId: number | string, body: AgentUpdate) =>
+    patch<AgentDetailRead>(`/agents/${agentId}`, body, uid),
+  deleteAgent: (uid: string, agentId: number | string) => del<void>(`/agents/${agentId}`, uid),
 
   listTeams: (uid: string) => get<TeamListResponse>(`/accounts/${uid}/teams`),
-  createTeam: (uid: string, body: TeamWrite) => post<TeamRead>(`/accounts/${uid}/teams`, body),
+  createTeam: (uid: string, body: TeamWrite) => post<TeamRead>(`/accounts/${uid}/teams`, body, uid),
   getTeam: (teamId: number | string) => get<TeamRead>(`/teams/${teamId}`),
-  updateTeam: (teamId: number | string, body: TeamWrite) => put<TeamRead>(`/teams/${teamId}`, body),
-  deleteTeam: (teamId: number | string) => del<void>(`/teams/${teamId}`),
+  updateTeam: (uid: string, teamId: number | string, body: TeamWrite) =>
+    put<TeamRead>(`/teams/${teamId}`, body, uid),
+  deleteTeam: (uid: string, teamId: number | string) => del<void>(`/teams/${teamId}`, uid),
 
+  getCredentialsStatus: (uid: string) => get<CredentialStatusRead>(`/accounts/${uid}/credentials`),
   storeCredentials: (uid: string, body: CredentialWrite) =>
-    put<CredentialRead>(`/accounts/${uid}/credentials`, body),
-  deleteCredentials: (uid: string) => del<void>(`/accounts/${uid}/credentials`),
+    put<CredentialRead>(`/accounts/${uid}/credentials`, body, uid),
+  deleteCredentials: (uid: string) => del<void>(`/accounts/${uid}/credentials`, uid),
 
   syncChronicle: (uid: string, options: ChronicleSyncOptions = {}) =>
-    post<ChronicleSyncResponse>(`/accounts/${uid}/chronicle/sync${queryString(options)}`),
+    post<ChronicleSyncResponse>(`/accounts/${uid}/chronicle/sync${queryString(options)}`, {}, uid),
   listChallenges: (uid: string, mode?: ChallengeMode) =>
     get<ChallengeRunListResponse>(`/accounts/${uid}/challenges${queryString({ mode })}`),
   listBangboos: (uid: string) => get<BangbooListResponse>(`/accounts/${uid}/bangboos`),

@@ -1296,3 +1296,43 @@ a.ne-ghost {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ---------- Propiedad de una cuenta ---------- */
+
+/**
+ * La key de una cuenta, en la única pantalla donde se puede leer.
+ *
+ * Es la cifra que importa del banner, así que va en acento (regla 6). Se lee carácter por
+ * carácter, como el UID y las cookies, así que va en mono; y es larga y no se puede cortar por
+ * una palabra, así que rompe donde caiga en vez de estirar el bloque. Por eso no es
+ * `.ne-data-pill`, que es un dato corto de una sola línea.
+ */
+.ne-key {
+  display: inline-block;
+  max-width: 100%;
+  padding: 5px 8px;
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  color: var(--accent);
+  user-select: all;
+}
+
+/**
+ * Modo lectura de un formulario: un `<fieldset disabled>` apaga de una todos sus campos, sin
+ * que cada campo tenga que enterarse. `display: contents` lo saca del layout, así que el
+ * bloque conserva la grilla y la densidad que ya tenía (regla 9) y el formulario se sigue
+ * viendo entero, con sus valores: lo que no se puede editar igual se puede mirar (regla 11).
+ */
+.ne-lock {
+  display: contents;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

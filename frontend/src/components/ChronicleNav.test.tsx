@@ -1,8 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AccountRead } from '../api/types';
+import { KEY_PREFIX, storageKey } from '../lib/accountKey';
 import ChronicleNav from './ChronicleNav';
+
+const UID = '1300000000';
+const KEY = `${KEY_PREFIX}0jvXwPnJHo0d8H8rWc2vQKPzE4mDwK5f`;
+
+function stubStoredKey(uid: string | null): void {
+  const entries = new Map(uid ? [[storageKey(uid), KEY]] : []);
+  vi.stubGlobal('localStorage', {
+    getItem: (name: string) => entries.get(name) ?? null,
+    setItem: (name: string, value: string) => entries.set(name, value),
+    removeItem: (name: string) => entries.delete(name),
+  });
+}
 
 function account(overrides: Partial<AccountRead> = {}): AccountRead {
   return {
@@ -21,6 +34,7 @@ function account(overrides: Partial<AccountRead> = {}): AccountRead {
     chronicle_synced_at: null,
     chronicle_import_source: null,
     has_hoyolab_credentials: false,
+    claim_level: 'provisional',
     agent_count: 0,
     ...overrides,
   };
@@ -37,6 +51,14 @@ function render(path: string, props: { account?: AccountRead | null; empty?: boo
 const PATH = '/account/1300000000/chronicle/shiyu';
 
 describe('ChronicleNav', () => {
+  beforeEach(() => {
+    stubStoredKey(UID);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('lleva a las cuatro secciones y a la conexión con HoYoLAB', () => {
     const html = render(PATH);
 
@@ -65,6 +87,15 @@ describe('ChronicleNav', () => {
 
     expect(html).toContain('Sincronizar Chronicle');
     expect(html).not.toContain('Importá de nuevo desde la extensión');
+  });
+
+  it('sin la key del UID el sync del Chronicle no se ofrece: es una escritura', () => {
+    stubStoredKey(null);
+
+    const html = render(PATH, { account: account({ has_hoyolab_credentials: true }) });
+
+    expect(html).not.toContain('Sincronizar Chronicle');
+    expect(html).toContain('Conectar HoYoLAB');
   });
 
   it('una cuenta importada por extensión no sincroniza desde acá', () => {

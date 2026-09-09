@@ -20,8 +20,19 @@ export interface AccountRead {
   chronicle_synced_at: string | null;
   chronicle_import_source: ChronicleImportSource | null;
   has_hoyolab_credentials: boolean;
+  claim_level: ClaimLevel;
   agent_count: number;
 }
+
+export type ClaimLevel = 'unclaimed' | 'provisional' | 'verified';
+
+export const CLAIM_UNCLAIMED: ClaimLevel = 'unclaimed';
+
+export interface AccountCreatedRead extends AccountRead {
+  account_key: string | null;
+}
+
+export type ClaimResponse = AccountCreatedRead;
 
 export type ChronicleImportSource = 'extension' | 'server';
 
@@ -222,6 +233,15 @@ export const CHALLENGE_MODES: ChallengeMode[] = [MODE_SHIYU_DEFENSE, MODE_DEADLY
 export interface CredentialWrite {
   ltuid_v2: string;
   ltoken_v2: string;
+}
+
+export interface CredentialStatusRead {
+  account_uid: string;
+  stored: boolean;
+  rejected: boolean;
+  last_used_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface CredentialRead {

@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AccountRead } from '../api/types';
 import { MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE } from '../api/types';
+import { useAccountKey } from '../hooks/useAccountKey';
 import '../styles/chronicle.css';
 import Banner from './ui/Banner';
 import Button from './ui/Button';
@@ -40,6 +41,7 @@ export default function ChronicleNav({
   onSynced,
   empty = false,
 }: ChronicleNavProps) {
+  const { hasKey } = useAccountKey(uid);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const fromExtension = account?.chronicle_import_source === 'extension';
@@ -85,7 +87,7 @@ export default function ChronicleNav({
 
         {fromExtension && <span className="ne-data-pill">Importá de nuevo desde la extensión</span>}
 
-        {!fromExtension && account?.has_hoyolab_credentials && (
+        {!fromExtension && hasKey && account?.has_hoyolab_credentials && (
           <Button tone="accent" size="sm" onClick={() => void handleSync()} disabled={syncing}>
             {syncing ? 'Sincronizando…' : 'Sincronizar Chronicle'}
           </Button>

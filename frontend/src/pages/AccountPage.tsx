@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AccountRead, AgentRead, TeamRead } from '../api/types';
+import AccountKeyBanner from '../components/AccountKeyBanner';
 import StatusMessage from '../components/StatusMessage';
 import Banner from '../components/ui/Banner';
 import Button, { LinkButton } from '../components/ui/Button';
@@ -12,6 +13,8 @@ import IconTag from '../components/ui/IconTag';
 import PortraitCard from '../components/ui/PortraitCard';
 import SectionHead from '../components/ui/SectionHead';
 import Tile from '../components/ui/Tile';
+import { useAccountAccess } from '../hooks/useAccountAccess';
+import type { AccountAccess } from '../hooks/useAccountAccess';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { useCountdown } from '../hooks/useCountdown';
@@ -44,6 +47,7 @@ export default function AccountPage() {
   const account = useApi(() => api.getAccount(uid), key);
   const agents = useApi(() => api.listAgents(uid), key);
   const teams = useApi(() => api.listTeams(uid), key);
+  const access = useAccountAccess(uid, account.data);
 
   return (
     <div className="ne-stack">
@@ -58,6 +62,7 @@ export default function AccountPage() {
       {account.data && (
         <Dashboard
           account={account.data}
+          access={access}
           agents={agents.data?.items ?? []}
           teams={teams.data?.items ?? []}
           onSynced={() => setRefresh((token) => token + 1)}
@@ -79,12 +84,13 @@ interface SyncNotice {
 
 interface DashboardProps {
   account: AccountRead;
+  access: AccountAccess;
   agents: AgentRead[];
   teams: TeamRead[];
   onSynced: () => void;
 }
 
-function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
+function Dashboard({ account, access, agents, teams, onSynced }: DashboardProps) {
   const { art } = useAgentArt();
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<SyncNotice | null>(null);
@@ -167,6 +173,26 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
           {notice.text}
         </Banner>
       )}
+
+      {access.issuedKey && (
+        <AccountKeyBanner
+          uid={uid}
+          accountKey={access.issuedKey}
+          onDismiss={access.dismissIssuedKey}
+        />
+      )}
+
+      {access.claimable && (
+        <Banner title="Esta cuenta no tiene dueño" tone="warn">
+          Nadie reclamó el UID {uid}, así que se puede mirar pero no editar. Reclamalo y quedate con
+          la key que escribe builds, equipos y credenciales.{' '}
+          <Button tone="accent" size="sm" onClick={access.claim} disabled={access.claiming}>
+            {access.claiming ? 'Reclamando…' : 'Reclamar este UID'}
+          </Button>
+        </Banner>
+      )}
+
+      {access.error && <StatusMessage kind="error">{access.error}</StatusMessage>}
 
       <Tiles account={account} agents={agents} score={score} />
 

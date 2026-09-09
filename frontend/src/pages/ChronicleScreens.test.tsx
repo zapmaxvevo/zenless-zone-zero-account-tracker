@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { KEY_PREFIX, storageKey } from '../lib/accountKey';
 import BangboosPage from './BangboosPage';
 import ChroniclePage from './ChroniclePage';
 import CredentialsPage from './CredentialsPage';
@@ -19,8 +20,26 @@ function render(path: string, element: ReactNode): string {
 }
 
 const UID = '1300000000';
+const KEY = `${KEY_PREFIX}0jvXwPnJHo0d8H8rWc2vQKPzE4mDwK5f`;
+
+function stubStoredKey(uid: string | null): void {
+  const entries = new Map(uid ? [[storageKey(uid), KEY]] : []);
+  vi.stubGlobal('localStorage', {
+    getItem: (name: string) => entries.get(name) ?? null,
+    setItem: (name: string, value: string) => entries.set(name, value),
+    removeItem: (name: string) => entries.delete(name),
+  });
+}
 
 describe('pantallas del Chronicle', () => {
+  beforeEach(() => {
+    stubStoredKey(UID);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('Shiyu abre con su marca de agua, su eyebrow y la barra de secciones', () => {
     const html = render(`/account/${UID}/chronicle/shiyu`, <ChroniclePage mode="shiyu" />);
 
