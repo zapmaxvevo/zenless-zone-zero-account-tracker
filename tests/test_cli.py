@@ -14,7 +14,14 @@ from zzz_tracker.cli import app
 from zzz_tracker.config import get_settings
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
-from zzz_tracker.storage.models import Account, HoyolabCredential, utc_now
+from zzz_tracker.storage.keys import hash_key
+from zzz_tracker.storage.models import (
+    CLAIM_PROVISIONAL,
+    Account,
+    AccountKey,
+    HoyolabCredential,
+    utc_now,
+)
 
 FIRST_UID = "1300000001"
 SECOND_UID = "1300000002"
@@ -57,6 +64,12 @@ class CliEnvironment:
             account = session.get(Account, uid)
             assert account is not None
             return account.credential
+
+    def key_of(self, uid: str) -> AccountKey | None:
+        with self.manager().session_factory() as session:
+            account = session.get(Account, uid)
+            assert account is not None
+            return account.key
 
 
 @pytest.fixture
@@ -188,6 +201,55 @@ def test_set_credentials_on_an_account_that_is_not_tracked_fails_with_a_readable
     assert result.exit_code != 0
     assert f"{UNTRACKED_UID}: Account {UNTRACKED_UID} is not tracked yet" in result.stderr
     assert LTOKEN not in result.output
+
+
+def test_claim_prints_a_key_that_owns_the_account_and_is_only_stored_hashed(
+    runner: CliRunner, cli_env: CliEnvironment
+) -> None:
+    """The way an account that predates account keys gets an owner again."""
+    manager = cli_env.create_schema()
+    add_account(manager, FIRST_UID)
+
+    result = runner.invoke(app, ["claim", FIRST_UID])
+
+    assert result.exit_code == 0
+    account_key = result.stdout.strip()
+    assert account_key.startswith("zzk_")
+    assert "only time" in result.stderr
+
+    key = cli_env.key_of(FIRST_UID)
+    assert key is not None
+    assert key.claim_level == CLAIM_PROVISIONAL
+    assert key.key_hash == hash_key(account_key)
+    assert account_key not in key.key_hash
+
+
+def test_claim_of_an_account_that_already_has_an_owner_fails_without_printing_a_key(
+    runner: CliRunner, cli_env: CliEnvironment
+) -> None:
+    manager = cli_env.create_schema()
+    add_account(manager, FIRST_UID)
+    first = runner.invoke(app, ["claim", FIRST_UID]).stdout.strip()
+
+    result = runner.invoke(app, ["claim", FIRST_UID])
+
+    assert result.exit_code != 0
+    assert FIRST_UID in result.stderr
+    assert "zzk_" not in result.stdout
+    key = cli_env.key_of(FIRST_UID)
+    assert key is not None
+    assert key.key_hash == hash_key(first)
+
+
+def test_claim_of_an_account_that_is_not_tracked_fails_with_a_readable_message(
+    runner: CliRunner, cli_env: CliEnvironment
+) -> None:
+    cli_env.create_schema()
+
+    result = runner.invoke(app, ["claim", UNTRACKED_UID])
+
+    assert result.exit_code != 0
+    assert f"{UNTRACKED_UID}: Account {UNTRACKED_UID} is not tracked yet" in result.stderr
 
 
 def test_sync_chronicle_without_a_uid_walks_every_account_that_has_credentials(

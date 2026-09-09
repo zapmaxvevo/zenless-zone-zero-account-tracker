@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, Path, Query, status
 
 from zzz_tracker.errors import NotFoundError
 from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
-from zzz_tracker.web.deps import TrackerServiceDep, require_api_token
+from zzz_tracker.web.deps import (
+    AccountKeyHeader,
+    TrackerServiceDep,
+    require_account_key,
+    require_api_token,
+)
 from zzz_tracker.web.schemas import (
     UID_PATTERN,
     BangbooListResponse,
@@ -17,6 +22,7 @@ from zzz_tracker.web.schemas import (
     ChronicleImportWrite,
     ChronicleSyncResponse,
     CredentialRead,
+    CredentialStatusRead,
     CredentialWrite,
     LostVoidRead,
 )
@@ -34,7 +40,24 @@ ForceQuery = Annotated[bool, Query(description="Sync even if the chronicle ttl h
 PreviousQuery = Annotated[bool, Query(description="Also fetch the previous season")]
 
 
-@router.put("/{uid}/credentials", response_model=CredentialRead)
+@router.get("/{uid}/credentials", response_model=CredentialStatusRead)
+def get_credentials_status(uid: UidPath, service: TrackerServiceDep) -> CredentialStatusRead:
+    """Whether the account is connected to HoYoLAB, without saying anything the cookies say.
+
+    Public, like every other read: that an account has cookies stored is already in
+    `has_hoyolab_credentials` on the account itself. What is never public — the ltoken, the
+    ltuid, anything decrypted — is not here either. An account with nothing stored answers
+    `stored: false` rather than 404, which is the question the frontend is really asking.
+    """
+    account = service.get_account(uid)
+    return CredentialStatusRead.from_credential(account.uid, account.credential)
+
+
+@router.put(
+    "/{uid}/credentials",
+    response_model=CredentialRead,
+    dependencies=[Depends(require_account_key)],
+)
 def store_credentials(
     uid: UidPath, payload: CredentialWrite, service: TrackerServiceDep
 ) -> CredentialRead:
@@ -42,12 +65,20 @@ def store_credentials(
     return CredentialRead.from_credential(credential)
 
 
-@router.delete("/{uid}/credentials", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{uid}/credentials",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_account_key)],
+)
 def delete_credentials(uid: UidPath, service: TrackerServiceDep) -> None:
     service.delete_credentials(uid)
 
 
-@router.post("/{uid}/chronicle/sync", response_model=ChronicleSyncResponse)
+@router.post(
+    "/{uid}/chronicle/sync",
+    response_model=ChronicleSyncResponse,
+    dependencies=[Depends(require_account_key)],
+)
 def sync_chronicle(
     uid: UidPath,
     service: TrackerServiceDep,
@@ -64,10 +95,20 @@ def sync_chronicle(
     dependencies=[Depends(require_api_token)],
 )
 def import_chronicle(
-    uid: UidPath, payload: ChronicleImportWrite, service: TrackerServiceDep
+    uid: UidPath,
+    payload: ChronicleImportWrite,
+    service: TrackerServiceDep,
+    x_account_key: AccountKeyHeader = "",
 ) -> ChronicleImportResponse:
-    """Store a chronicle bundle captured in the browser, tracking the account if it is new."""
-    report = service.import_chronicle(uid, payload.payloads, region=payload.region)
+    """Store a chronicle bundle captured in the browser, tracking the account if it is new.
+
+    This is the one write that needs no key: the bundle *is* the proof, since only the
+    HoYoLAB session of that UID can produce one. Sending the key in force keeps it; sending
+    none, or a stale one, rotates the account onto a new key that comes back in the answer.
+    """
+    report = service.import_chronicle(
+        uid, payload.payloads, region=payload.region, account_key=x_account_key
+    )
     return ChronicleImportResponse.from_report(report)
 
 

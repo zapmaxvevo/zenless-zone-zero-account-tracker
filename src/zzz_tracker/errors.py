@@ -77,6 +77,20 @@ class ImportDisabledError(ZZZTrackerError):
     default_detail = "The import endpoint is disabled until ZZZ_API_TOKEN is set"
 
 
+class ForbiddenError(ZZZTrackerError):
+    """Someone tried to write an account without the key that owns it."""
+
+    status_code = 403
+    default_detail = "This account has an owner; the write needs its `X-Account-Key`"
+
+
+class UnclaimedAccountError(ZZZTrackerError):
+    """The account exists but nobody owns it yet, so there is no key that could write it."""
+
+    status_code = 409
+    default_detail = "Claim the account before writing to it"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ZZZTrackerError)
     async def handle_tracker_error(request: Request, exc: Exception) -> JSONResponse:

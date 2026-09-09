@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -85,6 +85,7 @@ class AccountRead(BaseModel):
     chronicle_synced_at: datetime | None
     chronicle_import_source: str | None
     has_hoyolab_credentials: bool
+    claim_level: str
     agent_count: int
 
     @classmethod
@@ -105,8 +106,28 @@ class AccountRead(BaseModel):
             chronicle_synced_at=as_utc(account.chronicle_synced_at),
             chronicle_import_source=account.chronicle_import_source,
             has_hoyolab_credentials=account.credential is not None,
+            claim_level=account.claim_level,
             agent_count=len(account.agents),
         )
+
+
+class AccountCreatedRead(AccountRead):
+    """A tracked account, plus the key that owns it when tracking it handed one out.
+
+    `account_key` is the only time that key can be read: it is stored hashed, so a client
+    that loses it has to prove ownership again with an import. A UID somebody had already
+    claimed comes back with `null` — tracking it refreshed it, it did not take it over.
+    """
+
+    account_key: str | None = None
+
+    @classmethod
+    def from_claim(cls, account: Account, account_key: str | None) -> Self:
+        return cls(**AccountRead.from_account(account).model_dump(), account_key=account_key)
+
+
+class ClaimResponse(AccountCreatedRead):
+    """What `POST /accounts/{uid}/claim` answers: the account, now owned, and its key."""
 
 
 class AccountListResponse(BaseModel):
@@ -579,6 +600,44 @@ class CredentialWrite(BaseModel):
     ltoken_v2: str = Field(min_length=1, max_length=512)
 
 
+class CredentialStatusRead(BaseModel):
+    """Whether an account has HoYoLAB cookies stored, and how they have been doing.
+
+    Deliberately says nothing the cookies themselves would say — no `ltuid_v2`, no token,
+    nothing decrypted. It answers the one question a frontend cannot answer otherwise:
+    is this account connected, and is what it stored still being accepted?
+    """
+
+    account_uid: str
+    stored: bool
+    rejected: bool
+    last_used_at: datetime | None
+    created_at: datetime | None
+    updated_at: datetime | None
+
+    @classmethod
+    def from_credential(
+        cls, account_uid: str, credential: HoyolabCredential | None
+    ) -> CredentialStatusRead:
+        if credential is None:
+            return cls(
+                account_uid=account_uid,
+                stored=False,
+                rejected=False,
+                last_used_at=None,
+                created_at=None,
+                updated_at=None,
+            )
+        return cls(
+            account_uid=account_uid,
+            stored=True,
+            rejected=credential.is_rejected,
+            last_used_at=as_utc(credential.last_used_at),
+            created_at=as_utc(credential.created_at),
+            updated_at=as_utc(credential.updated_at),
+        )
+
+
 class CredentialRead(BaseModel):
     account_uid: str
     ltuid_v2: str
@@ -774,8 +833,16 @@ class ChronicleImportWrite(BaseModel):
 
 
 class ChronicleImportResponse(ChronicleSyncResponse):
+    """The import report, carrying the account key whenever the import rotated one.
+
+    `account_key` is filled in only when the bundle took the UID over — a first import, or
+    one sent without the key in force. An import that presented the key keeps it and gets
+    `null` back, so a client only ever stores a key it is being handed.
+    """
+
     builds_synced: int
     skipped_sections: list[str]
+    account_key: str | None = None
 
     @classmethod
     def from_report(cls, report: ChronicleSyncReport) -> ChronicleImportResponse:
@@ -784,4 +851,5 @@ class ChronicleImportResponse(ChronicleSyncResponse):
             **base.model_dump(),
             builds_synced=report.builds_synced,
             skipped_sections=list(report.skipped_sections),
+            account_key=report.account_key,
         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -48,15 +48,19 @@ from zzz_tracker.hoyolab.mapper import (
     parse_roster_agents,
     parse_shiyu_defense,
 )
+from zzz_tracker.storage import keys
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.models import (
     CHINA_REGION,
     CHRONICLE_SOURCE_EXTENSION,
     CHRONICLE_SOURCE_SERVER,
+    CLAIM_PROVISIONAL,
+    CLAIM_VERIFIED,
     SOURCE_ENKA,
     SOURCE_HOYOLAB,
     SOURCE_MANUAL,
     Account,
+    AccountKey,
     Agent,
     AgentBuildSnapshot,
     Bangboo,
@@ -188,6 +192,8 @@ class ChronicleSyncReport:
     unavailable_modes: tuple[str, ...] = field(default_factory=tuple)
     skipped_sections: tuple[str, ...] = field(default_factory=tuple)
     skipped: bool = False
+    # The key an import rotated into place, readable this once and never again.
+    account_key: str | None = None
 
 
 class TrackerService:
@@ -228,6 +234,62 @@ class TrackerService:
         if account is None:
             raise NotFoundError(f"Account {uid} is not tracked yet")
         return account
+
+    def track_account(self, uid: str) -> tuple[Account, str | None]:
+        """Track a UID from the web, claiming it for the caller when nobody owns it yet.
+
+        Tracking an account somebody already claimed still refreshes it — reading Enka is
+        public — but hands out no key: only an import can take a claimed UID over.
+        """
+        account = self.sync_account(uid)
+        if account.is_claimed:
+            return account, None
+        return account, self._issue_key(account, CLAIM_PROVISIONAL)
+
+    def claim_account(self, uid: str) -> str:
+        """Take ownership of a tracked account nobody claimed, and get its key once."""
+        account = self.get_account(uid)
+        if account.is_claimed:
+            raise ConflictError(
+                f"Account {uid} already has an owner; "
+                "importing its chronicle is the only way to take it over"
+            )
+        return self._issue_key(account, CLAIM_PROVISIONAL)
+
+    def rotate_key(self, uid: str, level: str = CLAIM_VERIFIED) -> str:
+        """Give the account a brand new key at `level`, killing the one it had."""
+        account = self.get_account(uid)
+        return self._issue_key(account, level, rotating=account.is_claimed)
+
+    def verify_key(self, uid: str, given: str) -> bool:
+        """Whether `given` is the key of that account, stamping it as used when it is."""
+        account = self.get_account(uid)
+        key = account.key
+        if key is None or not keys.verify_key(key.key_hash, given):
+            return False
+        key.last_used_at = utc_now()
+        self._session.commit()
+        return True
+
+    def account_uid_for_agent(self, agent_id: int) -> str:
+        """Which account owns an agent, since agent ids are global and name no UID."""
+        return self.get_agent(agent_id).account_uid
+
+    def account_uid_for_team(self, team_id: int) -> str:
+        return self.get_team(team_id).account_uid
+
+    def _issue_key(self, account: Account, level: str, rotating: bool = False) -> str:
+        key = account.key or AccountKey(account_uid=account.uid)
+        secret = keys.generate_key()
+        key.key_hash = keys.hash_key(secret)
+        key.claim_level = level
+        if rotating:
+            key.rotated_at = utc_now()
+        else:
+            key.claimed_at = utc_now()
+        account.key = key
+        self._session.commit()
+        return secret
 
     def list_agents(self, uid: str) -> list[Agent]:
         self.get_account(uid)
@@ -578,15 +640,19 @@ class TrackerService:
         return self._persist_chronicle(account, payloads)
 
     def import_chronicle(
-        self, uid: str, payloads: dict[str, Any], region: str = ""
+        self, uid: str, payloads: dict[str, Any], region: str = "", account_key: str = ""
     ) -> ChronicleSyncReport:
         """Store a chronicle bundle captured in the user's browser, tracking the UID if new.
 
         The bundle carries the raw `data` of each endpoint, so it persists through the same
         path as the server-side sync. Only `index` is mandatory, and any other absent or null
-        section is skipped and reported. The UID is confirmed against `record_card`, the one
-        payload that carries it; without a card there is nothing to confirm and the bundle is
-        trusted to belong to the UID in the path.
+        section is skipped and reported. The UID is confirmed against `record_card` and
+        against whatever `role_id` the `index` carries; without either there is nothing to
+        confirm and the bundle is trusted to belong to the UID in the path.
+
+        The bundle is also the proof of ownership: producing one takes the HoYoLAB session of
+        that very UID. So an import claims the account, and takes it over from a provisional
+        squatter — see `_claim_by_import`.
         Credentials, ttl and backoff stay untouched — no request left this backend.
         """
         index = _import_section(payloads, SECTION_INDEX)
@@ -614,7 +680,24 @@ class TrackerService:
             lost_void=_import_section(payloads, SECTION_LOST_VOID),
             avatar_info=_import_builds(payloads),
         )
-        return self._persist_chronicle(account, bundle)
+        report = self._persist_chronicle(account, bundle)
+        return replace(report, account_key=self._claim_by_import(account, account_key))
+
+    def _claim_by_import(self, account: Account, given: str) -> str | None:
+        """Settle who owns the UID now that a bundle for it came in, returning any new key.
+
+        Presenting the key in force keeps it: the owner importing twice does not have to
+        write down a new secret every time. Anyone else — no key, a stale one, or nobody at
+        all — gets the account rotated into a fresh `verified` key, which is what lets the
+        real owner walk back in after losing theirs and what makes a provisional claim lose
+        against the proof an import carries.
+        """
+        if account.key is not None and keys.verify_key(account.key.key_hash, given):
+            account.key.last_used_at = utc_now()
+            account.key.claim_level = CLAIM_VERIFIED
+            self._session.commit()
+            return None
+        return self.rotate_key(account.uid, CLAIM_VERIFIED)
 
     def _find_or_create_account(self, uid: str) -> Account:
         """Track the UID if it is new, surviving the race of two imports creating it at once."""

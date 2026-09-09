@@ -22,6 +22,12 @@ SOURCE_HOYOLAB = "hoyolab"
 CHRONICLE_SOURCE_SERVER = "server"
 CHRONICLE_SOURCE_EXTENSION = "extension"
 
+# How well an account is owned. `unclaimed` is the absence of a key, so it never reaches the
+# database: it is what an account with no `account_keys` row reads as.
+CLAIM_UNCLAIMED = "unclaimed"
+CLAIM_PROVISIONAL = "provisional"
+CLAIM_VERIFIED = "verified"
+
 MODE_SHIYU_DEFENSE = "shiyu_defense"
 MODE_DEADLY_ASSAULT = "deadly_assault"
 
@@ -109,11 +115,25 @@ class Account(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    key: Mapped[AccountKey | None] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     challenge_runs: Mapped[list[ChallengeRun]] = relationship(
         back_populates="account",
         cascade="all, delete-orphan",
         order_by="ChallengeRun.schedule_id.desc()",
     )
+
+    @property
+    def claim_level(self) -> str:
+        """How the account was claimed; `unclaimed` while no key was ever handed out."""
+        return self.key.claim_level if self.key is not None else CLAIM_UNCLAIMED
+
+    @property
+    def is_claimed(self) -> bool:
+        return self.key is not None
 
     def next_sync_available_at(self) -> datetime | None:
         """When Enka is expected to serve fresh data again; None if never synced."""
@@ -147,6 +167,34 @@ class Account(Base):
         if synced_at is None:
             return True
         return moment >= synced_at + timedelta(seconds=ttl_seconds)
+
+
+class AccountKey(Base):
+    """The hashed write key of one account, and how it was earned.
+
+    Mirrors `hoyolab_credentials`: one row per account, holding a secret that is never read
+    back. Rotating is what an import does when whoever sent it could not present the key in
+    force, so `rotated_at` doubles as the trail of a UID changing hands.
+    """
+
+    __tablename__ = "account_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_uid: Mapped[str] = mapped_column(
+        ForeignKey("accounts.uid", ondelete="CASCADE"), unique=True, index=True
+    )
+    key_hash: Mapped[str] = mapped_column(String(64))
+    claim_level: Mapped[str] = mapped_column(String(16), default=CLAIM_PROVISIONAL)
+
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    account: Mapped[Account] = relationship(back_populates="key")
+
+    @property
+    def is_verified(self) -> bool:
+        return self.claim_level == CLAIM_VERIFIED
 
 
 class HoyolabCredential(Base):

@@ -376,6 +376,32 @@ class FakeHoyolab:
         self.answers_with_retcode(RETCODE_INVALID_COOKIES)
 
 
+ACCOUNT_KEY_HEADER = "X-Account-Key"
+
+
+def track_account(client: TestClient, uid: str = TRACKED_UID) -> httpx.Response:
+    """Track a UID and keep the key it hands out on the client, the way a browser would.
+
+    Writing to an account takes its key, so every test that edits something has to own the
+    account first. Tracking a fresh UID is what claims it, and the key comes back once.
+    """
+    response = client.post("/accounts", json={"uid": uid})
+    account_key = response.json().get("account_key") if response.status_code == 201 else None
+    if account_key:
+        client.headers[ACCOUNT_KEY_HEADER] = account_key
+    return response
+
+
+def account_key_of(response: httpx.Response) -> str:
+    key: str = response.json()["account_key"]
+    assert key, "the response was expected to hand out an account key"
+    return key
+
+
+def key_headers(account_key: str) -> dict[str, str]:
+    return {ACCOUNT_KEY_HEADER: account_key}
+
+
 @pytest.fixture
 def enka_payload() -> dict[str, Any]:
     raw = (FIXTURES_DIR / "enka_account.json").read_text(encoding="utf-8")

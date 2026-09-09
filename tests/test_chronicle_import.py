@@ -19,6 +19,8 @@ from zzz_tracker.hoyolab.client import HoyolabClient
 from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.storage.models import (
+    CLAIM_PROVISIONAL,
+    CLAIM_VERIFIED,
     MODE_DEADLY_ASSAULT,
     MODE_SHIYU_DEFENSE,
     Account,
@@ -31,7 +33,9 @@ from .conftest import (
     PREVIOUS_SHIYU_SEASON,
     TRACKED_UID,
     UNKNOWN_UID,
+    key_headers,
     shiyu_season_never_played,
+    track_account,
 )
 
 API_TOKEN = "extension-shared-secret"
@@ -368,18 +372,19 @@ def test_importing_with_the_wrong_token_is_unauthorized_and_stores_nothing(
     assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
 
 
-def test_importing_while_no_token_is_configured_answers_service_unavailable(
+def test_importing_while_no_token_is_configured_goes_through_on_the_bundle_alone(
     chronicle_client: TestClient,
 ) -> None:
-    response = import_chronicle(chronicle_client)
+    """Without ZZZ_API_TOKEN there is no token gate; the bundle is the whole proof."""
+    response = import_chronicle(chronicle_client, headers={})
 
-    assert response.status_code == 503
-    assert "ZZZ_API_TOKEN" in response.json()["detail"]
-    assert chronicle_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+    assert response.status_code == 200
+    assert response.json()["account_key"]
+    assert chronicle_client.get(f"/accounts/{TRACKED_UID}").status_code == 200
 
 
 def test_an_import_leaves_hand_written_agents_untouched(import_client: TestClient) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(import_client)
     hand_written = agent_id_of(import_client, 1191)
     import_client.patch(f"/agents/{hand_written}", json={"level": 12, "mindscape_level": 5})
 
@@ -517,7 +522,7 @@ def test_a_build_from_the_chronicle_takes_over_the_one_enka_brought(
 def test_a_build_never_overwrites_an_agent_edited_by_hand(
     import_client: TestClient,
 ) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(import_client)
     soldier = agent_id_of(import_client, SOLDIER_11)
     import_client.patch(f"/agents/{soldier}", json={"level": 42, "mindscape_level": 1})
 
@@ -601,7 +606,7 @@ def test_a_season_repeated_across_both_schedules_is_stored_once(
 def test_an_import_never_touches_the_stored_hoyolab_credentials(
     import_client: TestClient, session: Session
 ) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(import_client)
     import_client.put(
         f"/accounts/{TRACKED_UID}/credentials",
         json={"ltuid_v2": LTUID, "ltoken_v2": LTOKEN},
@@ -633,7 +638,7 @@ def test_an_import_marks_the_account_as_imported_from_the_extension(
 def test_an_import_after_a_server_sync_takes_over_as_the_latest_import_source(
     import_client: TestClient,
 ) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(import_client)
     import_client.put(
         f"/accounts/{TRACKED_UID}/credentials",
         json={"ltuid_v2": LTUID, "ltoken_v2": LTOKEN},
@@ -739,3 +744,131 @@ def test_an_import_for_a_malformed_uid_is_refused_by_the_path_itself(
 
     assert response.status_code == 422
     assert import_client.get(f"/accounts/{UNKNOWN_UID}").status_code == 404
+
+
+def claimed_from_the_web(client: TestClient, uid: str = TRACKED_UID) -> str:
+    """Track the UID the way the web does, and keep the provisional key it hands out."""
+    response = client.post("/accounts", json={"uid": uid})
+    key: str = response.json()["account_key"]
+    assert key
+    return key
+
+
+def any_agent_of(client: TestClient, uid: str = TRACKED_UID) -> int:
+    roster = client.get(f"/accounts/{uid}/agents").json()["items"]
+    assert roster, f"account {uid} has no agent to edit"
+    return int(roster[0]["id"])
+
+
+def test_an_import_of_an_untracked_uid_claims_it_as_verified(
+    import_client: TestClient,
+) -> None:
+    response = import_chronicle(import_client)
+
+    assert response.status_code == 200
+    account_key = response.json()["account_key"]
+    assert account_key.startswith("zzk_")
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+
+    agent_id = any_agent_of(import_client)
+    edited = import_client.patch(
+        f"/agents/{agent_id}", json={"level": 33}, headers=key_headers(account_key)
+    )
+    assert edited.status_code == 200
+
+
+def test_an_import_without_the_key_takes_a_provisionally_claimed_uid_over(
+    import_client: TestClient,
+) -> None:
+    """The bundle beats the squatter: only the real owner's session can produce one."""
+    squatter_key = claimed_from_the_web(import_client)
+    agent_id = any_agent_of(import_client)
+
+    response = import_chronicle(import_client)
+
+    assert response.status_code == 200
+    rotated_key = response.json()["account_key"]
+    assert rotated_key and rotated_key != squatter_key
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+
+    with_the_old_key = import_client.patch(
+        f"/agents/{agent_id}", json={"level": 41}, headers=key_headers(squatter_key)
+    )
+    with_the_new_key = import_client.patch(
+        f"/agents/{agent_id}", json={"level": 41}, headers=key_headers(rotated_key)
+    )
+    assert with_the_old_key.status_code == 403
+    assert with_the_new_key.status_code == 200
+
+
+def test_an_import_with_a_key_that_is_not_the_one_in_force_rotates_it_too(
+    import_client: TestClient,
+) -> None:
+    account_key = claimed_from_the_web(import_client)
+
+    response = import_chronicle(
+        import_client, headers={**AUTH, **key_headers("zzk_a-key-of-nobody")}
+    )
+
+    assert response.status_code == 200
+    rotated_key = response.json()["account_key"]
+    assert rotated_key and rotated_key != account_key
+
+
+def test_an_import_that_presents_the_key_in_force_keeps_it_and_verifies_the_claim(
+    import_client: TestClient,
+) -> None:
+    """Importing twice from the same browser must not make the owner write down a new key."""
+    account_key = claimed_from_the_web(import_client)
+    agent_id = any_agent_of(import_client)
+
+    response = import_chronicle(import_client, headers={**AUTH, **key_headers(account_key)})
+
+    assert response.status_code == 200
+    assert response.json()["account_key"] is None
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+    still_valid = import_client.patch(
+        f"/agents/{agent_id}", json={"level": 41}, headers=key_headers(account_key)
+    )
+    assert still_valid.status_code == 200
+
+
+def test_an_import_whose_role_id_names_another_uid_is_refused_and_claims_nothing(
+    import_client: TestClient,
+) -> None:
+    payloads = full_payloads()
+    del payloads["index"]["role"]["game_role_id"]
+    payloads["index"]["role"]["role_id"] = ANOTHER_UID
+
+    response = import_chronicle(import_client, import_body(payloads))
+
+    assert response.status_code == 422
+    assert ANOTHER_UID in response.json()["detail"]
+    assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+
+
+def test_the_key_of_another_account_counts_for_nothing_on_an_import(
+    import_client: TestClient, session: Session
+) -> None:
+    """A key belongs to one UID: holding somebody else's does not keep this one from rotating."""
+    session.add(Account(uid=ANOTHER_UID, nickname="Belle"))
+    session.commit()
+    stranger_key = import_client.post(f"/accounts/{ANOTHER_UID}/claim").json()["account_key"]
+
+    response = import_chronicle(import_client, headers={**AUTH, **key_headers(stranger_key)})
+
+    assert response.status_code == 200
+    assert response.json()["account_key"] not in (None, stranger_key)
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_VERIFIED
+    assert import_client.get(f"/accounts/{ANOTHER_UID}").json()["claim_level"] == CLAIM_PROVISIONAL
+
+
+def test_with_a_token_configured_the_import_needs_the_bearer_even_holding_the_key(
+    import_client: TestClient,
+) -> None:
+    account_key = claimed_from_the_web(import_client)
+
+    response = import_chronicle(import_client, headers=key_headers(account_key))
+
+    assert response.status_code == 401
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["claim_level"] == CLAIM_PROVISIONAL

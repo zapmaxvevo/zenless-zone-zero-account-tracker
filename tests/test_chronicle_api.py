@@ -18,6 +18,7 @@ from .conftest import (
     FakeHoyolab,
     shiyu_season_never_played,
     shiyu_season_with_every_layer,
+    track_account,
 )
 
 LTUID = "224466880"
@@ -29,10 +30,6 @@ RETCODE_RATE_LIMITED = 10101
 
 SHIYU_RANK_PERCENT = 2.5
 ASSAULT_RANK_PERCENT = 1.2
-
-
-def track_account(client: TestClient) -> None:
-    client.post("/accounts", json={"uid": TRACKED_UID})
 
 
 def store_cookies(client: TestClient, uid: str = TRACKED_UID) -> httpx.Response:
@@ -73,6 +70,92 @@ def test_storing_the_cookies_answers_the_credential_without_ever_echoing_the_tok
     assert body["rejected"] is False
     assert body["last_used_at"] is None
     assert body["created_at"] is not None
+
+
+def test_an_account_with_no_cookies_stored_says_so_instead_of_answering_not_found(
+    chronicle_client: TestClient,
+) -> None:
+    """The frontend cannot ask "am I connected?" by watching a request fail."""
+    track_account(chronicle_client)
+
+    response = chronicle_client.get(f"/accounts/{TRACKED_UID}/credentials")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["account_uid"] == TRACKED_UID
+    assert body["stored"] is False
+    assert body["rejected"] is False
+    assert body["created_at"] is None
+    assert body["last_used_at"] is None
+
+
+def test_the_credential_status_says_the_account_is_connected_without_naming_the_cookies(
+    chronicle_client: TestClient,
+) -> None:
+    account_ready_to_sync(chronicle_client)
+
+    response = chronicle_client.get(f"/accounts/{TRACKED_UID}/credentials")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["stored"] is True
+    assert body["rejected"] is False
+    assert body["created_at"] is not None
+    assert LTOKEN not in response.text
+    assert LTUID not in response.text
+    assert "ltuid_v2" not in body
+    assert "ltoken_v2" not in body
+
+
+def test_the_credential_status_is_readable_without_the_account_key(
+    chronicle_client: TestClient,
+) -> None:
+    """Reads stay public: the account itself already admits it has cookies stored."""
+    account_ready_to_sync(chronicle_client)
+    del chronicle_client.headers["X-Account-Key"]
+
+    response = chronicle_client.get(f"/accounts/{TRACKED_UID}/credentials")
+
+    assert response.status_code == 200
+    assert response.json()["stored"] is True
+
+
+def test_the_credential_status_reports_cookies_hoyolab_has_since_rejected(
+    chronicle_client: TestClient, hoyolab: FakeHoyolab
+) -> None:
+    account_ready_to_sync(chronicle_client)
+    hoyolab.rejects_the_cookies()
+    sync_chronicle(chronicle_client)
+
+    response = chronicle_client.get(f"/accounts/{TRACKED_UID}/credentials")
+
+    assert response.status_code == 200
+    assert response.json()["stored"] is True
+    assert response.json()["rejected"] is True
+
+
+def test_the_credential_status_of_an_account_that_is_not_tracked_answers_not_found(
+    chronicle_client: TestClient,
+) -> None:
+    response = chronicle_client.get(f"/accounts/{UNKNOWN_UID}/credentials")
+
+    assert response.status_code == 404
+
+
+def test_storing_or_deleting_the_cookies_takes_the_key_of_that_account(
+    chronicle_client: TestClient,
+) -> None:
+    account_ready_to_sync(chronicle_client)
+    del chronicle_client.headers["X-Account-Key"]
+
+    stored = store_cookies(chronicle_client)
+    deleted = chronicle_client.delete(f"/accounts/{TRACKED_UID}/credentials")
+    synced = sync_chronicle(chronicle_client)
+
+    assert stored.status_code == 403
+    assert deleted.status_code == 403
+    assert synced.status_code == 403
+    assert chronicle_client.get(f"/accounts/{TRACKED_UID}/credentials").json()["stored"] is True
 
 
 def test_storing_cookies_for_an_account_that_is_not_tracked_answers_not_found(

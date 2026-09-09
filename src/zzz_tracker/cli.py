@@ -128,6 +128,29 @@ def set_credentials(
 
 
 @app.command(
+    "claim",
+    help="Claim a tracked account and print its key, the secret every write to it needs. "
+    "Meant for accounts that predate account keys; the web claims new ones by itself.",
+)
+def claim(
+    uid: str = typer.Argument(..., help="UID of the account to take ownership of."),
+) -> None:
+    settings = get_settings()
+    try:
+        with tracker_service(settings) as service:
+            account_key = service.claim_account(uid)
+    except ZZZTrackerError as error:
+        typer.echo(f"{uid}: {error.detail}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(account_key)
+    typer.echo(
+        f"That is the only time {uid}'s key can be read. Store it; whoever holds it can "
+        "write to the account, and losing it takes a chronicle import to recover.",
+        err=True,
+    )
+
+
+@app.command(
     "sync-chronicle",
     help="Read the Battle Chronicle of an account, or of every account with stored "
     "credentials when no UID is given, which is the mode meant for the cron.",
