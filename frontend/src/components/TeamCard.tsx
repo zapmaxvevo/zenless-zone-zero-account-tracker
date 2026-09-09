@@ -7,6 +7,7 @@ import { elementsColor, gradeColor, gradeLabel, initials } from '../lib/palette'
 import { rosterScore } from '../lib/score';
 import { teamSynergy } from '../lib/synergy';
 import { TEAM_SLOTS } from '../lib/teams';
+import Button, { LinkButton } from './ui/Button';
 import Face from './ui/Face';
 
 interface TeamCardProps {
@@ -129,20 +130,12 @@ export default function TeamCard({ team, busy, art, onDelete }: TeamCardProps) {
         </div>
 
         <div className="ne-team-actions">
-          <Link
-            className="zui-button zui-button-sm"
-            to={`/account/${team.account_uid}/teams/${team.id}/edit`}
-          >
+          <LinkButton size="sm" to={`/account/${team.account_uid}/teams/${team.id}/edit`}>
             Editar
-          </Link>
-          <button
-            type="button"
-            className="zui-button zui-button-sm zui-button-danger"
-            onClick={onDelete}
-            disabled={busy}
-          >
+          </LinkButton>
+          <Button tone="danger" size="sm" onClick={onDelete} disabled={busy}>
             {busy ? 'Borrando…' : 'Borrar'}
-          </button>
+          </Button>
         </div>
       </div>
     </article>

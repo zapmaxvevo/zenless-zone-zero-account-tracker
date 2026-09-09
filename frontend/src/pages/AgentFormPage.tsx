@@ -12,6 +12,7 @@ import type {
 } from '../api/types';
 import DiscFields from '../components/DiscFields';
 import StatusMessage from '../components/StatusMessage';
+import Button from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
 import type { AgentDraft, WEngineDraft } from '../lib/agentDraft';
@@ -210,15 +211,14 @@ function AgentForm({
         <SectionHead
           title="W-Engine"
           action={
-            <button
-              type="button"
-              className="zui-button zui-button-sm"
+            <Button
+              size="sm"
               onClick={() =>
                 setDraft({ ...draft, wengine: draft.wengine ? null : emptyWEngineDraft() })
               }
             >
               {draft.wengine ? 'Desequipar' : 'Equipar'}
-            </button>
+            </Button>
           }
         />
 
@@ -263,9 +263,9 @@ function AgentForm({
         ))}
 
         <div className="ne-actions">
-          <button type="submit" className="zui-button zui-button-accent" disabled={saving}>
+          <Button type="submit" tone="accent" disabled={saving}>
             {saving ? 'Guardando…' : 'Guardar'}
-          </button>
+          </Button>
           <Link
             className="ne-ghost"
             to={agent ? `/account/${uid}/agents/${agent.id}` : `/account/${uid}/agents`}

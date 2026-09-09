@@ -749,6 +749,73 @@
   border-color: var(--accent);
 }
 
+/* ---------- Botón base de zzz-ui ---------- */
+
+/**
+ * El botón no es una forma de la piel: es el componente base que publica el paquete `zzz-ui`.
+ * Por eso lleva radio y no chaflán (regla 3) y va en Inter y no en las fuentes display o
+ * técnica (regla 1). Vive acá porque acá viven los estilos compartidos, y ésta es su ÚNICA
+ * definición en la app: `components/ui/Button.tsx` es la única forma de pedirlo y nadie
+ * escribe `zui-button` a mano. `design-system/` se regenera desde acá, no al revés.
+ */
+
+.zui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zui-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.zui-button:disabled,
+.zui-button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.zui-button-accent {
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.zui-button-accent:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.zui-button-danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-danger:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-sm {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
 /* ---------- 12. Shell ---------- */
 
 .ne-shell {

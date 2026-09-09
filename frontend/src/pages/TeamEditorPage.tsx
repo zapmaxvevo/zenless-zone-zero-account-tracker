@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AgentRead, TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
+import Button, { LinkButton } from '../components/ui/Button';
 import Face from '../components/ui/Face';
 import SectionHead from '../components/ui/SectionHead';
 import { useAgentArt } from '../hooks/useAgentArt';
@@ -192,12 +193,10 @@ function TeamForm({ uid, team, roster }: TeamFormProps) {
       ))}
 
       <div className="ne-team-actions">
-        <button type="submit" className="zui-button zui-button-accent" disabled={saving}>
+        <Button type="submit" tone="accent" disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar'}
-        </button>
-        <Link className="zui-button" to={`/account/${uid}/teams`}>
-          Cancelar
-        </Link>
+        </Button>
+        <LinkButton to={`/account/${uid}/teams`}>Cancelar</LinkButton>
       </div>
     </form>
   );

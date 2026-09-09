@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import ChronicleNav from '../components/ChronicleNav';
 import StatusMessage from '../components/StatusMessage';
+import Button from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
@@ -172,22 +173,17 @@ export default function CredentialsPage() {
             {done && <StatusMessage kind="empty">{done}</StatusMessage>}
 
             <div className="ne-actions">
-              <button
+              <Button
                 type="submit"
-                className="zui-button zui-button-accent"
+                tone="accent"
                 disabled={busy || !ltuid.trim() || !ltoken.trim()}
               >
                 {busy ? 'Guardando…' : 'Guardar credenciales'}
-              </button>
+              </Button>
 
-              <button
-                type="button"
-                className="zui-button zui-button-danger"
-                onClick={() => void handleDelete()}
-                disabled={busy}
-              >
+              <Button tone="danger" onClick={() => void handleDelete()} disabled={busy}>
                 Borrar credenciales
-              </button>
+              </Button>
 
               <span className="ne-label">Solo se usan para sincronizar</span>
             </div>

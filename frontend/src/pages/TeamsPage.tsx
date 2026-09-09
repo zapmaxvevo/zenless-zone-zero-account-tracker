@@ -5,6 +5,7 @@ import { describeError } from '../api/errors';
 import type { TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
 import TeamCard from '../components/TeamCard';
+import { LinkButton } from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
@@ -49,12 +50,9 @@ export default function TeamsPage() {
           title="Equipos"
           count={teams.length}
           action={
-            <Link
-              className="zui-button zui-button-accent zui-button-sm"
-              to={`/account/${uid}/teams/new`}
-            >
+            <LinkButton tone="accent" size="sm" to={`/account/${uid}/teams/new`}>
               Armar equipo
-            </Link>
+            </LinkButton>
           }
         />
 

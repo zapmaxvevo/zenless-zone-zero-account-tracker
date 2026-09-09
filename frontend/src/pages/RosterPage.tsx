@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { AgentRead } from '../api/types';
 import AgentCard from '../components/AgentCard';
 import StatusMessage from '../components/StatusMessage';
+import { LinkButton } from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
@@ -82,12 +83,9 @@ export default function RosterPage() {
         title="Roster"
         count={visible.length}
         action={
-          <Link
-            className="zui-button zui-button-accent zui-button-sm"
-            to={`/account/${uid}/agents/new`}
-          >
+          <LinkButton tone="accent" size="sm" to={`/account/${uid}/agents/new`}>
             Agregar agente
-          </Link>
+          </LinkButton>
         }
       />
 

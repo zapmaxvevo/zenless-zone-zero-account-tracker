@@ -7,6 +7,7 @@ import { useCompactHeader } from '../../hooks/useCompactHeader';
 import { SyncContext } from '../../lib/syncContext';
 import type { SyncState } from '../../lib/syncContext';
 import Banner from './Banner';
+import Button from './Button';
 
 interface Tab {
   label: string;
@@ -69,14 +70,9 @@ export default function AppShell() {
   );
 
   const syncButton = uid && (
-    <button
-      type="button"
-      className="zui-button zui-button-accent zui-button-sm"
-      onClick={state.sync}
-      disabled={syncing}
-    >
+    <Button tone="accent" size="sm" onClick={state.sync} disabled={syncing}>
       {syncing ? 'Sincronizando…' : 'Sincronizar'}
-    </button>
+    </Button>
   );
 
   const uidPill = uid && (

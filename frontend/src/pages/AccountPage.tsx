@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { describeError } from '../api/errors';
 import type { AccountRead, AgentRead, TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
 import Banner from '../components/ui/Banner';
+import Button, { LinkButton } from '../components/ui/Button';
 import Face from '../components/ui/Face';
 import Hero from '../components/ui/Hero';
 import IconTag from '../components/ui/IconTag';
@@ -147,24 +148,17 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
         </div>
 
         <div className="ne-actions">
-          <Link className="zui-button zui-button-accent" to={`/account/${uid}/agents`}>
+          <LinkButton tone="accent" to={`/account/${uid}/agents`}>
             Ver roster
-          </Link>
-          <Link className="zui-button" to={`/account/${uid}/teams`}>
-            Armar equipo
-          </Link>
-          <button
-            type="button"
-            className="zui-button"
-            onClick={() => void handleSync()}
-            disabled={syncing || onCooldown}
-          >
+          </LinkButton>
+          <LinkButton to={`/account/${uid}/teams`}>Armar equipo</LinkButton>
+          <Button onClick={() => void handleSync()} disabled={syncing || onCooldown}>
             {syncing
               ? 'Sincronizando…'
               : onCooldown
                 ? `Disponible en ${formatCountdown(remaining)}`
                 : 'Sincronizar'}
-          </button>
+          </Button>
         </div>
       </Hero>
 
@@ -180,9 +174,9 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
         <SectionHead
           title="Mejores builds"
           action={
-            <Link className="zui-button zui-button-sm" to={`/account/${uid}/agents`}>
+            <LinkButton size="sm" to={`/account/${uid}/agents`}>
               Ver los {account.agent_count}
-            </Link>
+            </LinkButton>
           }
         />
 
@@ -235,9 +229,9 @@ function Dashboard({ account, agents, teams, onSynced }: DashboardProps) {
           title="Equipos guardados"
           count={teams.length}
           action={
-            <Link className="zui-button zui-button-sm" to={`/account/${uid}/teams`}>
+            <LinkButton size="sm" to={`/account/${uid}/teams`}>
               Ver equipos
-            </Link>
+            </LinkButton>
           }
         />
 

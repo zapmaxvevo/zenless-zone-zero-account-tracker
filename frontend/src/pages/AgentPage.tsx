@@ -5,6 +5,7 @@ import { describeError } from '../api/errors';
 import type { AgentDetailRead, CatalogPropertyRead, EquippedSetRead } from '../api/types';
 import DiscCard from '../components/DiscCard';
 import StatusMessage from '../components/StatusMessage';
+import Button, { LinkButton } from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import IconTag from '../components/ui/IconTag';
 import SectionHead from '../components/ui/SectionHead';
@@ -119,20 +120,12 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
             <span className="ne-label">ID {agent.game_id}</span>
           </div>
           <div className="ne-build-bar-group">
-            <Link
-              className="zui-button zui-button-sm"
-              to={`/account/${uid}/agents/${agent.id}/edit`}
-            >
+            <LinkButton size="sm" to={`/account/${uid}/agents/${agent.id}/edit`}>
               Editar
-            </Link>
-            <button
-              type="button"
-              className="zui-button zui-button-sm zui-button-danger"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
+            </LinkButton>
+            <Button tone="danger" size="sm" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'Eliminando…' : 'Eliminar'}
-            </button>
+            </Button>
           </div>
         </div>
 

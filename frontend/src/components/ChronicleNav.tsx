@@ -7,6 +7,7 @@ import type { AccountRead } from '../api/types';
 import { MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE } from '../api/types';
 import '../styles/chronicle.css';
 import Banner from './ui/Banner';
+import Button from './ui/Button';
 
 interface ChronicleNavProps {
   uid: string;
@@ -85,14 +86,9 @@ export default function ChronicleNav({
         {fromExtension && <span className="ne-data-pill">Importá de nuevo desde la extensión</span>}
 
         {!fromExtension && account?.has_hoyolab_credentials && (
-          <button
-            type="button"
-            className="zui-button zui-button-accent zui-button-sm"
-            onClick={() => void handleSync()}
-            disabled={syncing}
-          >
+          <Button tone="accent" size="sm" onClick={() => void handleSync()} disabled={syncing}>
             {syncing ? 'Sincronizando…' : 'Sincronizar Chronicle'}
-          </button>
+          </Button>
         )}
       </nav>
 
