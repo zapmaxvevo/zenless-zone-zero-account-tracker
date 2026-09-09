@@ -138,6 +138,12 @@ curl https://<proyecto>.vercel.app/api/catalog/agents | head -c 200
 
 Y abrir la raíz, que tiene que servir la SPA y no un 404.
 
+Si algo sale mal, el cuerpo del error lo dice en dos mitades: `{"detail": "…", "code": "…"}`.
+El `detail` es para leerlo y el `code` es el nombre estable del error (`errors.py`), que es lo
+que conviene citar al diagnosticar porque las palabras del `detail` pueden cambiar. Los que
+más van a aparecer recién deployado: `static_data_unavailable` (paso 6),
+`unclaimed_account` (paso 8) y `forbidden` (falta el `X-Account-Key`).
+
 ### 8. Reclamar las cuentas que ya existían
 
 Las cuentas que ya estaban en la base quedan `unclaimed` y por lo tanto de solo lectura
@@ -149,7 +155,66 @@ ZZZ_DATABASE_URL='postgresql://…' uv run zzz-tracker claim 1500123456
 ```
 
 Imprime la key por stdout, **una sola vez**. Pegarla en la app desde la pantalla de
-credenciales.
+credenciales, que tiene un campo para eso.
+
+`claim` se niega sobre una cuenta que ya tiene dueño. Perder la key de una cuenta reclamada
+se arregla solo desde acá, con acceso a la base —reimportar ya no la recupera, porque un
+bundle lo arma el cliente entero y no prueba nada—:
+
+```bash
+ZZZ_DATABASE_URL='postgresql://…' uv run zzz-tracker rotate-key 1500123456
+```
+
+Invalida la key anterior en el acto: todo lo que la estuviera usando (un navegador, la
+extensión en otra máquina) necesita la nueva.
+
+### 9. Apuntar la extensión al dominio nuevo
+
+La extensión **no** se deploya con el resto: se instala unpacked en cada navegador y se
+construye a mano. Cómo se instala, cómo se configura y cómo funciona la key está todo en
+`extension/README.md`; acá va sólo lo que cambia por tener un dominio público.
+
+**Primero, el manifest.** `extension/wxt.config.ts` declara en `host_permissions` el tracker
+local y `https://personal-zzz.vercel.app/*`, que se escribió como placeholder antes de que
+existiera el deploy. Si el proyecto de Vercel se llama distinto, hay que reemplazar esa línea
+por el dominio real; sin eso la extensión no puede hablarle al backend y el import falla con
+"No se pudo conectar con el tracker", que no dice que el problema es un permiso.
+
+Dos cosas que conviene saber antes de editarlo:
+
+- Los `host_permissions` **no aceptan comodín de subdominio útil** para los deploys de
+  preview: cada rama recibe un `<proyecto>-<hash>-<scope>.vercel.app` distinto, así que sólo
+  el dominio de producción (o uno propio) sirve como destino estable. Para probar contra un
+  preview hay que agregar ese host a mano y rebuildear.
+- Conviene dejar `http://127.0.0.1:8000/*` donde está: es lo que permite seguir usando la
+  misma instalación contra el backend local.
+
+**Después, rebuild y recarga.** Editar el manifest no alcanza, hay que reconstruir y volver a
+cargar la extensión:
+
+```bash
+cd extension
+npm run build           # Chrome  → .output/chrome-mv3
+npm run build:firefox   # Firefox → .output/firefox-mv3
+```
+
+En Chrome, `chrome://extensions` → *Recargar* en la extensión. En Firefox el temporary add-on
+se vuelve a cargar desde `about:debugging`, y además hay que **habilitar el permiso del
+dominio nuevo** en `about:addons` → *Permissions*: en Firefox MV3 los `host_permissions` son
+opcionales y no se conceden solos.
+
+**Por último, las opciones.** Son dos URLs distintas y las dos apuntan al mismo dominio, que
+es lo que confunde: acá el backend y el frontend viven juntos.
+
+| Campo | Valor en el deploy |
+| --- | --- |
+| URL del tracker | `https://<proyecto>.vercel.app/api` |
+| URL del frontend del tracker | `https://<proyecto>.vercel.app` |
+| Token de la API | el `ZZZ_API_TOKEN` del paso 4, o vacío si no lo seteaste |
+
+El `/api` de la primera es el prefijo del ruteo de Vercel; sin él la extensión pega contra la
+SPA y recibe HTML donde espera JSON. La segunda es la base del link "Ver la cuenta en el
+tracker" (`/account/<uid>`) y va **sin** `/api`.
 
 ## Lo que queda afuera del serverless
 
@@ -199,3 +264,11 @@ Manual, paso 6.
 - **`ZZZ_CREDENTIALS_KEY` en el entorno de Vercel**: quien tenga acceso al proyecto puede
   leerla y con ella descifrar las cookies de HoYoLAB guardadas. Es el modelo que ya había en
   local; publicado, importa más quién entra al dashboard.
+- **El dominio de la extensión está hardcodeado**: vive en `extension/wxt.config.ts`, no en
+  las opciones, así que cambiar de dominio (o de proyecto de Vercel) obliga a editar,
+  rebuildear y recargar la extensión en cada navegador donde esté instalada. Los deploys de
+  preview quedan fuera del manifest por definición (paso 9).
+- **Nada de esto corrió todavía contra Vercel.** `vercel.json` y `api/index.py` están
+  probados en local —el ruteo con el prefijo `/api`, los estáticos, Postgres— pero el
+  proyecto nunca se publicó. Lo más frágil es el glob de `includeFiles`: si la función
+  arranca pero el catálogo vuelve vacío o falla el import de `zzz_tracker`, es ahí.
