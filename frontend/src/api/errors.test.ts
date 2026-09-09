@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from './client';
-import { describeError } from './errors';
+import {
+  FORBIDDEN_MESSAGE,
+  UNCLAIMED_MESSAGE,
+  describeError,
+  isMissingKeyError,
+  isUnclaimedError,
+} from './errors';
 
 describe('describeError', () => {
   it('explica en criollo los status que el usuario puede encontrarse', () => {
@@ -29,5 +35,51 @@ describe('describeError', () => {
 
   it('tiene una salida para lo que no es un Error', () => {
     expect(describeError('vaya uno a saber')).toBe('Ocurrió un error inesperado.');
+  });
+});
+
+describe('los dos 409 del modelo de propiedad', () => {
+  it('separa el choque de dominio del UID sin dueño por el code, no por el texto', () => {
+    const conflict = new ApiError(409, 'Agent 1041 is already tracked', 'conflict');
+    const unclaimed = new ApiError(
+      409,
+      'Claim the account before writing to it',
+      'unclaimed_account',
+    );
+
+    expect(describeError(conflict)).toContain('ya tiene ese agente');
+    expect(describeError(unclaimed)).toBe(UNCLAIMED_MESSAGE);
+    expect(describeError(conflict)).not.toBe(describeError(unclaimed));
+  });
+
+  it('el 403 de la key dice otra cosa que el 403 del Chronicle privado', () => {
+    const missingKey = new ApiError(403, 'This account has an owner', 'forbidden');
+    const notPublic = new ApiError(
+      403,
+      'That player keeps their Chronicle private',
+      'data_not_public',
+    );
+
+    expect(describeError(missingKey)).toBe(FORBIDDEN_MESSAGE);
+    expect(describeError(notPublic)).toBe('That player keeps their Chronicle private');
+  });
+
+  it('reconoce los dos casos por su code y no por su status', () => {
+    expect(isMissingKeyError(new ApiError(403, 'x', 'forbidden'))).toBe(true);
+    expect(isMissingKeyError(new ApiError(403, 'x', 'data_not_public'))).toBe(false);
+    expect(isUnclaimedError(new ApiError(409, 'x', 'unclaimed_account'))).toBe(true);
+    expect(isUnclaimedError(new ApiError(409, 'x', 'conflict'))).toBe(false);
+  });
+
+  it('sin code cae en el mensaje por status: el 422 de schema de FastAPI no lo trae', () => {
+    const schema = new ApiError(422, 'body.uid: field required');
+
+    expect(schema.code).toBeNull();
+    expect(describeError(schema)).toBe(
+      'Los datos enviados no son válidos: body.uid: field required',
+    );
+    expect(describeError(new ApiError(409, 'Agent 1041 is already tracked'))).toContain(
+      'ya tiene ese agente',
+    );
   });
 });

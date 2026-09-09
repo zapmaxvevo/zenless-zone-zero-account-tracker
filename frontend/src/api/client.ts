@@ -36,12 +36,14 @@ export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
+  readonly code: string | null;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, code: string | null = null) {
     super(`HTTP ${status}: ${detail}`);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
+    this.code = code;
   }
 }
 
@@ -67,6 +69,13 @@ export function extractDetail(body: unknown, fallback: string): string {
   return fallback;
 }
 
+export function extractCode(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('code' in body)) return null;
+
+  const { code } = body as { code: unknown };
+  return typeof code === 'string' && code.trim() !== '' ? code.trim() : null;
+}
+
 export function statusFallback(status: number, statusText: string): string {
   return statusText.trim() || `Error ${status}`;
 }
@@ -85,7 +94,7 @@ export function queryString(
 async function toApiError(res: Response): Promise<ApiError> {
   const fallback = statusFallback(res.status, res.statusText);
   const body: unknown = await res.json().catch(() => null);
-  return new ApiError(res.status, extractDetail(body, fallback));
+  return new ApiError(res.status, extractDetail(body, fallback), extractCode(body));
 }
 
 async function request<T>(

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KEY_PREFIX, storageKey } from '../lib/accountKey';
-import { KEY_HEADER, api } from './client';
+import { ApiError, KEY_HEADER, api } from './client';
+import { FORBIDDEN_MESSAGE, UNCLAIMED_MESSAGE, describeError } from './errors';
 
 const UID = '1300000000';
 const OTHER_UID = '1300000001';
@@ -19,6 +20,12 @@ function stubFetch(): Call[] {
     return Promise.resolve(new Response('{}', { status: 200 }));
   });
   return calls;
+}
+
+function stubRejection(status: number, detail: string, code: string): void {
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve(new Response(JSON.stringify({ detail, code }), { status })),
+  );
 }
 
 function stubStoredKeys(keys: Record<string, string>): void {
@@ -90,6 +97,25 @@ describe('la key en las llamadas al backend', () => {
     await api.updateAgent(UID, 7, { level: 60 });
 
     expect(calls[0].key).toBeUndefined();
+  });
+
+  it('el rechazo del backend llega con su code, y cada uno dice otra cosa', async () => {
+    stubStoredKeys({});
+
+    stubRejection(403, 'This account has an owner', 'forbidden');
+    const forbidden = await api
+      .updateAgent(UID, 7, { level: 60 })
+      .catch((caught: unknown) => caught);
+
+    stubRejection(409, 'Claim the account before writing to it', 'unclaimed_account');
+    const unclaimed = await api.deleteTeam(UID, 3).catch((caught: unknown) => caught);
+
+    expect(forbidden).toBeInstanceOf(ApiError);
+    expect((forbidden as ApiError).code).toBe('forbidden');
+    expect(describeError(forbidden)).toBe(FORBIDDEN_MESSAGE);
+
+    expect((unclaimed as ApiError).code).toBe('unclaimed_account');
+    expect(describeError(unclaimed)).toBe(UNCLAIMED_MESSAGE);
   });
 
   it('empezar a trackear y reclamar no mandan key: son las puertas de entrada', async () => {

@@ -1,4 +1,5 @@
 import { ApiError } from './client';
+import type { ErrorCode } from './types';
 
 export const FORBIDDEN_MESSAGE =
   'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Pegá la key en «Conectar HoYoLAB», o importá el Chronicle con la extensión para recuperarla.';
@@ -6,35 +7,35 @@ export const FORBIDDEN_MESSAGE =
 export const UNCLAIMED_MESSAGE =
   'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Reclamalo y quedate con la key que te devuelve.';
 
-const FORBIDDEN_HINT = 'account-key';
-const UNCLAIMED_HINT = 'claim the account';
+const CODE_FORBIDDEN: ErrorCode = 'forbidden';
+const CODE_UNCLAIMED: ErrorCode = 'unclaimed_account';
+
+const MESSAGES_BY_CODE: Partial<Record<ErrorCode, string>> = {
+  [CODE_FORBIDDEN]: FORBIDDEN_MESSAGE,
+  [CODE_UNCLAIMED]: UNCLAIMED_MESSAGE,
+};
 
 export function isMissingKeyError(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 403 &&
-    error.detail.toLowerCase().includes(FORBIDDEN_HINT)
-  );
+  return error instanceof ApiError && error.code === CODE_FORBIDDEN;
 }
 
 export function isUnclaimedError(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 409 &&
-    error.detail.toLowerCase().includes(UNCLAIMED_HINT)
-  );
+  return error instanceof ApiError && error.code === CODE_UNCLAIMED;
 }
 
 export function describeError(error: unknown): string {
-  if (isMissingKeyError(error)) return FORBIDDEN_MESSAGE;
-  if (isUnclaimedError(error)) return UNCLAIMED_MESSAGE;
-  if (error instanceof ApiError) return messageForStatus(error);
+  if (error instanceof ApiError) return messageForApiError(error);
   if (error instanceof TypeError) return NETWORK_MESSAGE;
   if (error instanceof Error) return error.message;
   return 'Ocurrió un error inesperado.';
 }
 
 const NETWORK_MESSAGE = 'No pudimos hablar con el backend. Fijate que esté levantado.';
+
+function messageForApiError(error: ApiError): string {
+  const byCode = error.code ? MESSAGES_BY_CODE[error.code as ErrorCode] : undefined;
+  return byCode ?? messageForStatus(error);
+}
 
 function messageForStatus(error: ApiError): string {
   switch (error.status) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, extractDetail, statusFallback } from './client';
+import { ApiError, extractCode, extractDetail, statusFallback } from './client';
 
 describe('extractDetail', () => {
   it('usa el detail string de FastAPI', () => {
@@ -34,13 +34,32 @@ describe('statusFallback', () => {
   });
 });
 
+describe('extractCode', () => {
+  it('devuelve el code del dominio cuando el backend lo manda', () => {
+    expect(extractCode({ detail: 'x', code: 'unclaimed_account' })).toBe('unclaimed_account');
+    expect(extractCode({ detail: 'x', code: '  forbidden  ' })).toBe('forbidden');
+  });
+
+  it('devuelve null cuando no viene, que es lo que pasa con el 422 de schema', () => {
+    expect(extractCode({ detail: [{ msg: 'field required' }] })).toBeNull();
+    expect(extractCode({ detail: 'x', code: '' })).toBeNull();
+    expect(extractCode({ detail: 'x', code: 7 })).toBeNull();
+    expect(extractCode(null)).toBeNull();
+  });
+});
+
 describe('ApiError', () => {
   it('conserva status y detail, y es instanceof Error', () => {
     const err = new ApiError(429, 'rate limit');
     expect(err).toBeInstanceOf(Error);
     expect(err.status).toBe(429);
     expect(err.detail).toBe('rate limit');
+    expect(err.code).toBeNull();
     expect(err.message).toBe('HTTP 429: rate limit');
     expect(err.name).toBe('ApiError');
+  });
+
+  it('lleva el code del dominio cuando el body lo trae', () => {
+    expect(new ApiError(403, 'sin key', 'forbidden').code).toBe('forbidden');
   });
 });

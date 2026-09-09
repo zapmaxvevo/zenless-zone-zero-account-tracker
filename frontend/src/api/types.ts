@@ -1,3 +1,20 @@
+export type ErrorCode =
+  | 'forbidden'
+  | 'unclaimed_account'
+  | 'conflict'
+  | 'not_found'
+  | 'validation_error'
+  | 'unauthorized'
+  | 'missing_credentials'
+  | 'invalid_credentials'
+  | 'data_not_public'
+  | 'rate_limited'
+  | 'external_service_error'
+  | 'static_data_unavailable'
+  | 'captcha_required'
+  | 'import_disabled'
+  | 'internal_error';
+
 export interface HealthResponse {
   status: string;
   app: string;
