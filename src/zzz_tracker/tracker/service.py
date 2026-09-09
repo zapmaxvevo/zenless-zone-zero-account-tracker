@@ -253,8 +253,9 @@ class TrackerService:
         account = self.get_account(uid)
         if account.is_claimed:
             raise ConflictError(
-                f"Account {uid} already has an owner; "
-                "importing its chronicle is the only way to take it over"
+                f"Account {uid} already has an owner; write to it with its `X-Account-Key`, "
+                f"or run `zzz-tracker rotate-key {uid}` where the database lives to issue a "
+                "new key and invalidate the old one"
             )
         return self._issue_key(account, CLAIM_PROVISIONAL)
 

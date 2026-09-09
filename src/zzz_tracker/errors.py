@@ -91,12 +91,6 @@ class UnauthorizedError(ZZZTrackerError):
     default_detail = "The request is missing a valid API token"
 
 
-class ImportDisabledError(ZZZTrackerError):
-    status_code = 503
-    code = "import_disabled"
-    default_detail = "The import endpoint is disabled until ZZZ_API_TOKEN is set"
-
-
 class ForbiddenError(ZZZTrackerError):
     """Someone tried to write an account without the key that owns it."""
 

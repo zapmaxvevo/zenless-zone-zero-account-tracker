@@ -49,8 +49,9 @@ def claim_account(uid: UidPath, service: TrackerServiceDep) -> ClaimResponse:
     """Take ownership of a tracked account nobody claimed, and read its key once.
 
     First come, first served: this proves nothing, it only hands the UID to whoever asked
-    first. An import of that UID's chronicle takes it back, since only its real owner can
-    produce one.
+    first. That is why a claim made here is `provisional` and an import that names the UID
+    still outranks it — but only while it is provisional. Once an account is `verified`
+    nothing takes it back except its key.
     """
     account_key = service.claim_account(uid)
     return ClaimResponse.from_claim(service.get_account(uid), account_key)

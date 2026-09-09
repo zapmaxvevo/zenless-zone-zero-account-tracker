@@ -98,8 +98,11 @@ auténtico?" sino "¿esto alcanza para escribir *esta* cuenta?".
    no prueba nada (es público), pero es el piso para reclamar una cuenta libre.
 3. Si el bundle **no** nombra ningún UID, solo se acepta contra una cuenta que nadie reclamó
    —o con la key vigente—, y el reclamo que consigue es apenas `provisional`.
-4. La `region` del body se acepta solo si es una región que existe; cualquier otra cosa se
-   reemplaza por la que implica el prefijo del UID. La región elige a qué host le pega
+4. La `region` del body se acepta solo si es una región que existe, y la validación está
+   en dos capas porque no se comportan igual: por **HTTP** el schema rechaza con **422** una
+   región desconocida (vacío sí se acepta: significa "deducila del UID"); llamando al **caso
+   de uso** `import_chronicle()` directo —CLI, tests— una región desconocida se **reemplaza**
+   por la que implica el prefijo del UID en vez de romper. La región elige a qué host le pega
    después el sync server-side, así que no puede salir libre del body.
 5. Opcional y aparte: si `ZZZ_API_TOKEN` está seteado, se sigue exigiendo el `Bearer` además
    de la key. Deja de ser obligatorio, pero queda como reja extra para el deploy propio —
@@ -218,7 +221,10 @@ así que enumerar ids no filtra nada que no se pueda leer de todos modos.
   (ver "La key es de una cuenta, no del que llama", más abajo).
 - `errors.py` — `ForbiddenError` (403, "esta cuenta tiene dueño; falta `X-Account-Key`") y
   `UnclaimedAccountError` (409, "reclamá la cuenta antes de escribirla"). `UnauthorizedError`
-  y `ImportDisabledError` se quedan, con el token ahora opcional.
+  se queda, con el token ahora opcional. `ImportDisabledError` se **borra**: nació para
+  rechazar el import cuando no había token, que es exactamente lo que este cambio deja de
+  hacer, así que quedaría como una clase que nadie levanta y que además describe la regla
+  vieja. Si alguna vez hace falta deshabilitar el import de verdad, son cuatro líneas.
 - `tracker/service.py` — `claim_account(uid)`, `rotate_key(uid, level)`, `verify_key(uid, key)`,
   `account_uid_for_agent(id)`, `account_uid_for_team(id)`; y `import_chronicle` pasa a devolver
   la key nueva cuando rota.

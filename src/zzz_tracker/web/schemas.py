@@ -145,9 +145,10 @@ class AccountRead(BaseModel):
 class AccountCreatedRead(AccountRead):
     """A tracked account, plus the key that owns it when tracking it handed one out.
 
-    `account_key` is the only time that key can be read: it is stored hashed, so a client
-    that loses it has to prove ownership again with an import. A UID somebody had already
-    claimed comes back with `null` — tracking it refreshed it, it did not take it over.
+    `account_key` is the only time that key can be read: it is stored hashed, and nothing
+    reissues it over HTTP, so a client that loses it needs `zzz-tracker rotate-key` on the
+    machine that holds the database. A UID somebody had already claimed comes back with
+    `null` — tracking it refreshed it, it did not take it over.
     """
 
     account_key: str | None = None

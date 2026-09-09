@@ -102,9 +102,14 @@ def import_chronicle(
 ) -> ChronicleImportResponse:
     """Store a chronicle bundle captured in the browser, tracking the account if it is new.
 
-    This is the one write that needs no key: the bundle *is* the proof, since only the
-    HoYoLAB session of that UID can produce one. Sending the key in force keeps it; sending
-    none, or a stale one, rotates the account onto a new key that comes back in the answer.
+    The only write that a key does not always gate — but a bundle proves nothing on its own,
+    since the client picks every byte of it, the UID it names included, and a UID is public.
+    So it goes through without a key only where nothing can be taken: an unclaimed account,
+    or a `provisional` one where the bundle at least names the UID. Against an account an
+    import already claimed it is 403, and the way back in is `zzz-tracker rotate-key` on the
+    machine that holds the database. Sending the key in force always works and keeps it;
+    every other accepted case rotates the account onto a new key that comes back in the
+    answer.
     """
     report = service.import_chronicle(
         uid, payload.payloads, region=payload.region, account_key=x_account_key

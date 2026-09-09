@@ -131,6 +131,27 @@ def test_claiming_an_account_that_already_has_an_owner_is_a_conflict(
     assert TRACKED_UID in response.json()["detail"]
 
 
+def test_the_refusal_to_claim_a_taken_account_points_at_the_only_way_back_in(
+    client: TestClient,
+) -> None:
+    """This message keeps rotting back into "just import again", which stopped being true.
+
+    An import cannot take a claimed account over any more, so the 409 a user reads has to
+    name the one thing that does work — `rotate-key`, on the machine holding the database —
+    and must not send anyone off to import instead.
+    """
+    # Given
+    track_account(client)
+
+    # When
+    detail = client.post(f"/accounts/{TRACKED_UID}/claim").json()["detail"]
+
+    # Then
+    assert f"zzz-tracker rotate-key {TRACKED_UID}" in detail
+    assert "X-Account-Key" in detail
+    assert "import" not in detail
+
+
 def test_claiming_an_account_that_is_not_tracked_answers_not_found(client: TestClient) -> None:
     # Given / When
     response = client.post(f"/accounts/{OTHER_UID}/claim")
