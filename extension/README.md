@@ -61,16 +61,21 @@ completo está en `docs/OWNERSHIP.md`; lo que importa acá:
   en la respuesta del import: la guarda hasheada y no la vuelve a devolver.
 - La extensión la guarda sola en `chrome.storage.sync`, bajo `accountKeys` (`{ "<uid>": "zzk_…" }`,
   una key por UID), y la manda como `X-Account-Key` en el import siguiente de ese UID.
-- **Regla de rotación**: si el import presenta la key vigente, no rota nada. Si no presenta key
-  o presenta una inválida, el bundle de HoYoLAB es la prueba de propiedad — producirlo exige la
-  sesión del dueño del UID —, así que el backend rota la key, la devuelve en la respuesta y la
-  vieja muere. La extensión persiste siempre la que vuelve, reemplazando a la anterior.
-- **Perdiste la key**: importá de nuevo desde la extensión. Vuelve una key nueva y la cuenta
-  queda otra vez a tu nombre.
+- **Regla de rotación**: el primer import de un UID libre (`unclaimed`/`provisional`) lo reclama
+  y emite la key; el bundle de HoYoLAB es la prueba de propiedad, porque producirlo exige la
+  sesión del dueño del UID. A partir de ahí la cuenta queda `verified` y **cada import tiene que
+  presentar la key vigente**: un import sin ella responde **403 y no escribe nada** (el
+  `role_id` del bundle es público, así que un bundle solo no puede desalojar al dueño). Un
+  import con la key vigente no rota nada. La extensión persiste siempre la key que vuelve,
+  reemplazando a la anterior.
+- **"Esta cuenta ya tiene dueño y no tengo la key acá"**: es el 403 de arriba, y el popup lo
+  dice con esas palabras. Copiá la key desde la instalación que sí la tiene (abajo); si no
+  quedó en ninguna, la única salida es `zzz-tracker rotate-key <uid>` en el servidor —
+  reimportar ya no la recupera.
 - **Copiarla a otra instalación** (otro navegador, otra máquina): opciones → *Keys de cuenta* →
   *Ver* / *Copiar* en el UID, y en la otra instalación pegar el UID y la key en el formulario
   de abajo de esa misma lista. Es el único camino para importar el mismo UID desde dos
-  navegadores: si el segundo importa **sin** la key, la key rota y el primero se queda afuera.
+  navegadores.
 - Después de un import, el link "Ver la cuenta en el tracker" lleva la key en el fragmento
   (`/account/<uid>#key=…`), así el frontend queda autenticado sin copiar y pegar nada. El
   fragmento no viaja al servidor y el frontend lo limpia de la URL apenas lo guarda.
@@ -151,12 +156,13 @@ En Chrome y en Firefox, con un build fresco:
     contador avanza de 1 a 36.
 12. **Key de la cuenta**: primer import de un UID → en opciones aparece su key bajo *Keys de
     cuenta* y el link del popup termina en `#key=…`. Segundo import del mismo UID → la key
-    guardada **no** cambia (se mandó como `X-Account-Key` y el backend no rotó). Borrarla desde
-    opciones e importar de nuevo → aparece una key distinta, y la vieja queda reemplazada, no
-    duplicada (sigue habiendo una sola entrada para ese UID).
-13. **Key en otro navegador**: copiar la key del UID y pegarla en la otra instalación (UID +
+    guardada **no** cambia (se mandó como `X-Account-Key` y el backend no rotó).
+13. **Cuenta con dueño sin la key**: borrar la key desde opciones e importar de nuevo → 403 con
+    el mensaje "ya tiene dueño y este navegador no tiene su key" y el `zzz-tracker rotate-key
+    <uid>`, y en el tracker no cambió nada. Volver a pegar la key → el import anda otra vez.
+14. **Key en otro navegador**: copiar la key del UID y pegarla en la otra instalación (UID +
     key) → esa instalación importa sin rotar nada y las dos siguen sirviendo.
-14. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
+15. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
     `background.scripts`) y que los permisos de host están concedidos en `about:addons`.
 
 ## Estructura

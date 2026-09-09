@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildImportPayload } from './chronicle';
-import type { HttpResponseLike } from './hoyolab';
+import type { FetchLike, HttpResponseLike } from './hoyolab';
 import {
+  type AccountKeys,
   accountKeyFor,
   accountKeysAfterImport,
   accountUrl,
@@ -87,6 +88,13 @@ describe('keys de cuenta guardadas', () => {
     expect(accountKeysAfterImport(previous, '1500000001', { account_key: null })).toBe(previous);
   });
 
+  it('un import con la key vigente vuelve sin account_key y la guardada sigue sirviendo', () => {
+    const previous = { '1500000001': 'zzk_vigente' };
+    const next = accountKeysAfterImport(previous, '1500000001', { account_key: undefined });
+    expect(next).toBe(previous);
+    expect(accountKeyFor(next, '1500000001')).toBe('zzk_vigente');
+  });
+
   it('un import de un uid nuevo suma su key sin tocar las demás', () => {
     expect(
       accountKeysAfterImport({ '1500000001': 'zzk_uno' }, '1500000002', {
@@ -169,6 +177,66 @@ describe('postChronicleImport', () => {
     const headers = seenInit?.headers as Record<string, string>;
     expect(headers.authorization).toBeUndefined();
     expect(headers['content-type']).toBe('application/json');
+  });
+
+  it('un 403 explica que la cuenta tiene dueño y cómo conseguir la key', async () => {
+    let seenInit: RequestInit | undefined;
+    const error = await postChronicleImport({
+      settings,
+      uid: '1500000001',
+      payload,
+      fetchFn: async (_url, init) => {
+        seenInit = init;
+        return jsonResponse(403, { detail: 'esta cuenta tiene dueño; falta X-Account-Key' });
+      },
+    }).catch((caught: unknown) => caught as TrackerError);
+
+    expect(error).toBeInstanceOf(TrackerError);
+    const thrown = error as TrackerError;
+    expect(thrown.status).toBe(403);
+    // El detail del backend se conserva y se le agrega qué hacer.
+    expect(thrown.message).toContain('esta cuenta tiene dueño; falta X-Account-Key');
+    expect(thrown.message).toContain('copiala desde sus opciones');
+    expect(thrown.message).toContain('zzz-tracker rotate-key 1500000001');
+    // No mandó key: el mensaje no puede decir que la guardada dejó de servir.
+    expect(thrown.message).not.toContain('ya no sirve');
+    expect((seenInit?.headers as Record<string, string>)['x-account-key']).toBeUndefined();
+  });
+
+  it('un 403 con key mandada dice que la key guardada quedó vieja', async () => {
+    await expect(
+      postChronicleImport({
+        settings: { ...settings, accountKey: 'zzk_vieja' },
+        uid: '1500000001',
+        payload,
+        fetchFn: async () => jsonResponse(403, {}),
+      }),
+    ).rejects.toThrowError(/la key guardada acá ya no sirve/);
+  });
+
+  it('un 403 no emite key: la guardada no se pisa ni se borra', async () => {
+    let keys: AccountKeys = { '1500000001': 'zzk_de_otra_maquina' };
+    // La misma secuencia que corre el background: POST y, sólo si salió bien, persistir la
+    // key que haya devuelto.
+    const runImport = async (fetchFn: FetchLike) => {
+      const response = await postChronicleImport({ settings, uid: '1500000001', payload, fetchFn });
+      keys = accountKeysAfterImport(keys, '1500000001', response);
+    };
+
+    await expect(
+      runImport(async () => jsonResponse(403, { detail: 'esta cuenta tiene dueño' })),
+    ).rejects.toThrowError(TrackerError);
+    expect(keys).toEqual({ '1500000001': 'zzk_de_otra_maquina' });
+  });
+
+  it('guarda el code estable del backend cuando viene en el cuerpo', async () => {
+    const thrown = (await postChronicleImport({
+      settings,
+      uid: '1500000001',
+      payload,
+      fetchFn: async () => jsonResponse(403, { detail: 'con dueño', code: 'account_owned' }),
+    }).catch((error: unknown) => error)) as TrackerError;
+    expect(thrown.code).toBe('account_owned');
   });
 
   it('un 401 propaga el detail del backend', async () => {

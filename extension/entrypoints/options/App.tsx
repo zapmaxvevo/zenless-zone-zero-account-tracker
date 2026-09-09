@@ -145,12 +145,14 @@ export default function App() {
 
       <h2>Keys de cuenta</h2>
       <p className="hint">
-        Cada UID importado tiene una key que es lo que autoriza a escribir esa cuenta. La emite el
-        backend en el import y <strong>se muestra una sola vez</strong>: acá queda guardada. Si
-        perdés la key, importá de nuevo con la extensión y el backend emite una nueva (el bundle de
-        HoYoLAB es la prueba de que la cuenta es tuya). Para usar el mismo UID desde otro navegador,
-        copiá la key de acá y pegala allá: si en cambio importás sin key, la key rota y la
-        instalación vieja se queda afuera.
+        Cada UID importado tiene una key: es lo que autoriza a escribir esa cuenta. La emite el
+        backend la primera vez que se importa ese UID y <strong>se muestra una sola vez</strong>;
+        acá queda guardada. Del segundo import en adelante hay que presentarla: una cuenta ya
+        verificada no se reclama de nuevo con otro bundle —si no, cualquiera que supiera tu UID se
+        quedaría con tu cuenta—, así que un import sin la key vigente responde 403 y no escribe
+        nada. Para usar el mismo UID desde otro navegador, copiá la key de acá y pegala allá. Si la
+        perdiste del todo, la única salida es <code>zzz-tracker rotate-key &lt;uid&gt;</code> en el
+        servidor.
       </p>
 
       {uids.length === 0 ? (

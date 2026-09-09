@@ -54,8 +54,10 @@ export function withAccountKey(keys: AccountKeys, uid: string, key: string): Acc
 
 /**
  * El mapa de keys que queda después de un import. La respuesta trae `account_key` sólo cuando
- * la key rotó (import sin key o con una inválida): esa es la única vez que se puede leer, así
- * que se persiste siempre. Si no rotó, devuelve el mismo mapa —misma referencia— y no hay nada
+ * la key rotó, que es cuando el import reclama una cuenta libre (`unclaimed`/`provisional`):
+ * esa es la única vez que se puede leer, así que se persiste siempre. Un import con la key
+ * vigente no rota y no la trae, y contra una cuenta `verified` ajena no hay respuesta que
+ * mirar: es un 403. En los dos casos devuelve el mismo mapa —misma referencia— y no hay nada
  * que escribir.
  */
 export function accountKeysAfterImport(
@@ -87,12 +89,48 @@ export function accountUrl(frontendBaseUrl: string, uid: string, accountKey?: st
 
 export class TrackerError extends Error {
   readonly status: number;
+  /** El `code` estable del backend, si lo mandó; `''` cuando el cuerpo sólo trae `detail`. */
+  readonly code: string;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, code = '') {
     super(detail);
     this.name = 'TrackerError';
     this.status = status;
+    this.code = code;
   }
+}
+
+/**
+ * El 403 del import significa una sola cosa: esa cuenta ya está `verified` y este navegador no
+ * tiene su key. El backend no escribió nada y no emitió ninguna key nueva —desde que `verified`
+ * es pegajoso, un bundle ya no desaloja al dueño—, así que el mensaje tiene que decir cómo
+ * conseguir la key en vez de dejar al usuario reintentando.
+ */
+export function ownedAccountHelp(uid: string, sentKey = false): string {
+  const problem = sentKey
+    ? `El UID ${uid} tiene dueño y la key guardada acá ya no sirve: la rotaron importando ` +
+      'desde otra instalación.'
+    : `El UID ${uid} ya tiene dueño y este navegador no tiene su key.`;
+  return (
+    `${problem} Si la key vigente está en otra instalación, copiala desde sus opciones ` +
+    '(Keys de cuenta) y pegala en las de acá. Si la perdiste del todo, la única salida es ' +
+    `\`zzz-tracker rotate-key ${uid}\` en el servidor.`
+  );
+}
+
+/** El texto que ve el usuario cuando el import falla, a partir de lo que devolvió el backend. */
+export function importErrorMessage(args: {
+  status: number;
+  uid: string;
+  detail?: string;
+  code?: string;
+  sentKey?: boolean;
+}): string {
+  if (args.status === 403) {
+    const reason = args.detail ? `${args.detail} ` : '';
+    return `${reason}${ownedAccountHelp(args.uid, args.sentKey === true)}`;
+  }
+  return args.detail || `El tracker respondió ${args.status}.`;
 }
 
 export async function postChronicleImport(args: {
@@ -108,11 +146,10 @@ export async function postChronicleImport(args: {
   if (args.settings.apiToken?.trim()) {
     headers.authorization = `Bearer ${args.settings.apiToken.trim()}`;
   }
-  // Con la key vigente el import no rota nada; sin ella el bundle es la prueba y el backend
-  // devuelve una key nueva (ver docs/OWNERSHIP.md).
-  if (args.settings.accountKey?.trim()) {
-    headers['x-account-key'] = args.settings.accountKey.trim();
-  }
+  // Con la key vigente el import no rota nada. Sin ella, una cuenta libre se reclama y la key
+  // rota; una cuenta ya `verified` responde 403 y no escribe nada (ver docs/OWNERSHIP.md).
+  const accountKey = args.settings.accountKey?.trim() ?? '';
+  if (accountKey) headers['x-account-key'] = accountKey;
   let response;
   try {
     response = await doFetch(importUrl(args.settings.trackerUrl, args.uid), {
@@ -130,10 +167,19 @@ export async function postChronicleImport(args: {
     body = null;
   }
   if (response.status >= 400) {
-    const detail = (body as { detail?: unknown } | null)?.detail;
+    const error = body as { detail?: unknown; code?: unknown } | null;
+    const detail = typeof error?.detail === 'string' ? error.detail : '';
+    const code = typeof error?.code === 'string' ? error.code : '';
     throw new TrackerError(
       response.status,
-      typeof detail === 'string' ? detail : `El tracker respondió ${response.status}.`,
+      importErrorMessage({
+        status: response.status,
+        uid: args.uid,
+        detail,
+        code,
+        sentKey: Boolean(accountKey),
+      }),
+      code,
     );
   }
   return (body ?? {}) as ChronicleImportResponse satisfies ChronicleImportResponse;
