@@ -91,3 +91,21 @@ Si querés volver a paralelizar, el briefing que usaron está en el scratchpad d
 y su contenido esencial es: cada teammate es dueño de un conjunto de archivos y no toca nada
 fuera; la superficie pública no cambia (los paquetes re-exportan); **los tests no se tocan** en un
 refactor, y si uno se rompe es el refactor el que está mal.
+
+## Hallazgos de los teammates que no alcancé a atender
+
+- **`tests/test_disc_values.py:46`** tiene un comentario equivocado: dice `# B discs stop at 15`
+  y los discos B topean en **9**. El `assert` de abajo es correcto; el comentario miente. Una
+  línea de arreglo.
+- **`extension/scripts/probe-avatar-info.js` es resto de investigación ya resuelta** — existió
+  para averiguar la forma de `id_list`, respuesta que hoy vive en `avatarInfoUrl` y en el banco.
+  Se dejó a propósito, con un header que dice que sólo se vuelve a correr si HoYoLAB cambia los
+  parámetros. Si querés borrarlo, es decisión tuya.
+- **Un teammate corrió `ruff --fix` y `ruff format` sobre el repo entero** mientras otros
+  editaban. La suite quedó verde y `ruff format --check` da 78 archivos ya formateados, así que
+  el riesgo es bajo, pero si aparece un reformateo raro en un archivo que nadie tocó, salió de ahí.
+- **`MAX_DISC_PROCS` y `LEVELS_PER_PROC` conviven** y no son lo mismo: el primero es el tope de
+  rolls que valida el schema (`web/schemas/agents.py`), el segundo es la escala de `procs_for()`
+  en `discs/values.py`. Los dos están documentados en el banco.
+- Los siete subagentes de `.claude/agents/` **ya están activos** en la sesión: se eligen solos
+  por su `description`.
