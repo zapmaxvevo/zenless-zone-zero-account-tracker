@@ -142,3 +142,52 @@ describe('la key en las llamadas al backend', () => {
     expect([...entries.keys()]).toEqual([]);
   });
 });
+
+describe('comprobar una key contra el backend antes de guardarla', () => {
+  it('el 204 la da por buena y no devuelve nada que interpretar', async () => {
+    stubStoredKeys({});
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response(null, { status: 204 })));
+
+    await expect(api.checkOwnership(UID, KEY)).resolves.toBeUndefined();
+  });
+
+  it('manda la key que se está probando, no la que el navegador ya tiene guardada', async () => {
+    stubStoredKeys({ [UID]: `${KEY_PREFIX}laVieja` });
+    const calls = stubFetch();
+
+    await api.checkOwnership(UID, KEY);
+
+    expect(calls).toEqual([{ url: `/api/accounts/${UID}/ownership`, key: KEY }]);
+  });
+
+  it('el 403 dice que esa key no es la del UID, con las dos causas que quedan', async () => {
+    stubStoredKeys({});
+    stubRejection(403, 'This account belongs to whoever holds its key', 'forbidden');
+
+    const caught = await api.checkOwnership(UID, KEY).catch((error: unknown) => error);
+
+    expect((caught as ApiError).sentKey).toBe(true);
+    expect(describeError(caught)).toBe(WRONG_KEY_MESSAGE);
+    expect(describeError(caught)).toContain('rotate-key');
+  });
+
+  it('el 409 no acusa a la key: el UID no tiene dueño y ninguna podría servir', async () => {
+    stubStoredKeys({});
+    stubRejection(409, 'Account has no owner yet', 'unclaimed_account');
+
+    const caught = await api.checkOwnership(UID, KEY).catch((error: unknown) => error);
+
+    expect(describeError(caught)).toBe(UNCLAIMED_MESSAGE);
+    expect(describeError(caught)).toContain('Importalo con la extensión');
+    expect(describeError(caught)).not.toContain('rotate-key');
+  });
+
+  it('el 404 manda a revisar el UID, que no está trackeado', async () => {
+    stubStoredKeys({});
+    stubRejection(404, 'Account is not tracked', 'not_found');
+
+    const caught = await api.checkOwnership(UID, KEY).catch((error: unknown) => error);
+
+    expect(describeError(caught)).toContain('Revisá el UID');
+  });
+});

@@ -5,7 +5,7 @@ export const FORBIDDEN_MESSAGE =
   'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Si la key vigente está en otra instalación, pegala en «Key de la cuenta».';
 
 export const WRONG_KEY_MESSAGE =
-  'La key que guarda esta computadora no es la de este UID: el backend la rechazó. O se pegó mal, o alguien corrió `zzz-tracker rotate-key` en el servidor y la vigente es otra. Pegá la correcta en «Key de la cuenta».';
+  'El backend rechazó esa key: no es la de este UID. O se pegó mal, o alguien corrió `zzz-tracker rotate-key` en el servidor y la vigente es otra. La vigente se pega en «Key de la cuenta».';
 
 export const UNCLAIMED_MESSAGE =
   'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Importalo con la extensión: el import lo reclama y te devuelve su key.';

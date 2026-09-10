@@ -146,6 +146,21 @@ describe('pegar la key a mano habilita la escritura', () => {
   });
 });
 
+describe('la comprobación de la key cuenta como uso, así que no corre sola', () => {
+  it('dibujar la pantalla de la key no consulta ownership: eso pasa solo al pegar', () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      urls.push(url);
+      return new Promise<Response>(() => {});
+    });
+    stubStoredKeys({ [UID]: KEY });
+
+    render(`/account/${UID}/key`, <AccountKeyPage />);
+
+    expect(urls.some((url) => url.includes('/ownership'))).toBe(false);
+  });
+});
+
 describe('seguir una cuenta ya no reparte keys', () => {
   it('el registro no muestra ningún cartel de key ni la pide', () => {
     const html = render('/', <HomePage />);

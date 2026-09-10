@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { describeError } from '../api/errors';
 import ChronicleNav from '../components/ChronicleNav';
 import StatusMessage from '../components/StatusMessage';
 import Button from '../components/ui/Button';
@@ -102,24 +103,38 @@ interface KeySectionProps {
 
 function KeySection({ access }: KeySectionProps) {
   const [pasted, setPasted] = useState('');
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  function handlePaste(event: FormEvent) {
+  async function handlePaste(event: FormEvent) {
     event.preventDefault();
     setDone(null);
-    if (!looksLikeKey(pasted)) {
+
+    const candidate = pasted.trim();
+    if (!looksLikeKey(candidate)) {
       setError(`Una key del tracker empieza con ${KEY_PREFIX} y sigue con el token que la emitió.`);
       return;
     }
-    if (!access.saveKey(pasted)) {
+
+    setChecking(true);
+    setError(null);
+    try {
+      await api.checkOwnership(access.uid, candidate);
+    } catch (caught) {
+      setError(describeError(caught));
+      return;
+    } finally {
+      setChecking(false);
+    }
+
+    if (!access.saveKey(candidate)) {
       setError(STORAGE_BLOCKED_MESSAGE);
       return;
     }
-    setError(null);
     setPasted('');
-    setDone('Key guardada en este navegador: desde acá se puede escribir este UID.');
+    setDone('El backend aceptó la key: desde este navegador se puede escribir el UID.');
   }
 
   function handleForget() {
@@ -177,7 +192,7 @@ function KeySection({ access }: KeySectionProps) {
           </p>
         )}
 
-        <form className="ne-cred-form" onSubmit={handlePaste}>
+        <form className="ne-cred-form" onSubmit={(event) => void handlePaste(event)}>
           <div className="field">
             <label className="ne-label" htmlFor="account-key">
               Pegar una key
@@ -190,7 +205,8 @@ function KeySection({ access }: KeySectionProps) {
               onChange={(event) => setPasted(event.target.value)}
             />
             <span className="ne-label ne-label-sm">
-              La que te mostró la extensión al importar este UID
+              La que te mostró la extensión al importar este UID; se comprueba contra el servidor
+              antes de guardarla
             </span>
           </div>
 
@@ -198,8 +214,8 @@ function KeySection({ access }: KeySectionProps) {
           {done && <StatusMessage kind="empty">{done}</StatusMessage>}
 
           <div className="ne-actions">
-            <Button type="submit" tone="accent" disabled={pasted.trim() === ''}>
-              Guardar la key acá
+            <Button type="submit" tone="accent" disabled={checking || pasted.trim() === ''}>
+              {checking ? 'Comprobando…' : 'Guardar la key acá'}
             </Button>
           </div>
         </form>

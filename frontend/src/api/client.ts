@@ -96,16 +96,14 @@ async function toApiError(res: Response, sentKey: boolean): Promise<ApiError> {
   return new ApiError(res.status, extractDetail(body, fallback), extractCode(body), sentKey);
 }
 
-async function request<T>(
+async function send<T>(
   method: string,
   path: string,
-  body?: unknown,
-  owner?: string,
+  body: unknown | undefined,
+  key: string | null,
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-
-  const key = owner ? readKey(owner) : null;
   if (key) headers[KEY_HEADER] = key;
 
   const res = await fetch(`${BASE}${path}`, {
@@ -118,8 +116,12 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+function request<T>(method: string, path: string, body?: unknown, owner?: string): Promise<T> {
+  return send<T>(method, path, body, owner ? readKey(owner) : null);
+}
+
 export function get<T>(path: string): Promise<T> {
-  return request<T>('GET', path);
+  return send<T>('GET', path, undefined, null);
 }
 
 export function post<T>(path: string, body?: unknown, owner?: string): Promise<T> {
@@ -146,6 +148,9 @@ export const api = {
   listAccounts: () => get<AccountListResponse>('/accounts'),
   getAccount: (uid: string) => get<AccountRead>(`/accounts/${uid}`),
   syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`, {}, uid),
+
+  checkOwnership: (uid: string, key: string) =>
+    send<void>('GET', `/accounts/${uid}/ownership`, undefined, key),
 
   listAgents: (uid: string) => get<AgentListResponse>(`/accounts/${uid}/agents`),
   getAgent: (agentId: number | string) => get<AgentDetailRead>(`/agents/${agentId}`),
