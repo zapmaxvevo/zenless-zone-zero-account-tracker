@@ -5,21 +5,37 @@ oficial y sin contrato**: lo que sigue es lo investigado sobre el comportamiento
 endpoints, más las decisiones de diseño que se tomaron por eso. El código no lleva
 comentarios, así que este documento es la única memoria escrita de la integración.
 
-Complementa a `PLAN.md`, que cubre la integración con Enka.Network.
+**El backend no le habla a HoYoLAB. Nunca.** Desde el 2026-09-09 el tracker no tiene cliente
+HTTP de HoYoLAB, ni guarda cookies, ni tiene cron: los payloads los captura la extensión de
+navegador con la sesión que el usuario ya tiene abierta, y los sube crudos a
+`POST /accounts/{uid}/chronicle/import`. Este documento cubre tres cosas, en ese orden: **qué
+devuelve cada endpoint** (lo pide la extensión, pero la forma es la misma de siempre), **cómo
+se interpretan esos payloads** (el mapper, que vive en el backend y no cambió) y **cómo entran
+al tracker**.
+
+Lo que se borró con ese cambio —`hoyolab/client.py`, la tabla `hoyolab_credentials`, el
+cifrado Fernet, el sync server-side con su TTL y su backoff, el cron y los tres comandos de
+CLI— quedó anotado como historia en `PLAN.md`, *Lo que pasó después del MVP*. Si buscás algo
+de eso, ahí está el porqué de que ya no exista.
+
+Complementa a `PLAN.md`, que cubre la integración con Enka.Network, a `EXTENSION.md`, que es
+el plan de la extensión, y a `OWNERSHIP.md`, que decide quién puede escribir una cuenta.
 
 ## Qué aporta frente a Enka
 
 | | Enka.Network | HoYoLAB Chronicle |
 |---|---|---|
-| Autenticación | ninguna | cookies de sesión |
+| Autenticación | ninguna | la sesión del navegador del usuario |
 | Roster | solo los agentes **exhibidos** | **todo** el roster poseído |
-| Detalle de build | W-Engine + discos completos | solo nivel y mindscape |
+| Detalle de build | W-Engine + discos completos | W-Engine + discos completos (`avatar/info`), un request por agente |
 | Bangboos | no | sí |
 | Modos de fin de juego | no | Shiyu Defense, Deadly Assault, Lost Void |
-| Caché | `ttl` propio en la respuesta | ninguno, lo pone el tracker |
+| Caché | `ttl` propio en la respuesta | ninguno: se lee cuando el usuario importa |
 
-Son complementarias, no sustitutas: HoYoLAB da **amplitud** (todo lo que tenés) y Enka da
-**profundidad** (cómo está buildeado lo que exhibís).
+Desde que la extensión pide `avatar/info`, HoYoLAB dejó de dar solo amplitud y da también la
+build entera, así que se solapan casi del todo. Enka se queda igual porque es gratis y no pide
+nada: refresca el showcase sin que nadie instale nada, y es lo único que funciona para un UID
+ajeno. Los dos escriben las mismas filas y gana el último que corre — ver *Qué pisa qué*.
 
 ## Terminología ES ↔ EN
 
@@ -42,58 +58,41 @@ Defense: rota **cada 14 días** (viernes por medio, 04:00 hora de servidor), mie
 nodos Estable y Disputado son permanentes. En la API no existe como endpoint propio; llega
 dentro del payload de Shiyu.
 
-## Autenticación
+## La sesión vive en el navegador
 
 Hacen falta exactamente **dos cookies**: `ltuid_v2` y `ltoken_v2`. `cookie_token_v2` y
 `account_id_v2` **no** son necesarias (la primera sirve solo para canjear códigos de regalo).
 
+Nada de eso pasa por acá. Las cookies ya están en el navegador de quien importa, el fetch sale
+de un content script inyectado en `https://act.hoyolab.com/*` —el único origen para el que la
+API devuelve `access-control-allow-origin`— y lo que llega al tracker es el `data` crudo de
+cada endpoint. **El backend no tiene dónde guardar una cookie ni con qué cifrarla**: la tabla
+`hoyolab_credentials` y `storage/crypto.py` se borraron. El peor caso de que alguien se robe
+una cuenta del tracker dejó de ser "maneja tu sesión de HoYoLAB" y pasó a ser "te ensucia datos
+de tracking", que es lo que le permite a `OWNERSHIP.md` ser un modelo de un solo nivel.
+
 En Global **no** hace falta el header `ds` / dynamic secret: la propia app web de HoYoLAB no
 lo manda. China sí lo exige, pero es otra integración entera y no está soportada.
 
-Headers que manda el cliente (`hoyolab/client.py::HoyolabClient._headers`):
+Los headers los pone `extension/lib/hoyolab.ts::hoyolabHeaders`, y son los que manda el cliente
+oficial:
 
 ```
-Cookie: ltuid_v2=…; ltoken_v2=…
-User-Agent: zzz-tracker/<version> (+https://github.com/zapmaxvevo/personal-zzz)
-Referer: https://act.hoyolab.com/
 x-rpc-lang / x-rpc-language: en-us
-x-rpc-client_type: 5
-x-rpc-app_version: 1.5.0
+x-rpc-platform: 4
+x-rpc-device_id: (vacío)
+x-rpc-device_fp: (vacío)
 ```
 
-**Los valores que HoYoLAB rota están todos como constantes de módulo en `hoyolab/client.py`**,
-no incrustados en el código: `REFERER`, `CLIENT_TYPE` (`"5"`, el cliente web) y `APP_VERSION`
-(`"1.5.0"`). El día que HoYoLAB empiece a rechazar por versión de app vieja, el único cambio
-es `APP_VERSION`. El `User-Agent` sale de `USER_AGENT`, derivado de `zzz_tracker.__version__`,
-y el idioma del parámetro `language` del constructor, que la app y la CLI cablean desde
-`Settings.hoyolab_language`.
+No hay `Cookie`, `Referer` ni `User-Agent` en esa lista, y no es un olvido: los pone el
+navegador solo, porque la petición sale de una pestaña de `act.hoyolab.com`. Es la mitad de la
+gracia de haber movido el fetch ahí — los headers son auténticos sin tener que imitarlos.
 
-### Cómo sacar las cookies
-
-1. Iniciar sesión en `https://www.hoyolab.com`.
-2. F12 → **Application** → **Storage** → **Cookies** → `https://www.hoyolab.com`.
-3. Copiar los valores de `ltuid_v2` y `ltoken_v2`.
-4. Guardarlas con `zzz-tracker set-credentials <uid>` (ver *Operación*) o con
-   `PUT /accounts/{uid}/credentials`.
-
-`ltoken_v2` **caduca** y hay que repetir el proceso. Cuando eso pasa, HoYoLAB responde
-`retcode -100` / `10001`; el cliente levanta `InvalidCredentialsError` y
-`TrackerService.sync_chronicle` la intercepta para marcar `HoyolabCredential.rejected_at`
-antes de re-lanzarla. A partir de ahí `credentials_for` falla directo sin salir a la red, hasta
-que se vuelvan a guardar las cookies: `store_credentials` limpia `rejected_at`.
-
-El marcado es sutil y vale la pena leerlo entero (`_mark_credentials_rejected`):
-
-1. `rollback()` — **descarta el sync a medias**. Cuando el 401 llega en la mitad de la
-   secuencia, la sesión ya tiene escritos el roster, los bangboos o alguna run. Sin este
-   rollback el `commit` del marcado los persistiría, y el sync dejaría de ser atómico.
-2. Recarga la cuenta **por uid** (`find_account`), porque el rollback expiró los objetos que
-   tenía el sync en la mano.
-3. Escribe `rejected_at` **solo si estaba en `None`**, para conservar la fecha del *primer*
-   rechazo en vez de irla pisando en cada reintento.
-4. Recién ahí commitea: lo único que queda en la base es la marca.
-
-`_mark_chronicle_failed` (ver *Backoff*) sigue exactamente el mismo patrón.
+`ltoken_v2` **caduca**. Cuando pasa, HoYoLAB responde `retcode -100` / `10001`, la extensión lo
+clasifica como `invalid_session` y le dice al usuario que vuelva a iniciar sesión en
+hoyolab.com. No hay nada que marcar en la base: sin credenciales guardadas no existe el estado
+"estas cookies están vencidas", y la próxima vez que el usuario importe, o funciona o vuelve a
+pedirle login.
 
 ### Leer el Chronicle de otro UID
 
@@ -106,32 +105,19 @@ Requisito: que el dueño tenga el Battle Chronicle público (`switch_id: 1`). Si
 `retcode 10102`. Excepción: `/note` (notas en tiempo real) es solo de la cuenta propia →
 `retcode 10104`.
 
-> Razonado sobre el comportamiento de la app oficial, **no probado de punta a punta** con
-> cookies reales. Tratarlo como probable, no como garantizado.
-
-### Almacenamiento cifrado
-
-Las cookies viven en `hoyolab_credentials`, una fila por cuenta: `ltuid_v2` en claro y
-`ltoken_v2` **cifrado con Fernet** (`storage/crypto.py::CredentialCipher`). La clave está en
-`ZZZ_CREDENTIALS_KEY` (`config.py::Settings.credentials_key`), **nunca en la base**: un dump
-de las tablas no alcanza para secuestrar la sesión de HoYoLAB.
-
-Si la variable está vacía, `create_app` deja `app.state.cipher = None` (y la CLI construye el
-servicio con `cipher=None`), y el servicio levanta `ValidationError` al intentar guardar o
-leer credenciales. Si trae algo que no es una clave Fernet válida, `CredentialCipher` levanta
-`ValidationError` al construirse. `ltoken_v2` **nunca** se devuelve por la API:
-`CredentialRead` expone solo `account_uid`, `ltuid_v2`, `rejected`, `last_used_at`,
-`created_at` y `updated_at`.
-
-Cambiar la clave invalida todo lo ya guardado (`ValidationError` al descifrar, con el mensaje
-"ZZZ_CREDENTIALS_KEY has changed") y obliga a volver a pegar las cookies.
+> Razonado sobre el comportamiento de la app oficial, **no probado de punta a punta**. La
+> extensión no lo usa: importa el UID que descubre con `getGameRecordCard`, que es el de la
+> sesión abierta. Queda anotado porque es lo que haría falta si algún día se quiere importar
+> la cuenta de otra persona.
 
 ## Endpoints
 
 Base: `https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz`
-(`Settings.hoyolab_base_url`, `DEFAULT_BASE_URL` en el cliente). Timeout por defecto 20 s.
-`HoyolabClient` crea su propio `httpx.Client` salvo que se le inyecte uno, y `close()` solo
-cierra el que creó él; sirve también como context manager.
+(`HOYOLAB_BASE_URL` en `extension/lib/hoyolab.ts`, el único módulo donde viven estas URLs).
+Aparte, y con otro host, `getGameRecordCard`
+(`https://sg-act-public-api.hoyolab.com/game_record/card/wapi/getGameRecordCard?uid=<ltuid_v2>`),
+que es de dónde salen el `role_id`, la región y el nickname: **el usuario no tipea el UID ni
+elige servidor**.
 
 ### La trampa de los parámetros
 
@@ -142,32 +128,32 @@ Los endpoints se reparten en dos convenciones **para los mismos dos valores**:
 | `role_id` + `server` | `index`, `avatar/basic`, `avatar/info`, `buddy/info`, `hadal_info_v2` |
 | `uid` + `region` | el resto (`hadal_mem_detail_v2`, `abysss2_abstract`) |
 
-`HoyolabClient._get` lo resuelve con `uid_param`, que arrastra el nombre del parámetro de
-región (`role_id` → `server`, `uid` → `region`).
+Está resuelto de una sola manera: el mapa `ENDPOINTS` le pone a cada endpoint su `uidParam`, y
+`chronicleUrl` arrastra de ahí el nombre del parámetro de región (`role_id` → `server`,
+`uid` → `region`). Que la convención de cada endpoint esté escrita al lado de su path es
+deliberado: agregar uno obliga a elegir, en vez de heredar un default y descubrir el error
+contra la API.
 
-**Los seis métodos públicos pasan `uid_param` explícito**, ninguno se apoya en el default de
-`_get` (`UID_PARAM`). Que la convención de cada endpoint esté escrita en su propio método es
-deliberado: agregar uno nuevo obliga a elegir, en vez de heredar el default y descubrir el
-error contra la API.
-
-| Método | Path | Params | Devuelve |
+| Sección del bundle | Path | Params | Devuelve |
 |---|---|---|---|
-| `fetch_profile` | `index` | `role_id`, `server` | `role` (nickname, nivel, región) + `stats` |
-| `fetch_agents` | `avatar/basic` | `role_id`, `server` | `avatar_list`: roster completo |
-| `fetch_bangboos` | `buddy/info` | `role_id`, `server` | `list`: bangboos poseídos |
-| `fetch_shiyu_defense` | `hadal_info_v2` | `role_id`, `server`, `schedule_type` | Shiyu de la temporada |
-| `fetch_deadly_assault` | `hadal_mem_detail_v2` | `uid`, `region`, `schedule_type` | Deadly Assault de la temporada |
-| `fetch_lost_void` | `abysss2_abstract` | `uid`, `region` | progreso acumulado de Hollow Zero |
+| `record_card` | `getGameRecordCard` (otro host) | `uid` = `ltuid_v2` | `game_role_id`, `region`, `nickname`, `level` de cada juego; la extensión recorta la entrada de ZZZ |
+| `index` | `index` | `role_id`, `server` | `stats`, `avatar_list`, `buddy_list` — **sin perfil**, ver *Lo que no se sabe todavía* |
+| `avatar_basic` | `avatar/basic` | `role_id`, `server` | `avatar_list`: roster completo con `level` y `rank` |
+| `avatar_info` | `avatar/info` | `role_id`, `server`, `id_list[]` | la build entera de **un** agente |
+| `buddy_info` | `buddy/info` | `role_id`, `server` | `list`: bangboos poseídos |
+| `shiyu_defense` | `hadal_info_v2` | `role_id`, `server`, `schedule_type` | Shiyu de la temporada |
+| `deadly_assault` | `hadal_mem_detail_v2` | `uid`, `region`, `schedule_type` | Deadly Assault de la temporada |
+| `lost_void` | `abysss2_abstract` | `uid`, `region` | progreso acumulado de Hollow Zero |
 
 `abysss2` con tres eses es la errata real de HoYoLAB, no un typo del repo.
 
-Todos devuelven el `data` crudo del payload (dict vacío si falta o si no es un dict). El HTTP
-y el `retcode` los maneja `_get`; el parseo lo hace el mapper.
+De cada respuesta se sube el `data` crudo, sin tocar: el parseo lo hace el mapper del backend,
+que es donde ya estaba. La extensión mira el `retcode` y nada más.
 
 ### `avatar/info`: la build completa, un agente por request
 
-No lo llama `HoyolabClient` (el backend no sale a la red en el import); lo llama la extensión.
-Verificado el 2026-08-30 contra la API real, con captura guardada en
+El endpoint más caro del bundle, y el único con URL propia en la extensión
+(`avatarInfoUrl`). Verificado el 2026-08-30 contra la API real, con captura guardada en
 `tests/fixtures/hoyolab_avatar_info.json`.
 
 ```
@@ -181,7 +167,7 @@ Dos cosas que cuestan una tarde si se descubren a mano:
   contrario, leyendo el bundle desminificado.
 - **Acepta un solo id por request.** `id_list[]=a&id_list[]=b` también da `-400005`, con 3 ids
   y con 36. Un roster de 36 agentes son 36 requests: ~50 s serializados con jitter de
-  300–800 ms. Por eso el sync de la extensión es incremental contra `avatar/basic`, que en un
+  300–800 ms. Por eso el import de la extensión es incremental contra `avatar/basic`, que en un
   único request da `level` y `rank` de todo el roster.
 
 `need_wiki=false` saca `avatar_wiki` / `strategy_wiki` / `equip_wiki` / `weapon_wiki`, que son
@@ -230,60 +216,64 @@ agrega los agentes fuera del showcase: completa el stat principal de los que ya 
 ### Temporadas: solo hay dos
 
 `schedule_type` acepta `1` (`SCHEDULE_CURRENT`) y `2` (`SCHEDULE_PREVIOUS`). **No hay más
-historia disponible.** Por eso `challenge_runs` persiste cada temporada y ningún sync borra
+historia disponible.** Por eso `challenge_runs` persiste cada temporada y ningún import borra
 filas: la base es el único sitio donde el histórico sobrevive.
 
-## Errores del cliente
+## Errores de HoYoLAB
 
-Dos capas de mapeo, en este orden.
+Los ve la extensión, no el backend: para cuando el bundle llega al tracker, todo lo que podía
+fallar contra HoYoLAB ya falló o ya salió bien. `extension/lib/hoyolab.ts` es donde están
+mapeados, en dos pasos.
 
-### 1. Por HTTP, antes de mirar el body
+### 1. HTTP, que casi nunca dice nada
 
-| Situación | Excepción | HTTP del tracker |
+Fuera del throttle del WAF, HoYoLAB responde **HTTP 200 para todo**; el estado real viene en el
+`retcode` del body. Un 429 sí llega como HTTP, y desde una IP residencial es raro — era el
+escenario más probable cuando las peticiones salían de Vercel, y esa es justamente una de las
+razones por las que ya no salen de ahí.
+
+### 2. Por retcode
+
+`classifyRetcode` traduce el número a una de ocho clases, y `userMessage` a una frase que el
+popup puede mostrar sin que el usuario sepa qué es un retcode:
+
+| Retcodes | Clase | Qué se le dice al usuario |
 |---|---|---|
-| `httpx.HTTPError` (DNS, TLS, timeout, conexión) | `ExternalServiceError` | 502 |
-| **HTTP 429** (`HTTP_TOO_MANY_REQUESTS`) | **`RateLimitedError`** | 429 |
-| cualquier otro status ≠ 200 | `ExternalServiceError` | 502 |
-| body que no es JSON, o JSON que no es un objeto | `ExternalServiceError` | 502 |
+| `0` | `ok` | — |
+| `-100`, `10001` | `invalid_session` | iniciá sesión en hoyolab.com y volvé a importar |
+| `10102`, `10104` | `not_public` | el Chronicle de esa cuenta no está público |
+| `10101`, `-110`, `1028` | `rate_limited` | esperá unos minutos y reintentá; no se reintenta solo |
+| `1034`, `10035` | `captcha` | abrí `act.hoyolab.com`, resolvé el captcha y reintentá a mano |
+| `10041` | `hard_limit` | HoYoLAB cortó el acceso: se cancela el import entero |
+| `-400005` | `bad_params` | **es un bug nuestro**, no de tu sesión: reportalo con el trace |
+| cualquier otro | `error` | devolvió un error (retcode N) |
 
-El 429 **no es redundante** con el mapeo por retcode: ese throttle lo aplica el WAF de HoYoLAB
-*antes* de que la aplicación llegue a poner un `retcode`, y desde Vercel (IPs de datacenter
-compartidas) es el escenario de rate limit más probable de los dos.
+Dos cosas que se decidieron y conviene no revertir sin datos:
 
-### 2. Por retcode, con HTTP 200
+- **`5003` no está en la familia captcha.** No aparece en el bundle de ZZZ; en `genshin.py` es
+  "ya reclamado" de recompensas diarias. Queda fuera hasta que se lo observe de verdad.
+- **`-400005` se distingue del resto** en vez de caer en el error genérico. Significa que
+  armamos mal la query —le pasó a `avatar/info` con `id_list` indexado y con más de un id—, y
+  decirle al usuario que su sesión venció cuando el bug es nuestro manda a revisar el lugar
+  equivocado.
 
-Fuera del throttle, HoYoLAB responde **HTTP 200 para todo**; el estado real viene en `retcode`
-dentro del body. `HoyolabClient._raise_for_retcode` lo traduce a excepciones de dominio
-(`errors.py`), y `register_exception_handlers` las convierte en `{"detail": …, "code": …}` con
-su status (los codes, en *API HTTP*):
+`STOP_KINDS` (`invalid_session`, `hard_limit`, `rate_limited`, `captcha`) corta el import en
+vez de seguir con la sección siguiente: insistir contra un rate limit o un captcha es
+exactamente lo que lo empeora. **Nunca se reintenta solo.** El resto de los fallos son de una
+sección y no invalidan el import: lo que sí se capturó viaja igual y lo que no aparece como
+sección saltada.
 
-| Retcodes | Constante | Excepción | HTTP |
-|---|---|---|---|
-| `0` | `RETCODE_OK` | — | ok |
-| `-100`, `10001` | `RETCODES_INVALID_COOKIES` | `InvalidCredentialsError` | 401 |
-| `10102`, `10104` | `RETCODES_NOT_PUBLIC` | `DataNotPublicError` | 403 |
-| `10101`, `-110`, `1028` | `RETCODES_RATE_LIMITED` | `RateLimitedError` | 429 |
-| `1034`, `10035`, `5003`, `10041` | `RETCODES_CAPTCHA` | `CaptchaRequiredError` | 503 |
-| cualquier otro | — | `ExternalServiceError` | 502 |
-
-`-400005` ("Parameter Error") no está en la tabla porque no lo produce el usuario ni la
-sesión: significa que **nosotros** armamos mal la query. Se observó en `avatar/info` con
-`id_list` indexado y con más de un id. Cae en `ExternalServiceError`; la extensión sí lo
-distingue, para no decirle al usuario que su sesión venció cuando el bug es nuestro.
-
-**El `message` de HoYoLAB se propaga en las cinco ramas**, no solo en el fallback: las cuatro
-mapeadas lo agregan entre paréntesis al final del detalle cuando viene no vacío (`" (Not
-logged in)"`), y el fallback lo concatena junto al retcode. Es lo único que explica *por qué*
-HoYoLAB rechazó, así que no se descarta nunca.
-
-Errores locales, sin salir a la red: `MissingCredentialsError` (401) cuando la cuenta no
-tiene cookies guardadas, `NotFoundError` (404) cuando el UID no está trackeado, y
-`ValidationError` (422) cuando falta o es inválida la clave Fernet, cuando el cliente HoYoLAB
-no está configurado, o cuando el UID es chino.
+**El `message` de HoYoLAB se propaga siempre** que venga no vacío, y el `x-trace-id` también:
+son lo único que explica *por qué* rechazó y lo único con lo que se puede correlacionar un
+fallo, así que no se descartan nunca.
 
 ### Regiones
 
-Se derivan del prefijo del UID (`storage/models.py::region_for_uid`):
+Se derivan del prefijo del UID, y la tabla está escrita **dos veces**: en
+`storage/models.py::region_for_uid` y en `extension/lib/hoyolab.ts::regionForUid`. Es
+duplicación a propósito, la misma que impone la regla de separación estricta del repo: la
+extensión tiene que elegir el `server` de cada URL antes de que exista ninguna cuenta en el
+tracker, y el backend tiene que poder desconfiar de la región que le mandan.
 
 | Prefijo | Región | Servidor |
 |---|---|---|
@@ -294,9 +284,9 @@ Se derivan del prefijo del UID (`storage/models.py::region_for_uid`):
 | 8 dígitos exactos | `CHINA_REGION` (`prod_gf_cn`) | China — **no soportado** |
 
 El largo 8 se chequea **antes** que el prefijo. Prefijo desconocido cae a `DEFAULT_REGION`
-(`prod_gf_eu`). El valor efectivo se cachea en `Account.region` (lo escribe el sync) y
-`TrackerService._region_for` **rechaza** los UIDs chinos con `ValidationError` antes de
-intentar cualquier petición.
+(`prod_gf_eu`); del lado de la extensión, un UID chino devuelve `null` y no se importa. El
+valor efectivo se cachea en `Account.region` (lo escribe el import) y
+`TrackerService._region_for` **rechaza** los UIDs chinos con `ValidationError`.
 
 ## El mapper: esquemas V1 y V2, y por qué se guarda `raw`
 
@@ -405,7 +395,7 @@ raíz. Tres detalles que difieren de Shiyu:
 ### Cuándo una temporada "tiene datos"
 
 `_has_data` respeta el flag `has_data` del payload si viene como booleano; si no viene, cae a
-"¿parseé al menos un intento?". Una temporada sin jugar no llega a persistirse (ver *El sync*).
+"¿parseé al menos un intento?". Una temporada sin jugar no llega a persistirse (ver *El import*).
 
 ### Ratings y rarezas
 
@@ -444,17 +434,20 @@ Tablas de la migración `20260808_0002_hoyolab_chronicle` (revisión `0002`, sob
 
 | Tabla | Modelo | Forma |
 |---|---|---|
-| `hoyolab_credentials` | `HoyolabCredential` | 1:1 con `Account` (índice único en `account_uid`); `ltuid_v2` + `encrypted_ltoken`, `last_used_at`, `rejected_at` |
 | `bangboos` | `Bangboo` | N por cuenta, único por `(account_uid, game_id)` |
 | `challenge_runs` | `ChallengeRun` | una temporada de un modo; único por `(account_uid, mode, schedule_id)` |
 | `challenge_run_entries` | `ChallengeRunEntry` | un intento dentro de la temporada; único por `(run_id, position)`, con `layer_index` / `layer_id` para saber de qué capa salió |
 | `lost_void_progress` | `LostVoidProgress` | PK = `account_uid`: fila única por cuenta (es un acumulado, no una temporada) |
 
-Todas cuelgan de `accounts.uid` con `ON DELETE CASCADE`. `Account` suma cinco columnas:
-`region`, `chronicle_public`, `chronicle_synced_at`, `chronicle_import_source` (migración
-`0004`: `"server"` si el último sync lo hizo el backend, `"extension"` si entró por el
-import, `NULL` si nunca sincronizó) y `chronicle_failed_at` (la marca de backoff). Las cuatro
-primeras se exponen en `AccountRead`; `chronicle_failed_at` es interna y no sale por la API.
+Todas cuelgan de `accounts.uid` con `ON DELETE CASCADE`. `Account` suma cuatro columnas, y
+las cuatro se exponen en `AccountRead`: `region`, `chronicle_public`, `chronicle_synced_at` y
+`chronicle_import_source` (migración `0004`), que hoy solo puede valer `"extension"` o `NULL`
+—el valor `"server"` existió mientras el backend sincronizaba y no lo escribe nadie más—.
+`hoyolab_credentials` y `accounts.chronicle_failed_at` (la marca del backoff) las dropea la
+migración `0007_drop_hoyolab_credentials`.
+
+`agent_build_snapshots` guarda el `data` crudo de cada `avatar/info`, una fila por cuenta y
+agente, pisada en cada import: es el equivalente al `raw` de las runs para las builds.
 
 `ChallengeRun` es compartida por Shiyu Defense y Deadly Assault porque los registros tienen
 la misma forma (ventana de temporada, puntaje global, un puñado de intentos); los distingue
@@ -467,7 +460,7 @@ agentes suban de nivel.
 
 `ChallengeAgentRead.icon` tiene default `""` a propósito: las filas guardadas antes de que el
 snapshot incluyera el icono siguen deserializando sin romper el endpoint. No hay migración de
-datos para rellenarlas — se completan solas cuando el sync vuelva a escribir esa temporada.
+datos para rellenarlas — se completan solas cuando un import vuelva a escribir esa temporada.
 
 ### `rank_percent` se guarda en centésimas
 
@@ -482,223 +475,154 @@ queda cien veces más chico.
 
 ### Qué pisa qué
 
-**No hay ranking de fuentes ni constante de precedencia.** La regla implementada, en
-`TrackerService._upsert_roster_agent` y `_upsert_agent`, es una sola:
+**No hay ranking de fuentes ni constante de precedencia.** La regla implementada es una sola,
+y la chequean los tres caminos de escritura:
 
 > un agente con `source == "manual"` no se sobrescribe nunca; el resto sí.
 
-Es lo que chequea `Agent.is_manual`. Crear o editar un agente por la API (`create_agent` /
-`update_agent`) es lo que lo marca `manual`, y eso lo vuelve inmune a todo sync posterior,
+Es lo que mira `Agent.is_manual`. Crear o editar un agente por la API (`create_agent` /
+`update_agent`) es lo que lo marca `manual`, y eso lo vuelve inmune a toda escritura posterior,
 venga de donde venga.
 
-No hace falta un ranking porque **las fuentes aportan campos disjuntos**:
+Entre las otras dos no hace falta ranking porque **describen lo mismo con distinta latencia**:
 
-| Fuente | Qué escribe |
+| Camino | Qué escribe |
 |---|---|
-| `enka` | build completa: nivel, promoción, skills, W-Engine, discos — solo de los agentes exhibidos |
-| `hoyolab` | `level` y `mindscape_level` — de **todo** el roster |
-| `manual` | lo que el usuario corrija |
+| `_upsert_agent` (Enka) | build completa: nivel, promoción, skills, W-Engine, discos — solo de los agentes exhibidos |
+| `_upsert_roster_agent` (`avatar/basic`) | `level` y `mindscape_level` — de **todo** el roster |
+| `_upsert_hoyolab_build` (`avatar/info`) | build completa — de los agentes que el import trajo |
 
-Cada una manda en lo suyo, y en los dos campos compartidos gana la que corra después. El sync
-de HoYoLAB **no toca discos ni W-Engines**: `_upsert_roster_agent` escribe exactamente
-`level` y `mindscape_level`, nada más. Un agente que HoYoLAB descubre por primera vez nace
-con `source = "hoyolab"` y sin build; Enka la completa después si el jugador lo exhibe.
+Los dos que escriben builds enteras comparten cuerpo (`_write_build`) y se pisan entre sí:
+gana el último que corre. Dentro de un mismo import el orden también está fijado, y por eso
+`_persist_builds` va **después** del roster: el dato completo tiene que ganarle al parcial que
+`avatar/basic` acaba de escribir para el mismo agente.
 
-Asimetría a tener presente: `_upsert_agent` (Enka) reescribe `source = "enka"` en cada sync,
-mientras que `_upsert_roster_agent` (HoYoLAB) solo fija `source` al **crear** la fila y no
-toca el de los agentes que ya existían.
+Un agente que el roster descubre por primera vez nace con `source = "hoyolab"` y sin build,
+hasta que llegue su `avatar/info` o hasta que el jugador lo exhiba en Enka. Asimetría a tener
+presente: los dos caminos de build reescriben `source` en cada pasada, mientras que
+`_upsert_roster_agent` solo lo fija al **crear** la fila y no toca el de los que ya existían.
 
 Las constantes que existen en `storage/models.py` son `SOURCE_ENKA`, `SOURCE_MANUAL`,
 `SOURCE_HOYOLAB`, `MODE_SHIYU_DEFENSE`, `MODE_DEADLY_ASSAULT`, `REGIONS_BY_UID_PREFIX`,
 `DEFAULT_REGION`, `CHINA_REGION` y `region_for_uid`.
 
-## El sync
+## El import: la única puerta
 
-`TrackerService.sync_chronicle(uid, force=False, include_previous=True)` es la única entrada.
-Guardias, en este orden, antes de tocar la red:
+`POST /accounts/{uid}/chronicle/import` recibe el paquete que la extensión captura con la
+sesión del usuario (`EXTENSION.md`). Es **el único camino por el que entra un dato de
+HoYoLAB** y **la única forma de que una cuenta consiga dueño**. El backend no sale a la red:
+parsea y persiste, nada más.
 
-1. **Cuenta** — `get_account`, `NotFoundError` si el UID no está trackeado.
-2. **TTL y backoff** — `Account.is_chronicle_sync_due(ttl_seconds, backoff_seconds)` mira las
-   **dos** ventanas; si da falso y no hay `force`, devuelve `ChronicleSyncReport(skipped=True)`.
-   Ver *Backoff*.
-3. **Cliente** — `_require_hoyolab`, `ValidationError` si la integración no está configurada.
-4. **Región** — `_region_for` deriva y valida (rechaza China).
-5. **Credenciales** — `credentials_for` descifra; falla si faltan (`MissingCredentialsError`),
-   si están marcadas rechazadas (`InvalidCredentialsError`) o si no hay clave Fernet
-   (`ValidationError`).
+### Quién puede importar
 
-Recién ahí sale a la red, en dos mitades (así el import de la extensión comparte la segunda,
-ver *Import desde la extensión*):
+Lo decide el modelo de propiedad (`OWNERSHIP.md`), no el token. La regla, en
+`TrackerService._ensure_import_allowed`, tiene dos ramas y ninguna más:
 
-**`_fetch_chronicle`** junta los `data` crudos en un `ChroniclePayloads`, en este orden:
-`index`, `avatar/basic`, `buddy/info`, por cada `schedule_type` (`1`, y `2` si
-`include_previous`) Shiyu y Deadly Assault, y al final `abysss2_abstract`. Si un fetch falla,
-no se persistió nada todavía. Después se marca `credential.last_used_at = now` y entra
-**`_persist_chronicle`**:
+- **La cuenta no tiene dueño** → entra, y el import la reclama: la respuesta trae la
+  `account_key`, una sola vez. Da igual que la cuenta ya estuviera trackeada desde la web,
+  porque trackear no reclama nada.
+- **La cuenta tiene dueño** → hace falta su key en `X-Account-Key`. Con la key vigente se
+  importa y la key **no** rota; sin ella, **403** (`forbidden`) y no se escribe nada.
 
-6. `index` → nickname y nivel (solo si vienen no vacíos), `region`, `chronicle_public = True`.
-7. `avatar_basic` → upsert del roster; cuenta cuántos agentes escribió (los `manual` se saltan
-   y no cuentan).
-8. `buddy_info` → upsert de bangboos.
-9. Para cada `schedule_type` y cada modo: parse + upsert de la temporada.
-10. `lost_void` → upsert de Lost Void.
-11. `chronicle_synced_at = now`, `chronicle_failed_at = None`, un único `commit`.
+Que un bundle no pruebe nada es el punto de partida, no una limitación a resolver: es un JSON
+que arma el cliente, así que el UID que nombra lo elige el que lo manda, y un UID es público.
+Por eso el primer import se lleva la cuenta —no había nada que llevarse— y a partir de ahí
+manda la key. La recuperación del dueño que perdió la suya no pasa por el navegador: es
+`zzz-tracker rotate-key <uid>`, donde vive la base.
 
-Una sección que en el paquete venga en `None` (solo posible vía import) se salta y se lista
-en `skipped_sections`; en el sync server-side todas las secciones vienen siempre.
+`ZZZ_API_TOKEN` es una reja opcional encima de eso. Vacío —el default—, `require_api_token`
+sale temprano y el import entra igual. Seteado, además hay que mandar
+`Authorization: Bearer <ZZZ_API_TOKEN>`, y sin él, con otro esquema o con el token errado
+responde **401** (`unauthorized`), comparando con `secrets.compare_digest`. Un token que viaja
+adentro de una extensión publicada no es un secreto, así que nunca puede ser la única defensa.
+
+### El paquete
+
+`ChronicleImportWrite` (`extra="ignore"`): `source`, `extension_version`, `captured_at`,
+`region`, `language` y `payloads`. Cada clave de `payloads` es el `data` ya desenvuelto de un
+endpoint, así los `parse_*` del mapper se aplican sin adaptador: `record_card`, `index`,
+`avatar_basic`, `buddy_info`, `shiyu_defense` / `deadly_assault` (objeto `{"1": …, "2": …}`
+por `schedule_type`), `lost_void` y `avatar_info` (lista de respuestas crudas, una por agente).
+
+- **`index` es la única clave obligatoria**, y alcanza con que esté y no venga vacía: no se le
+  exige un `role`, porque el `index` real de HoYoLAB no trae perfil. Sin `index` (o `null`)
+  → **422**.
+- **El UID se busca primero en `record_card` y si no en el `index`** (`parse_chronicle_uid`:
+  `game_role_id` / `game_uid` / `uid` / `role_id`, en la raíz y en las variantes de
+  `PROFILE_KEYS`); si lo que encuentra difiere del `{uid}` del path → **422**. Que no nombre
+  ningún UID no cambia nada: la captura de `record_card` falla a menudo, así que exigirlo
+  castigaría al usuario honesto sin frenar a nadie —el UID que nombra no es prueba de nada—.
+- **`record_card`** es la entrada de ZZZ de `getGameRecordCard`, recortada por la extensión a
+  `game_role_id`, `nickname`, `region`, `level`, `is_public` y `has_role`; recortada a
+  propósito, porque la card trae también las otras cuentas de HoYoverse del usuario. De ahí
+  salen el nombre y el nivel de la cuenta, que el `index` no trae. **Nunca** se reporta como
+  sección saltada: no es un endpoint del chronicle.
+- **La `region` del body se valida en dos capas, y no se comportan igual.** Por HTTP el schema
+  rechaza con **422** una región que no existe (vacío sí se acepta: significa "deducila del
+  UID"); llamando al caso de uso `import_chronicle()` directo —tests— `_import_region`
+  **reemplaza** lo desconocido por lo que implica el prefijo del UID en vez de romper. Lo que
+  no puede pasar es que una región inventada se guarde: es la que decide a qué host habría que
+  pedirle algo de esa cuenta.
+- **La cuenta se crea si no existe**, porque el flujo de la extensión no pasa por la home del
+  tracker.
+
+### Qué se persiste, y en qué orden
+
+`TrackerService._persist_chronicle` hace parse, upsert, bookkeeping y **un solo `commit`**:
+
+1. Nombre y nivel de la cuenta, de `record_card`, o del `index`, o del `nick_name` que firman
+   los payloads de challenge — el primero que sepa contestar (`_name_account`).
+2. `region` y `chronicle_public = True`.
+3. `avatar_basic` → upsert del roster; `agents_synced` cuenta los escritos (los `manual` se
+   saltan y no cuentan).
+4. `buddy_info` → upsert de bangboos.
+5. Por cada `schedule_type` y cada modo: parse + upsert de la temporada.
+6. `lost_void` → upsert del acumulado.
+7. `avatar_info` → builds completas, **después** del roster para que el dato completo pise al
+   parcial; `builds_synced` cuenta los agentes escritos y el `data` crudo de cada uno queda en
+   `agent_build_snapshots`.
+8. `chronicle_synced_at = now`, `chronicle_import_source = "extension"`.
 
 Detalles que importan:
 
+- **Una sección ausente o `null` se salta y se lista en `skipped_sections`.** Un import parcial
+  es válido: la extensión sube lo que pudo capturar. `avatar_info` cae ahí también cuando viene
+  vacía, que es lo normal en un import incremental donde ningún agente cambió.
 - **Una temporada sin jugar no crea fila.** Si el parseo devuelve `None` se ignora en silencio;
-  si da `has_data == False`, el modo se agrega a `report.unavailable_modes` (deduplicado,
-  conservando el orden) y no se persiste nada.
-- **Una temporada repetida se guarda una sola vez.** Si la API devuelve el mismo `schedule_id`
-  para `schedule_type=1` y `schedule_type=2` —lo esperable si no hay temporada anterior que
-  servir— `_sync_challenge_modes` lo detecta con el set `seen_seasons` de
-  `(mode, schedule_id)`, compartido entre las dos pasadas. **Gana la actual**, porque
-  `SCHEDULE_CURRENT` se recorre primero y la segunda aparición se descarta entera: ni se
-  persiste ni se cuenta en `unavailable_modes`. Sin ese guardado, `_upsert_challenge_run`
-  encontraría la fila que acaba de escribir —es única por `(account_uid, mode, schedule_id)`—
-  y la **pisaría** con la segunda lectura, que puede venir recortada o vacía.
-- **Los intentos se reconstruyen enteros** en cada sync: `_upsert_challenge_run` limpia
+  si da `has_data == False`, el modo va a `unavailable_modes` (deduplicado, conservando el
+  orden) y no se persiste nada.
+- **Una temporada repetida se guarda una sola vez.** Si llega el mismo `schedule_id` para
+  `schedule_type=1` y `=2` —lo esperable si no hay temporada anterior que servir—, el set
+  `seen_seasons` de `(mode, schedule_id)` lo detecta y **gana la actual**, que se recorre
+  primero: la segunda aparición se descarta entera, ni se persiste ni se cuenta como
+  indisponible. Sin ese guardado, `_upsert_challenge_run` encontraría la fila que acaba de
+  escribir —es única por `(account_uid, mode, schedule_id)`— y la pisaría con una lectura que
+  puede venir recortada.
+- **Los intentos se reconstruyen enteros** en cada import: `_upsert_challenge_run` limpia
   `run.entries` y los vuelve a crear, para no arrastrar posiciones viejas.
-- **`chronicle_public = True` es optimista**: se pone apenas `index` no falló. Si el Chronicle
-  fuera privado, `fetch_profile` ya habría levantado `DataNotPublicError`. Nada lo vuelve a
-  `False`.
-- **Todo el sync es una sola transacción; si algo falla a mitad, no queda nada a medias.** Los
-  dos manejadores de error que corren después del fallo —`_mark_credentials_rejected` y
-  `_mark_chronicle_failed`— arrancan con `rollback()` justamente para eso: lo primero que
-  hacen es tirar el sync incompleto, y lo único que commitean es su propia marca de una
-  columna. Un sync que reventó no deja roster ni runs a medio escribir.
-- Un sync con éxito **limpia** las dos marcas de fallo: `chronicle_failed_at` explícitamente en
-  el paso 11, y `rejected_at` cuando se vuelven a guardar las cookies con `store_credentials`.
+- **`chronicle_public = True` es optimista**: se pone apenas hay `index`. Si el Chronicle fuera
+  privado, la extensión ni habría podido capturarlo (`retcode 10102`). Nada lo vuelve a `False`.
+- **Todo es una sola transacción.** Si algo revienta a mitad, no queda un roster a medio
+  escribir.
 
-`ChronicleSyncReport` devuelve `account`, `runs`, `agents_synced`, `bangboos_synced`,
-`lost_void_synced`, `unavailable_modes` y `skipped`.
+### La respuesta
 
-### Backoff
+`ChronicleImportResponse`: `account_uid`, `agents_synced`, `bangboos_synced`, `builds_synced`,
+`lost_void_synced`, `runs`, `unavailable_modes`, `skipped_sections` y `account_key`.
 
-Cuando HoYoLAB corta —**`RateLimitedError` o `CaptchaRequiredError`**— el tracker deja de salir
-a la red para esa cuenta durante una ventana. Insistir contra un rate limit o un captcha es
-exactamente lo que lo empeora, así que el freno es automático y no depende de que el cron se
-porte bien.
+`account_key` trae la key **sólo cuando este import reclamó la cuenta**; si el que llamó ya
+presentó la vigente, vuelve `null`, así un cliente nunca guarda una key que no le están
+entregando. Se devuelve una sola vez: la base guarda el `sha256` y nada la vuelve a mostrar.
 
-| Pieza | Dónde | Qué hace |
-|---|---|---|
-| `Account.chronicle_failed_at` | `storage/models.py` | momento del último corte; `None` = sin backoff |
-| `Account.is_in_chronicle_backoff(backoff_seconds, now)` | `storage/models.py` | `True` mientras `now < chronicle_failed_at + backoff_seconds` |
-| `Account.is_chronicle_sync_due(ttl_seconds, backoff_seconds, now)` | `storage/models.py` | corta por backoff **antes** de mirar el TTL |
-| `TrackerService._mark_chronicle_failed` | `tracker/service.py` | `rollback` → recarga por uid → escribe la marca → `commit` |
-| `chronicle_backoff_seconds` | `TrackerService.__init__` | default `DEFAULT_CHRONICLE_BACKOFF_SECONDS` = 900 |
-| `ZZZ_HOYOLAB_BACKOFF_SECONDS` | `config.py` | default 900; lo cablean `web/deps.py` y `cli.py` |
+### CORS
 
-Reglas exactas:
-
-- Las dos ventanas son **independientes y ambas bloqueantes**: alcanza con que una esté abierta
-  para que el sync se salte. El backoff se evalúa primero.
-- **`force=True` se salta las dos** (`if not force and not due`). Es la vía para reintentar a
-  mano antes de tiempo, sabiendo lo que se hace.
-- Un sync saltado por backoff es indistinguible de uno saltado por TTL: `skipped=True`, HTTP
-  200, y la CLI dice que la cuenta sigue fresca. No hay campo que los separe.
-- `chronicle_failed_at` se limpia **solo con un sync exitoso**. Ni el `force` ni el paso del
-  tiempo lo borran: la columna queda con la fecha del último corte hasta que uno funcione.
-- `InvalidCredentialsError` **no** arma el backoff; usa el otro camino (`rejected_at`), que es
-  permanente hasta que se peguen cookies nuevas. Tiene sentido: unas cookies vencidas no
-  mejoran esperando.
-- `is_chronicle_sync_due` acepta `backoff_seconds=0` por default, que desactiva el chequeo. Es
-  para los llamadores que solo quieren preguntar por el TTL.
-
-## Import desde la extensión
-
-`POST /accounts/{uid}/chronicle/import` recibe el paquete que la extensión de navegador (plan
-en `EXTENSION.md`) captura con la sesión del usuario: **el backend no sale a la red**, solo
-parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1.
-
-- **Auth**: la manda el modelo de propiedad (`docs/OWNERSHIP.md`), no el token. Quien autoriza
-  a escribir una cuenta es su **account key**, que viaja en `X-Account-Key`, y la regla del
-  import la decide `TrackerService._ensure_import_allowed`:
-  - cuenta **`unclaimed`** → entra cualquier bundle, y lo reclama;
-  - cuenta **`provisional`** (alguien la reclamó desde la web) → un bundle que **nombra** el
-    UID le gana al ocupante: rota la key, la vieja muere y el nivel pasa a `verified`;
-  - cuenta **`verified`** sin la key vigente → **403** (`ForbiddenError`, code `forbidden`) y
-    no se escribe **nada**. Nombrar el UID no alcanza: un bundle es un JSON que elige el que
-    lo manda y un UID es público, así que si un bundle pudiera pisar al dueño, cualquiera se
-    quedaría con la cuenta —y, con ella, con el `chronicle/sync` que usa las cookies
-    guardadas de la víctima. La recuperación del dueño que perdió su key **no** pasa por el
-    navegador: es `zzz-tracker rotate-key <uid>`, que exige acceso a la base;
-  - con la key vigente, en cualquier nivel → se importa y la key **no** rota.
-- **El token quedó como reja opcional.** `ZZZ_API_TOKEN` (`Settings.api_token`,
-  `web/deps.py::require_api_token`) **ya no es obligatorio y su ausencia no deshabilita nada**:
-  con la variable vacía la dependencia sale temprano y el import entra igual, protegido por la
-  key. Seteado, se exige además el `Authorization: Bearer <ZZZ_API_TOKEN>` y sin él —u otro
-  esquema, o token errado— responde **401** (`UnauthorizedError`), con `secrets.compare_digest`
-  para comparar. Un token que viaja adentro de una extensión publicada no es un secreto, así
-  que nunca puede ser la única defensa. (`ImportDisabledError` se borró junto con la regla que
-  la levantaba.)
-- **Body**: `ChronicleImportWrite` (`extra="ignore"`): `source`, `extension_version`,
-  `captured_at`, `region`, `language` y `payloads`. Cada clave de `payloads` es el `data` ya
-  desenvuelto de un endpoint —lo mismo que devuelve `HoyolabClient._get`—, así los `parse_*`
-  del mapper se aplican sin adaptador: `index`, `avatar_basic`, `buddy_info`,
-  `shiyu_defense` / `deadly_assault` (objeto `{"1": …, "2": …}` por `schedule_type`),
-  `lost_void` y `avatar_info` (lista de respuestas crudas).
-- **`index` es la única clave obligatoria**, y alcanza con que esté y no venga vacía: no se le
-  exige un `role`, porque el `index` real de HoYoLAB no trae perfil (el nickname, el nivel y el
-  UID salen de `record_card`, abajo). Sin `index` (o `null`) → **422**. El UID se busca primero
-  en `record_card` y si no en el `index`, con `parse_chronicle_uid` (`game_role_id` /
-  `game_uid` / `uid` / `role_id`, en la raíz y en las variantes de `PROFILE_KEYS`); si lo que
-  encuentra difiere del `{uid}` del path → **422**.
-- **Nombrar el UID no prueba nada, pero decide cuánto vale el reclamo.** Un bundle que lo
-  nombra puede tomar una cuenta libre o ganarle a un reclamo `provisional`, y queda
-  `verified`; uno que no lo nombra sólo entra en una cuenta que nadie reclamó —o con la key
-  vigente— y el reclamo que consigue es apenas `provisional`. Contra una cuenta ya reclamada,
-  sin key, cualquiera de los dos da **403**.
-- **La `region` del body se acepta sólo si existe** (`_import_region` la compara contra
-  `KNOWN_REGIONS`); cualquier otra cosa se reemplaza por la que implica el prefijo del UID. La
-  región elige a qué host le pega después el sync server-side, así que no puede salir libre de
-  un body que elige el que llama. `KNOWN_REGIONS` incluye a China, así que el rechazo de los
-  UIDs chinos aparece recién en el fallback (`_region_for` → **422**): un body que nombra
-  `prod_gf_cn` guarda esa región y el 422 llega después, cuando alguien intente sincronizar.
-- **La cuenta se crea si no existe** (el flujo de la extensión no pasa por la home del
-  tracker). Cualquier otra sección ausente o `null` se salta y se lista en
-  `skipped_sections`; una temporada presente pero con `has_data == false` va a
-  `unavailable_modes`, igual que en el sync.
-- **`avatar_info` escribe builds completas** de todo el roster, una respuesta por agente
-  (ver *`avatar/info`: la build completa*). Se persiste después del roster de `avatar_basic`,
-  para que el dato completo pise al parcial, y `builds_synced` cuenta los agentes escritos.
-  Va a `skipped_sections` solo cuando la sección falta o viene vacía — que es lo normal en un
-  import incremental donde ningún agente cambió. El `data` crudo de cada agente queda además
-  en `agent_build_snapshots` (una fila por cuenta y agente, pisada en cada import): es la
-  válvula de escape para lo que el mapper todavía no lee.
-- **`record_card`** es la entrada de ZZZ de `getGameRecordCard`, recortada por la extensión a
-  `game_role_id`, `nickname`, `region`, `level`, `is_public` y `has_role` (recortada a
-  propósito: la card trae también las otras cuentas de HoYoverse del usuario). Es el único
-  payload que nombra la cuenta, porque el `index` no trae ni UID ni nickname ni nivel, así que
-  de ahí salen el nombre, el nivel y el UID contra el que se valida el path. No es un endpoint
-  del chronicle y el sync server-side no puede pedirlo, así que **nunca** se reporta como
-  sección saltada.
-- El import **no** toca `HoyolabCredential` (ni `last_used_at`), ni TTL, ni backoff: no hubo
-  red del lado del backend. Sí escribe `chronicle_synced_at`, `region` (la del body si es una
-  región conocida; si no, la que se deriva del UID, rechazando China), `chronicle_public = True` y
-  `chronicle_import_source = "extension"` (el sync server-side escribe `"server"`; gana el
-  último en correr).
-- **Un solo camino de persistencia.** `TrackerService._persist_chronicle(account,
-  ChroniclePayloads)` hace parse + upsert + bookkeeping + commit tanto para el sync
-  server-side (que ahora junta primero todos los payloads con `_fetch_chronicle`) como para
-  `import_chronicle`. La regla de fuentes no cambia: `manual` inmune, y el roster importado
-  solo escribe `level` + `mindscape_level`, sin tocar las builds de Enka.
-- **Respuesta**: `ChronicleImportResponse` = `ChronicleSyncResponse` + `builds_synced` +
-  `skipped_sections` + `account_key`. `account_key` trae la key nueva **sólo** cuando el import
-  se quedó con el UID (una cuenta que nadie había reclamado, o un `provisional` al que le ganó);
-  el que ya presentó la vigente recibe `null`, así un cliente nunca guarda una key que no le
-  están entregando. Se devuelve una sola vez: la base guarda el `sha256`.
-- **CORS**: el plan asumía que no hacía falta (el POST sale del background con
-  `host_permissions`, que saltea CORS), pero en Firefox MV3 los permisos de host son opcionales
-  y el fetch del background puede terminar sujeto a CORS igual (preflight `OPTIONS` → 405 sin
-  middleware). El app registra `CORSMiddleware` permisivo (`allow_origins=["*"]`, sin
-  credenciales): la auth del import viaja en headers que el cliente pone a propósito —la
-  account key, y el bearer si está configurado—, nunca en cookies, así que no abre nada. Un
-  navegador cualquiera no tiene la key de la cuenta por el solo hecho de estar logueado en
-  algún lado.
+El plan asumía que no hacía falta —el POST sale del background con `host_permissions`, que
+saltea CORS—, pero en Firefox MV3 los permisos de host son opcionales y el fetch del background
+puede terminar sujeto a CORS igual (preflight `OPTIONS` → 405 sin middleware). El app registra
+`CORSMiddleware` permisivo (`allow_origins=["*"]`, **sin credenciales**): lo que autoriza son
+headers que el cliente pone a propósito —la account key, y el bearer si está configurado—,
+nunca cookies, así que abrir el origen no abre nada. Un navegador cualquiera no tiene la key de
+la cuenta por el solo hecho de estar logueado en algún lado.
 
 ## API HTTP
 
@@ -706,210 +630,121 @@ parsea y persiste. Lo que sigue es la referencia de lo implementado en la fase 1
 contra `UID_PATTERN` (`^\d{6,16}$`); lo que no matchea lo rechaza FastAPI con su propio 422,
 antes de llegar al servicio.
 
-**Leer es público; escribir pide la key de la cuenta** (`docs/OWNERSHIP.md`). Las tres lecturas
-de abajo, más `GET /{uid}/credentials`, no piden nada. Las escrituras cuelgan de
-`Depends(require_account_key)`, que en ese orden devuelve **404** si la cuenta no está
-trackeada, **409** (`unclaimed_account`) si nadie la reclamó todavía —no hay key que presentar,
-hay que reclamarla— y **403** (`forbidden`) si la key falta o no es la de esa cuenta. El import
-es el único que no usa esa dependencia: tiene su propia regla, la de arriba.
+Quedaron cuatro rutas: **una escritura y tres lecturas**. Las lecturas son públicas, como todas
+las del tracker.
 
 | Método | Ruta | Query / body | Respuesta | Errores |
 |---|---|---|---|---|
-| `GET` | `/accounts/{uid}/credentials` | — | `CredentialStatusRead`: `stored`, `rejected` y fechas; **nada de lo que dicen las cookies** | 404 cuenta no trackeada (una cuenta sin credenciales responde `stored: false`, no 404) |
-| `PUT` | `/accounts/{uid}/credentials` | header `X-Account-Key`; body `{ltuid_v2, ltoken_v2}` (1–32 y 1–512 chars) | `CredentialRead`, **sin el token** | 403 sin la key · 404 cuenta no trackeada · 409 cuenta sin dueño · 422 sin `ZZZ_CREDENTIALS_KEY` o cookies en blanco |
-| `DELETE` | `/accounts/{uid}/credentials` | header `X-Account-Key` | 204 sin body | 403 sin la key · 404 cuenta no trackeada, o cuenta sin credenciales guardadas · 409 cuenta sin dueño |
-| `POST` | `/accounts/{uid}/chronicle/sync` | header `X-Account-Key`; `?force=false&previous=true` | `ChronicleSyncResponse` | 401 sin cookies o rechazadas · 403 **por dos motivos distintos**: falta la key (`forbidden`) o el Chronicle es privado (`data_not_public`) · 404 cuenta · 409 cuenta sin dueño · 422 UID chino, sin clave o integración no configurada · 429 rate limit · 502 upstream · 503 captcha |
-| `POST` | `/accounts/{uid}/chronicle/import` | header `X-Account-Key` (opcional según el nivel de reclamo) y `Authorization: Bearer <ZZZ_API_TOKEN>` **sólo si el backend tiene el token seteado**; body `ChronicleImportWrite` (ver *Import desde la extensión*) | `ChronicleImportResponse` | 401 token faltante o inválido, únicamente donde hay token configurado · 403 cuenta `verified` sin su key, o bundle que no nombra el UID sobre una cuenta ya reclamada · 422 sin `index`, UID que no coincide, o UID chino sin región |
+| `POST` | `/accounts/{uid}/chronicle/import` | header `X-Account-Key` (hace falta sólo si la cuenta ya tiene dueño) y `Authorization: Bearer <ZZZ_API_TOKEN>` **sólo si el backend tiene el token seteado**; body `ChronicleImportWrite` | `ChronicleImportResponse` | 401 token faltante o inválido, únicamente donde hay token configurado · 403 la cuenta tiene dueño y no vino su key · 422 sin `index`, UID que no coincide, o región inexistente |
 | `GET` | `/accounts/{uid}/challenges` | `?mode=shiyu_defense\|deadly_assault` | `{items: [ChallengeRunRead]}`, ordenado por `mode` y `schedule_id` desc | 404 cuenta no trackeada |
 | `GET` | `/accounts/{uid}/bangboos` | — | `{items: [BangbooRead]}`, ordenado por `game_id` | 404 cuenta no trackeada |
-| `GET` | `/accounts/{uid}/lost-void` | — | `LostVoidRead` | 404 cuenta no trackeada, o sin progreso sincronizado |
+| `GET` | `/accounts/{uid}/lost-void` | — | `LostVoidRead` | 404 cuenta no trackeada, o sin progreso importado |
 
 `?mode=` **no se valida**: un modo desconocido no da 422, devuelve la lista vacía. Sin `mode`
 vienen los dos modos juntos.
 
-`ChronicleSyncResponse` trae `account_uid`, `skipped`, `agents_synced`, `bangboos_synced`,
-`lost_void_synced`, `unavailable_modes` y `runs`. Un `skipped: true` es **200**, no un error:
-significa que el TTL todavía no venció **o que la cuenta está en backoff** (ver *Backoff*).
-Los dos errores que arman ese backoff son justamente el `429` y el `503` de esta misma ruta:
-el sync siguiente para ese UID se saltará hasta que la ventana cierre, salvo `?force=true`.
-
 El estado del Chronicle se lee además desde el propio `AccountRead` (`GET /accounts` y
 `GET /accounts/{uid}`), que expone `region`, `chronicle_public`, `chronicle_synced_at`,
-`chronicle_import_source` (`"extension"` / `"server"` / `null`, quién hizo el **último**
-sync) y `has_hoyolab_credentials` (si hay una `HoyolabCredential` guardada — el frontend ya
-no deduce "tiene credenciales" de que vuelvan datos). `region` cae a `region_for_uid(uid)`
-cuando la columna todavía está vacía, así que trae la región derivada aunque la cuenta nunca
-se haya sincronizado.
+`chronicle_import_source` (`"extension"` o `null`) y `has_owner`. `region` cae a
+`region_for_uid(uid)` cuando la columna todavía está vacía, así que trae la región derivada
+aunque la cuenta nunca haya importado nada.
 
 **Todos los datetimes salen en UTC, con `Z`.** SQLite devuelve los `DateTime` sin tzinfo, así
-que cada schema los pasa por `as_utc()` al serializar: `AccountRead`, `CredentialRead`,
-`ChallengeRunRead`, `ChallengeEntryRead` y `LostVoidRead.from_progress`. Un `synced_at` sin
-`as_utc` se serializaría como hora local implícita y mentiría por la diferencia horaria.
+que cada schema los pasa por `as_utc()` al serializar: `AccountRead`, `ChallengeRunRead`,
+`ChallengeEntryRead` y `LostVoidRead.from_progress`. Un `synced_at` sin `as_utc` se
+serializaría como hora local implícita y mentiría por la diferencia horaria.
 
 Los status salen de `errors.py` (`ZZZTrackerError.status_code`) y los sirve
 `register_exception_handlers` como `{"detail": "…", "code": "…"}`. **El cliente ramifica por
 `code`, nunca por el texto ni por el status solo**: el `detail` está escrito para una persona y
-puede cambiar sin aviso, y hay statuses que significan dos cosas distintas en la misma ruta.
-Los codes que puede devolver el Chronicle:
+puede cambiar sin aviso, y un status puede significar dos cosas (409 es `conflict` y también
+`unclaimed_account`). Los que puede devolver el Chronicle:
 
 | status | code | cuándo |
 |---|---|---|
-| 401 | `missing_credentials` | la cuenta no tiene cookies guardadas |
-| 401 | `invalid_credentials` | HoYoLAB rechazó las guardadas; no se arreglan reintentando |
 | 401 | `unauthorized` | falta el `Bearer` donde `ZZZ_API_TOKEN` está configurado |
-| 403 | `forbidden` | la escritura no trae la `X-Account-Key` de esa cuenta |
-| 403 | `data_not_public` | el jugador tiene el Chronicle privado |
+| 403 | `forbidden` | la cuenta tiene dueño y el import no trae su `X-Account-Key` |
 | 404 | `not_found` | la cuenta no está trackeada, o no hay lo que se pide |
-| 409 | `unclaimed_account` | la cuenta existe pero nadie la reclamó: no hay key posible |
-| 422 | `validation_error` | UID que no coincide, región china, falta `index`, falta el cipher |
-| 429 | `rate_limited` | HoYoLAB frenó; arma backoff |
-| 502 | `external_service_error` | upstream caído o respuesta ininteligible |
-| 503 | `captcha_required` | geetest; arma backoff |
+| 422 | `validation_error` | falta `index`, el UID no coincide, la región no existe |
 
-Los codes son parte de la API: renombrar uno es un cambio incompatible, y `tests/test_errors.py`
-los pinea uno por uno.
-
-## CLI
-
-Entrypoint `zzz-tracker` (`[project.scripts]` → `zzz_tracker.cli:app`, Typer).
-
-| Comando | Firma | Para qué |
-|---|---|---|
-| `new-credentials-key` | sin argumentos | genera la clave Fernet: la imprime por **stdout** y la explicación por **stderr**, así `$(zzz-tracker new-credentials-key)` captura solo la clave sin perder la advertencia |
-| `set-credentials` | `<uid>` `[--ltuid X]` `[--ltoken Y]` | guarda las cookies cifradas; sin las opciones las pide interactivo, el token **sin echo**, para que no quede en el historial del shell. Si el servicio falla, imprime `uid: detalle` por stderr y sale con código 1 |
-| `sync-chronicle` | `[uid]` `[--force]` `[--no-previous]` | lee el Chronicle. **Sin UID recorre todas las cuentas que tengan credenciales guardadas** — este es el modo pensado para el cron |
-
-`--force` sincroniza aunque el TTL no haya vencido (y aunque la cuenta esté en backoff);
-`--no-previous` se traduce a `include_previous=False`, o sea que lee solo la temporada en curso.
-
-`sync-chronicle` no aborta al primer error: reporta cada cuenta que falló por stderr y sale
-con código 1 al final si hubo alguna. Por cada cuenta sincronizada imprime agentes y bangboos,
-una línea por run (modo, temporada, rating, score y estrellas), el progreso de Lost Void si lo
-guardó, y los modos sin datos; si se saltó por TTL o por backoff, dice que sigue fresca y
-recuerda `--force`.
-
-### Con UID y sin UID no se comportan igual
-
-La diferencia está en `syncable_uids`, que arma la lista **solo** de la pasada sin UID:
-
-| | `sync-chronicle` (sin UID) | `sync-chronicle <uid>` |
-|---|---|---|
-| Cuentas sin credenciales | se saltan, en silencio | se intenta → 401 `MissingCredentialsError`, falla visible |
-| Cuentas con credenciales **rechazadas** | **se saltan**, avisando por stderr que hay que renovarlas | se intenta → 401 `InvalidCredentialsError`, falla visible |
-| Efecto en el código de salida | las saltadas **no** cuentan como fallo | el fallo cuenta: exit 1 |
-
-Es la diferencia entre la pasada automática del cron y una petición explícita. Una cookie
-vencida no se arregla reintentando: si el cron la tratara como error, alertaría todos los días
-por algo que solo un humano puede resolver, y de paso le pegaría a HoYoLAB con credenciales
-que ya sabe que están mal. Pedir un UID concreto, en cambio, es alguien preguntando *qué pasa
-con esta cuenta*, y ahí el 401 es exactamente la respuesta que se busca.
-
-Códigos de salida de la pasada sin UID:
-
-- Ninguna cuenta con credenciales guardadas → avisa por stderr y sale con **0**.
-- Solo cuentas rechazadas → imprime una línea de aviso por cada una y sale con **0**; no se
-  llega a llamar al servicio.
-- Alguna cuenta sincronizable que falló → **1**, con la lista de UIDs al final.
+La lista completa de codes está en `errors.py` y la pinea `tests/test_errors.py`: renombrar uno
+es un cambio incompatible. Los 422 que arma FastAPI por el schema mantienen su propio formato y
+no traen `code`.
 
 ## Operación
 
 ### Puesta en marcha
 
-```bash
-uv run zzz-tracker new-credentials-key      # pegar el resultado en ZZZ_CREDENTIALS_KEY
-uv run zzz-tracker set-credentials 1500123456
-uv run zzz-tracker sync-chronicle 1500123456
-```
+No hay ninguna: el backend no necesita saber nada de HoYoLAB para arrancar. Los datos entran
+cuando el usuario quiere, desde su navegador —instalar la extensión, apuntarla al tracker,
+estar logueado en hoyolab.com y darle a *Importar*—, y el paso a paso está en
+`extension/README.md`.
 
 ### Variables de entorno
 
-`config.py::Settings` usa `env_prefix="ZZZ_"` y lee un `.env` del directorio de trabajo. Las
-que tocan a HoYoLAB:
+Una sola toca a HoYoLAB, y es opcional:
 
 | Variable | Campo | Default | Para qué |
 |---|---|---|---|
-| `ZZZ_CREDENTIALS_KEY` | `credentials_key` | `""` | clave Fernet de las cookies. Vacía = sin cipher: guardar o leer credenciales da 422 |
-| `ZZZ_HOYOLAB_BASE_URL` | `hoyolab_base_url` | `https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz` | host de la API; se sobrescribe para apuntar a un mock |
-| `ZZZ_HOYOLAB_LANGUAGE` | `hoyolab_language` | `en-us` | valor de `x-rpc-lang`; define el idioma de los nombres que se persisten |
-| `ZZZ_HOYOLAB_SYNC_TTL_SECONDS` | `hoyolab_sync_ttl_seconds` | `3600` | ventana mínima entre syncs de una misma cuenta |
-| `ZZZ_HOYOLAB_BACKOFF_SECONDS` | `hoyolab_backoff_seconds` | `900` | cuánto se deja de golpear a HoYoLAB después de un rate limit o un captcha (ver *Backoff*) |
-| `ZZZ_API_TOKEN` | `api_token` | `""` | bearer **opcional** del import de la extensión: reja extra encima de la account key, no la que autoriza. Vacío = no se pide (el import entra igual, protegido por la key); seteado = además hay que mandarlo o 401. Se rota cambiando la env (ver *Import desde la extensión*) |
+| `ZZZ_API_TOKEN` | `api_token` | `""` | bearer **opcional** del import: reja extra encima de la account key, no la que autoriza. Vacío = no se pide; seteado = además hay que mandarlo o 401. Se rota cambiando la env |
 
-`ZZZ_DATABASE_URL` la comparten las dos integraciones; el resto (`ZZZ_ENKA_BASE_URL`,
-`ZZZ_STATIC_DATA_DIR`, `ZZZ_APP_NAME`) es de Enka y está en `PLAN.md`.
+Las que había —`ZZZ_CREDENTIALS_KEY`, `ZZZ_HOYOLAB_BASE_URL`, `ZZZ_HOYOLAB_LANGUAGE`,
+`ZZZ_HOYOLAB_SYNC_TTL_SECONDS`, `ZZZ_HOYOLAB_BACKOFF_SECONDS`— se borraron con el cliente. El
+idioma de los nombres que se persisten ahora lo elige la extensión (`x-rpc-lang`, `en-us` por
+defecto), que es quien hace la petición. La lista completa de settings, con sus defaults, está
+en `.env.example`.
 
-### El cron
+### No hay cron, y es a propósito
 
-**Sin `ttl` upstream.** A diferencia de Enka, HoYoLAB no informa cuándo volver. El ritmo lo
-pone el tracker: `hoyolab_sync_ttl_seconds` contra `Account.chronicle_synced_at`.
+El tracker no sincroniza solo. No hay proceso, no hay `ZZZ_HOYOLAB_SYNC_TTL_SECONDS` que
+respetar y no hay backoff que armar, porque no hay ninguna petición nuestra que frenar: el
+import ocurre cuando una persona aprieta un botón en su navegador.
 
-Un cron diario alcanza: las temporadas duran semanas y solo hacen falta dos lecturas por
-temporada para no perder historia. Donde haya un proceso de larga vida con acceso a la base:
+La razón es el captcha. Las peticiones a HoYoLAB desde **IPs de datacenter compartidas** —que
+es lo único que hay en un serverless— disparan el geetest (`app_key: game_record_zzz`, retcodes
+1034/10035/10041) y el rate limit mucho más que desde una IP residencial, y **el captcha no se
+puede resolver headless**: no hay plan B automático. Un sync server-side en Vercel iba a fallar
+de a ratos, sin forma de recuperarse solo, y arrastraba todo lo demás: guardar las cookies del
+usuario en nuestra base, cifrarlas, un secreto obligatorio para eso, un TTL, un backoff, una
+marca de cookies rechazadas y un cron en una máquina propia para esquivar el problema.
 
-```cron
-17 4 * * * cd /srv/personal-zzz && uv run zzz-tracker sync-chronicle >> /var/log/zzz-sync.log 2>&1
-```
+Nada de eso existe ya. En el navegador del usuario el captcha se puede **mostrar y resolver**,
+las cookies son las suyas y nunca salen de ahí, la IP es residencial y el ritmo lo pone él. El
+precio es que el Chronicle está tan fresco como el último import manual, y es un precio
+barato: las temporadas duran semanas.
 
-Sin UID recorre cada cuenta con credenciales **usables** —las de cookies rechazadas se saltan,
-ver *Con UID y sin UID no se comportan igual*—, y el TTL evita el trabajo repetido si el cron
-corre más seguido que la ventana. El código de salida 1 significa "alguna cuenta falló", que
-es lo que debería alertar; unas cookies vencidas **no** disparan esa alerta, salen por stderr
-sin tocar el código de salida.
-
-**En Vercel no hay proceso donde correr esa CLI**: ahí el cron tiene que golpear
-`POST /accounts/{uid}/chronicle/sync` una vez por UID, espaciando las llamadas, y asumir que
-sale desde IPs de datacenter.
-
-### Captcha y Vercel
-
-El riesgo operativo grande. Al ser serverless, las peticiones salen de **IPs de datacenter
-compartidas**, lo que dispara el captcha (geetest, `app_key: game_record_zzz`, retcodes
-1034/10035/5003/10041) y el rate limit — por HTTP 429 o por retcode — mucho más que desde una
-IP residencial. El captcha **no se puede resolver headless**.
-
-Consecuencias de diseño, no sugerencias. Las tres están **implementadas**, no libradas al
-criterio de quien opere:
-
-- Respetar el TTL; `force` es para depurar, no para el cron. Lo impone
-  `is_chronicle_sync_due(ttl_seconds, …)` contra `chronicle_synced_at`.
-- **Nunca hacer polling.** Sync bajo demanda o por cron espaciado. El TTL frena el caso normal
-  y el **backoff** frena el caso malo: un cron demasiado agresivo, o varios procesos pidiendo
-  el mismo UID, no pueden convertir un rate limit en una tormenta de reintentos.
-- Tratar `CaptchaRequiredError` (503) y `RateLimitedError` (429) como estados transitorios
-  esperables, no como bugs: reintentar más tarde, nunca en bucle. Eso es literalmente lo que
-  hace `_mark_chronicle_failed` — el "más tarde" son los `ZZZ_HOYOLAB_BACKOFF_SECONDS` que
-  siguen al corte, y el "nunca en bucle" es que durante esa ventana el sync ni siquiera abre
-  la conexión: sale por `skipped=True` antes de tocar la red.
-
-El mecanismo completo está en *Backoff*, dentro de *El sync*.
+Lo que la extensión sí hace, y hay que mantener, es no golpear en ráfaga: `avatar/info` acepta
+un id por request, así que las builds van serializadas y con jitter de 300–800 ms, y el import
+es **incremental** contra `avatar/basic`. Y ante `rate_limited`, `captcha`, `invalid_session` o
+`hard_limit` corta y avisa: **nunca reintenta sola**.
 
 ## Tests
 
-Fixtures en `tests/fixtures/`, una por endpoint, sin red:
-`hoyolab_index.json`, `hoyolab_avatar_basic.json`, `hoyolab_buddy_info.json`,
-`hoyolab_shiyu_v1.json`, `hoyolab_shiyu_v2.json`, `hoyolab_deadly_assault.json`,
-`hoyolab_lost_void.json`.
+Fixtures en `tests/fixtures/`, una por sección del bundle y sin red: `hoyolab_record_card.json`,
+`hoyolab_index.json`, `hoyolab_avatar_basic.json`, `hoyolab_avatar_info.json`,
+`hoyolab_buddy_info.json`, `hoyolab_shiyu_v1.json`, `hoyolab_shiyu_v2.json`,
+`hoyolab_deadly_assault.json` y `hoyolab_lost_void.json`.
 
-> **Las fixtures están escritas a mano, no son capturas reales.** Nadie tuvo nunca cookies
-> válidas contra las que grabarlas. Lo que verifican es que el mapper se comporte como el
-> mapper dice comportarse, no que HoYoLAB mande eso. Ver *Lo que no se sabe todavía*.
-> Seguirán siendo las inventadas hasta que corra la fase 0 de `EXTENSION.md`, que las
-> reemplaza por capturas reales del navegador.
+> **Mitad capturas reales, mitad escritas a mano.** `avatar_info` y `record_card` salieron de
+> la fase 0 (`extension/scripts/capture.js`, con la sesión del usuario, 2026-08-30); el resto
+> sigue siendo lo que imaginamos que devuelve la API. Lo que verifican esas es que el mapper se
+> comporte como dice comportarse, no que HoYoLAB mande eso — y en al menos dos casos ya se sabe
+> que **no** manda eso: el `index` real no trae `role` y el payload real de Lost Void no trae
+> ninguna de las claves de la fixture. Ver *El contrato, verificado a medias*.
 
-`tests/test_chronicle_import.py` arma el paquete de `POST /accounts/{uid}/chronicle/import`
-con **estas mismas fixtures**, que es exactamente lo que la extensión va a subir: cuando la
-fase 0 las reemplace por capturas reales, el contrato del import queda verificado sin tocar
-los tests.
+`tests/test_chronicle_import.py` arma el paquete de `POST /accounts/{uid}/chronicle/import` con
+**estas mismas fixtures**, que es exactamente lo que sube la extensión: reemplazar una por una
+captura real verifica el contrato del import sin tocar los tests.
 
 Las dos de Shiyu existen precisamente para cubrir los dos esquemas: `hoyolab_shiyu_v1.json`
 trae `hadal_ver: "v1"` con fechas como dict de partes, y `hoyolab_shiyu_v2.json` trae
 `hadal_ver: "v2"` con epochs y la errata `fitfh_layer_detail`. Si alguna vez hay que tocar el
 mapper, esas dos son la red de seguridad.
 
-`tests/test_hoyolab_client.py` cubre el transporte —headers, elección de `role_id`/`uid`, el
-429 del WAF, cada familia de retcodes y la propagación del `message`— inyectándole al cliente
-un `httpx.Client` con transporte falso; `tests/test_hoyolab_mapper.py` cubre el parseo contra
-las fixtures.
+`tests/test_hoyolab_mapper.py` cubre el parseo de las secciones y
+`tests/test_hoyolab_build_mapper.py` el de las builds de `avatar/info`, las dos trampas de
+escala incluidas. Del transporte ya no hay nada que testear acá: lo hace la extensión, y sus
+tests viven en `extension/lib/*.test.ts`.
 
 ## Lo que no se sabe todavía
 
@@ -929,12 +764,11 @@ captura, ver abajo.
 existe inversa: 3 estrellas no dice si fue `S` o `S+`. Cualquier intento de reconstruir el
 rating desde las estrellas sería inventar la mitad de los casos.
 
-Consecuencias visibles, las tres correctas:
+Consecuencias visibles, las dos correctas:
 
 | Dónde | Qué se ve |
 |---|---|
 | `ChallengeRun.rating` | `""` (`_best_rating` sobre intentos sin rating devuelve vacío) |
-| CLI | `rating -`, por el `run.rating or '-'` de `echo_report` |
 | `ChallengeRunRead.rating` | `""`, string vacío, no `null` |
 
 Si algún día la clave aparece, **no hay que tocar el mapper**:
@@ -972,31 +806,32 @@ Lo que sigue sin verificar: los nombres de campo de las **capas** de Shiyu V2
 la cuenta capturada no jugó la temporada y las dos capas vinieron en `null`; qué capa pertenece
 a qué nodo; y la **lectura del Chronicle de terceros**.
 
-### Checklist para la primera vez con cookies reales
+### Checklist para la próxima captura
 
-En orden, parando en el primero que falle:
+Lo que falta confirmar ya no necesita cookies pegadas a mano: necesita a alguien con la sesión
+abierta corriendo `extension/scripts/capture.js`, o simplemente importando y mirando lo que
+quedó guardado. En orden, parando en el primero que falle:
 
-1. **Auth mínima.** `set-credentials` + `sync-chronicle <uid>`. Confirmar que alcanzan
-   `ltuid_v2` + `ltoken_v2` y que Global no pide el header `ds`.
-2. **Guardar los payloads.** Antes de mirar nada más, sacar los `raw` de `challenge_runs` y
-   `lost_void_progress` y **diffearlos contra las fixtures**. Ese diff es el resultado más
-   valioso de toda la sesión: convierte las siete fixtures inventadas en fixtures reales.
+1. **Guardar los payloads.** Sacar los `raw` de `challenge_runs`, `lost_void_progress` y
+   `agent_build_snapshots` y **diffearlos contra las fixtures**. Ese diff es el resultado más
+   valioso de la sesión: convierte las fixtures inventadas que quedan en fixtures reales.
+2. **Lost Void.** Es el mapeo que ya se sabe roto: el payload real trae `abyss_level`,
+   `abyss_task`, `abyss_duty`, `abyss_collect[]`, y `parse_lost_void` devuelve todo en cero.
+   Remapearlo necesita mirar qué número muestra la página de HoYoLAB al lado de cada campo.
 3. **Shiyu V2.** Chequear `hadal_ver`, si la errata `fitfh_layer_detail` sigue viva, y si
-   `name` / `boss_name` / `boss_icon` llegan en el item, en el layer, o en ninguno.
-   **Listar todas las claves que terminan en `_layer_detail`**: confirma cómo se llaman las
-   capas bajas y si el barrido las está agarrando. Con esas capas a la vista, anotar cuál cae
-   en qué nodo — es el dato que falta para separar Estable, Disputado e Inestable en la UI.
+   `name` / `boss_name` / `boss_icon` llegan en el item, en el layer, o en ninguno. **Listar
+   todas las claves que terminan en `_layer_detail`**: confirma cómo se llaman las capas bajas
+   y si el barrido las está agarrando. Con esas capas a la vista, anotar cuál cae en qué nodo —
+   es el dato que falta para separar Estable, Disputado e Inestable en la UI. Hace falta una
+   cuenta que **haya jugado** la temporada; la capturada no la jugó y las capas vinieron `null`.
 4. **Deadly Assault.** Buscar cualquier clave de rating. Si aparece, actualizar la fixture y
    borrar la sección de arriba.
 5. **`rank_percent`.** Comparar el número crudo con el porcentaje que muestra la app oficial:
    confirma o tira abajo lo de las centésimas.
-6. **Lost Void.** Verificar que los campos no queden todos en `0`, que es como se ve un mapeo
-   fallido de este endpoint (no tira error).
-7. **Terceros.** Con las mismas cookies, pedir el UID de otra persona con el Chronicle
-   público. Si da `10102`, probar mandando `isHost=2` como en la app oficial.
-8. **Región.** Si hay UIDs de más de un servidor, verificar el prefijo de cada uno.
-9. **Retcodes.** Anotar cualquiera que caiga en el 502 genérico y sumarlo a la familia que
-   corresponda en `client.py`.
+6. **Región.** Si hay UIDs de más de un servidor, verificar el prefijo de cada uno contra la
+   tabla — está escrita dos veces y las dos tienen que decir lo mismo.
+7. **Retcodes.** Anotar cualquiera que caiga en el `error` genérico y sumarlo a la familia que
+   corresponda en `extension/lib/hoyolab.ts`.
 
 Cada punto que se confirme se pasa a la sección que corresponda de este documento y se saca de
 acá.
@@ -1005,18 +840,22 @@ acá.
 
 - **Notorious Hunt no existe en la API.** No hay endpoint; si se quiere, es carga manual.
 - **China no soportada.** Otro host (`api-takumi-record.mihoyo.com`), cookies de Miyoushe y
-  header `ds` obligatorio: es una integración entera aparte. `_region_for` la rechaza
-  explícitamente con `ValidationError` (422).
+  header `ds` obligatorio: es una integración entera aparte. La extensión no le arma URL a un
+  UID chino (`regionForUid` devuelve `null`) y el backend lo rechaza igual con
+  `ValidationError` (422).
 - **Solo dos temporadas.** `schedule_type` no acepta más que `1` y `2`; todo lo anterior está
-  perdido salvo que ya esté en `challenge_runs`. Por eso la base es el histórico y ningún sync
-  borra filas.
-- **Lectura de terceros no probada en vivo.** Está razonada sobre el código y el
-  comportamiento de la app oficial de HoYoLAB, pero **no se verificó de punta a punta con
-  cookies reales**. Ver *Leer el Chronicle de otro UID* y *Lo que no se sabe todavía*.
+  perdido salvo que ya esté en `challenge_runs`. Por eso la base es el histórico y ningún
+  import borra filas.
+- **Lectura de terceros no probada, y hoy sin uso.** Está razonada sobre el comportamiento de
+  la app oficial, pero no se verificó de punta a punta, y la extensión importa solamente el UID
+  de la sesión abierta. Ver *Leer el Chronicle de otro UID*.
 - **Deadly Assault no expone rating**, y no se puede derivar de las estrellas. Ver *Lo que no
   se sabe todavía*.
-- **El captcha no se puede resolver headless.** No hay plan B automático: cuando HoYoLAB lo
-  pide, ese sync se pierde y hay que reintentar más tarde.
+- **El captcha no se puede resolver headless.** Por eso el import corre en el navegador del
+  usuario, que es donde el geetest se puede mostrar y resolver; cuando aparece, ese import se
+  corta y hay que reintentarlo a mano.
+- **El Chronicle está tan fresco como el último import.** No hay sync automático: nada se
+  actualiza mientras el usuario no abra la extensión.
 - **`/note` es solo de la cuenta propia** (retcode 10104), a diferencia del resto del
   Chronicle. El tracker no lo usa.
 - **`element` queda como número en string** (`"201"`), sin resolver a nombre de elemento.

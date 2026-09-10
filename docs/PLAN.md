@@ -106,18 +106,42 @@ se escribió y que hoy pesa más que la mitad del plan original.
 **HoYoLAB entró como segunda fuente de datos** (`docs/HOYOLAB.md`). Enka sólo muestra los
 agentes del showcase, y el Battle Chronicle muestra la cuenta entera: roster completo con sus
 builds, bangboos, Shiyu Defense, Deadly Assault y Lost Void. Trajo cosas que el plan no tenía:
-cookies de usuario guardadas cifradas (`ZZZ_CREDENTIALS_KEY`, un secreto obligatorio nuevo),
-un ttl y un backoff propios, un mapper tolerante a dos versiones de esquema, y el `raw` de
-cada respuesta guardado como válvula de escape. La regla de precedencia sigue siendo la misma
+cookies de usuario guardadas cifradas, un ttl y un backoff propios (los tres murieron un mes
+después, ver abajo), un mapper tolerante a dos versiones de esquema, y el `raw` de cada
+respuesta guardado como válvula de escape. La regla de precedencia sigue siendo la misma
 que la del plan, ampliada a tres fuentes: `manual` no se pisa nunca, y entre `enka` y
 `hoyolab` gana el último en escribir.
 
 **La extensión de navegador** (`docs/EXTENSION.md`) resolvió lo que el backend no podía: el
 captcha de HoYoLAB es irresoluble headless y las IPs de datacenter se lo comen, así que el
-camino recomendado pasó a ser leer HoYoLAB desde el navegador del usuario y subir los payloads
-crudos a `POST /accounts/{uid}/chronicle/import`. El backend no sale a la red en ese camino y
-nunca ve una cookie. Está implementada hasta las builds completas (`avatar/info`, incremental
-por agente); el sync server-side queda para quien prefiera pegar cookies y para el cron.
+camino pasó a ser leer HoYoLAB desde el navegador del usuario y subir los payloads crudos a
+`POST /accounts/{uid}/chronicle/import`. El backend no sale a la red en ese camino y nunca ve
+una cookie. Está implementada hasta las builds completas (`avatar/info`, incremental por
+agente).
+
+**Y el 2026-09-09 se borró el sync server-side entero**, que es el cambio más grande que le
+pasó al proyecto después del MVP. Durante un mes convivieron los dos caminos; la decisión fue
+quedarse con uno. Lo que se fue, y por qué vale escribirlo aunque ya no exista:
+
+- `hoyolab/client.py`, `storage/crypto.py` y la tabla `hoyolab_credentials` — el tracker
+  guardaba las cookies de HoYoLAB del usuario, con el `ltoken_v2` cifrado con Fernet bajo
+  `ZZZ_CREDENTIALS_KEY`. Era el activo que más valía la pena robarse, y el único secreto
+  obligatorio del deploy.
+- El TTL (`ZZZ_HOYOLAB_SYNC_TTL_SECONDS`) y el **backoff** (`ZZZ_HOYOLAB_BACKOFF_SECONDS` +
+  `accounts.chronicle_failed_at`), que existían para no convertir un rate limit o un captcha
+  en una tormenta de reintentos, y la marca `rejected_at` para las cookies vencidas, que no
+  mejoran esperando.
+- `POST /accounts/{uid}/chronicle/sync`, los tres endpoints de `credentials` y los comandos
+  `sync-chronicle`, `set-credentials` y `new-credentials-key`, con su cron diario en una
+  máquina con IP residencial — porque desde Vercel el captcha era cuestión de tiempo.
+- Cuatro errores de dominio que sólo levantaba ese cliente: `MissingCredentialsError`,
+  `InvalidCredentialsError`, `DataNotPublicError` y `CaptchaRequiredError`.
+
+El razonamiento, corto: sostener ese camino costaba una tabla de cookies ajenas, un secreto
+obligatorio, dos ventanas de tiempo, un cron fuera del deploy y cuatro errores más, todo para
+algo que en el mejor de los casos iba a fallar de a ratos y en el peor iba a filtrar sesiones
+de HoYoLAB. **`hoyolab/mapper.py` y `build_mapper.py` se quedaron**: se fue lo que descarga, no
+lo que interpreta, y esa mitad no cambió una línea.
 
 **El rediseño New Eridu** (`docs/DESIGN.md`) reemplazó al CSS del andamiaje. La app dejó de ser
 "CSS plano con tokens" a secas: hay trece reglas escritas, una piel en `styles/eridu.css`, un
@@ -127,20 +151,27 @@ una pantalla.
 
 **El modelo de propiedad** (`docs/OWNERSHIP.md`) corrige la decisión del 2026-08-05 que decía
 "sin auth por ahora". Sigue sin haber login, pero ya no cualquiera escribe: leer es público y
-escribir pide la key de la cuenta (`X-Account-Key`), que la web entrega al reclamar un UID y
-que un import del Chronicle rota a su favor. Era lo que había que decidir antes de publicar,
-porque publicado significa cookies de HoYoLAB ajenas al alcance de cualquiera que sepa un UID.
+escribir pide la key de la cuenta (`X-Account-Key`). La única forma de conseguir una es
+importar el Chronicle de ese UID con la extensión; trackearlo desde la web no reclama nada,
+porque escribir un número público en un formulario no dice de quién es la cuenta. El primero
+que importa se queda con el UID y desde ahí manda la key: ningún import posterior la pisa.
+
+Nació con tres niveles de reclamo y terminó con uno solo (`has_owner`, un booleano). Lo que
+justificaba la complejidad era lo que había en juego —las cookies guardadas—, y cuando ese
+camino se borró el peor caso pasó a ser "te ensucian datos de tracking". El modelo se achicó
+para que coincida con lo que protege.
 
 **CI** (`.github/workflows/ci.yml`) corre en cada push lo mismo que `/verify` —lint, formato,
 tipos y tests de las dos mitades— más un job que aplica y revierte las migraciones contra
 Postgres y comprueba que no haya deriva contra los modelos.
 
 **La fase 8 está preparada, no ejecutada**: `vercel.json`, `api/index.py`, `.env.example` y los
-estáticos de Enka versionados ya están en el repo, y los pasos exactos —base Postgres, clave
-de credenciales, migraciones, variables— están en `docs/DEPLOY.md`. Falta correrlos. Dos cosas
-que el plan daba por triviales no lo son: el cron de Chronicle **no** puede vivir en el
-serverless (IPs de datacenter → captcha) y se va a una máquina propia, y `sync-static` tampoco,
-porque el filesystem de Vercel es de sólo lectura — por eso los JSON viajan commiteados.
+estáticos de Enka versionados ya están en el repo, y los pasos exactos están en
+`docs/DEPLOY.md`. Falta correrlos. Es un deploy bastante más simple que el que se veía venir en
+agosto: sin sync server-side no hay secreto obligatorio que generar ni cron que hostear fuera
+de Vercel, y el riesgo de captcha desde IPs de datacenter desapareció con el código que lo
+corría. Lo que sí sigue: `sync-static` no puede correr allá —el filesystem es de sólo lectura—,
+por eso los JSON de Enka viajan commiteados.
 
 ## Verificación
 

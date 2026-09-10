@@ -1,21 +1,31 @@
 # Plan — Extensión de navegador para importar el Battle Chronicle
 
-Escrito el 2026-08-18. Complementa a `HOYOLAB.md` (la integración server-side, que sigue
-vigente) y a `PLAN.md`. Cuando algo de acá se implemente, la referencia técnica pasa a
-`HOYOLAB.md`; este documento es el plan, no la memoria.
+Escrito el 2026-08-18. Complementa a `HOYOLAB.md` y a `PLAN.md`. Cuando algo de acá se
+implementa, la referencia técnica pasa a `HOYOLAB.md`; este documento es el plan, no la
+memoria.
 
-**Actualización del 2026-09-09 — la auth del import cambió.** Donde este plan dice que
-`ZZZ_API_TOKEN` es obligatorio, ya no lo es: quien autoriza a escribir una cuenta es su
-**account key** (`X-Account-Key`), una por UID, y el token quedó como reja opcional encima.
-El modelo completo está en `docs/OWNERSHIP.md`, y lo que hace la extensión con la key
-(dónde la guarda, cuándo rota, cómo se copia a otro navegador) en `extension/README.md`.
+**Actualización del 2026-09-09 — la extensión dejó de ser una alternativa.** Este plan se
+escribió proponiéndola como el camino *recomendado* al lado del sync server-side. Ese sync ya
+no existe: se borraron el cliente de HoYoLAB, las cookies guardadas, su cifrado, el TTL, el
+backoff, el cron y los tres comandos de CLI que lo manejaban. **Importar desde la extensión es
+la única forma de que un dato de HoYoLAB entre al tracker**, y también la única de que una
+cuenta consiga dueño. El porqué está en `HOYOLAB.md`, *No hay cron, y es a propósito*; el
+recuento de lo que se borró, en `PLAN.md`.
+
+**Y la auth del import cambió.** Donde este plan dice que `ZZZ_API_TOKEN` es obligatorio, ya no
+lo es: quien autoriza a escribir una cuenta es su **account key** (`X-Account-Key`), una por
+UID, y el token quedó como reja opcional encima. El modelo completo está en
+`docs/OWNERSHIP.md`, y lo que hace la extensión con la key (dónde la guarda, cómo se copia a
+otro navegador) en `extension/README.md`.
+
 Las secciones de abajo quedan como se escribieron, con las correcciones marcadas donde la
 afirmación vieja confundiría.
 
 ## Por qué una extensión
 
-`HOYOLAB.md` documenta tres límites de la integración actual que **no se arreglan desde el
-backend**:
+Cuando se escribió esto, el tracker sincronizaba desde el servidor. `HOYOLAB.md` documentaba
+tres límites de ese camino que **no se arreglaban desde el backend**, y son los que terminaron
+matándolo:
 
 | Límite hoy | Causa | Con la extensión |
 |---|---|---|
@@ -24,8 +34,11 @@ backend**:
 | Cookies pegadas a mano, `ltoken_v2` caduca, guardadas cifradas en nuestra base | necesitamos las cookies para salir a HoYoLAB | la extensión usa la sesión viva del navegador; **el backend nunca ve las cookies** |
 | Fixtures escritas a mano, contrato nunca verificado | nadie tuvo cookies válidas | el primer sync real produce los payloads crudos que faltan (checklist de `HOYOLAB.md`, *Lo que no se sabe todavía*) |
 
-La integración server-side no se borra: queda como camino para quien prefiera pegar cookies, y
-para el cron. Pero el camino recomendado pasa a ser la extensión.
+El plan decía acá que la integración server-side no se borraba, que quedaba para quien
+prefiriera pegar cookies y para el cron. **Se borró igual**, el 2026-09-09: mantener dos
+caminos costaba una tabla de cookies cifradas, un secreto obligatorio, un TTL, un backoff y un
+cron en una máquina propia, todo para un camino que en Vercel iba a comerse el captcha de a
+ratos. La cuenta no cerraba.
 
 ## Qué se sabe (verificado) y qué no
 
@@ -177,7 +190,7 @@ Decisiones:
 }
 ```
 
-- Cada valor es **el `data` ya desenvuelto** (lo que hoy devuelve `HoyolabClient._get`), así
+- Cada valor es **el `data` ya desenvuelto** de la respuesta de HoYoLAB, así
   los `parse_*` se aplican sin adaptador. Si un endpoint falló en el navegador, la clave viene
   ausente o `null` y el backend lo salta y lo lista en `unavailable_modes` / `skipped_sections`.
 - Toda clave es opcional salvo `index` (de ahí salen nickname/nivel y se confirma el UID): un
@@ -221,8 +234,8 @@ id y con N ids, `buddy/info`, `hadal_info_v2` ×2, `hadal_mem_detail_v2` ×2,
 1. Resolver las incógnitas: **batch de `id_list`**, forma de los valores de propiedades,
    `Referer` obligatorio o no, headers `x-rpc-*` mínimos.
 2. Reemplazar las fixtures inventadas de `tests/fixtures/` por capturas reales (anonimizando
-   `role_id`/nickname) y correr el checklist de `HOYOLAB.md`, *Checklist para la primera vez
-   con cookies reales*. Cada punto confirmado se mueve de "no se sabe" a la sección que
+   `role_id`/nickname) y correr el checklist de `HOYOLAB.md` (hoy *Checklist para la próxima
+   captura*). Cada punto confirmado se mueve de "no se sabe" a la sección que
    corresponda.
 3. Guardar el snippet en `extension/scripts/capture.js`: es el prototipo del content script y
    la herramienta de diagnóstico de acá en más.
@@ -324,12 +337,21 @@ en `extension/README.md` (Chrome + Firefox).
 - `ChronicleNav`: el botón de sync solo aparece si hay credenciales guardadas; si la cuenta
   vino por extensión, muestra "importar de nuevo desde la extensión".
 
+→ **Salió distinto, y más simple.** Sin cookies que pegar no hay dos caminos que ofrecer:
+`CredentialsPage` se borró y en su lugar está `AccountKeyPage` (`/account/:uid/key`), que es
+donde se pega la key que trajiste de otra máquina y donde se ve si esta cuenta ya tiene dueño.
+`chronicle_import_source` quedó, pero sólo puede valer `extension`; el botón de sync no existe
+en ningún lado, y lo que muestran las pantallas de Chronicle cuando no hay nada importado es
+que hay que importar desde la extensión.
+
 ### Fase 5 — Endurecimiento (según uso)
 
 - Fast path por service worker con `host_permissions` + `credentials: 'include'`, con caída
   automática al content script cuando vuelve `-100` con sesión viva o `10035`.
-- Sync programado desde la extensión (`chrome.alarms`, diario, solo si el usuario lo activa)
-  respetando el TTL del tracker.
+- Sync programado desde la extensión (`chrome.alarms`, diario, solo si el usuario lo activa).
+  Sigue en pie, y ahora es **la única** forma posible de que algo se actualice solo: el TTL del
+  tracker que este punto proponía respetar ya no existe, así que el ritmo lo tendría que poner
+  la propia extensión.
 - Publicación en Chrome Web Store / AMO (`extension/README.md` con el proceso; hasta entonces,
   carga como "unpacked" / "temporary add-on").
 - Telemetría mínima en el popup: retcodes vistos, `x-trace-id` del último fallo.

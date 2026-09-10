@@ -6,10 +6,12 @@ and team comps.
 - Backend: FastAPI + SQLAlchemy, managed with [uv](https://docs.astral.sh/uv/).
 - Frontend: Vite + React + TypeScript (in `frontend/`).
 - Browser extension: WXT + React + TypeScript (in `extension/`), which imports the Battle
-  Chronicle from the HoYoLAB session already open in your browser.
+  Chronicle from the HoYoLAB session already open in your browser. It is the only way HoYoLAB
+  data gets in, and the only way an account gets an owner.
 
-`docs/PLAN.md` is the development plan, `docs/DEPLOY.md` the steps to publish it, and
-`docs/DESIGN.md` the design system every screen has to follow.
+`docs/PLAN.md` is the development plan, `docs/OWNERSHIP.md` the ownership model,
+`docs/DEPLOY.md` the steps to publish it, and `docs/DESIGN.md` the design system every screen
+has to follow.
 
 ## Backend
 
@@ -31,10 +33,10 @@ uv run mypy src
 ```
 
 Configuration comes from environment variables prefixed with `ZZZ_` (or a `.env` file); every
-one of them, with its default and what it costs to leave it empty, is in `.env.example`. The
-two that are secrets and have no default worth using are `ZZZ_CREDENTIALS_KEY` (the Fernet key
-that encrypts stored HoYoLAB cookies) and `ZZZ_API_TOKEN` (optional, see below). Alembic reads
-`ZZZ_DATABASE_URL` too, falling back to the URL in `alembic.ini`.
+one of them, with its default and what it costs to leave it empty, is in `.env.example`.
+**There is no mandatory secret**: the server never talks to HoYoLAB and stores no cookies, so
+the only thing to get right is `ZZZ_DATABASE_URL`. `ZZZ_API_TOKEN` is optional (see below).
+Alembic reads `ZZZ_DATABASE_URL` too, falling back to the URL in `alembic.ini`.
 
 ## Frontend
 
@@ -56,34 +58,33 @@ Reading is public. Anyone can type a UID and look at the profile, the roster, th
 teams and the Chronicle — the Enka showcase is public anyway, and a tracker nobody can look at
 is not worth much.
 
-Writing asks for a key. Editing an agent, saving a team, storing HoYoLAB cookies or running a
-Chronicle sync all take an `X-Account-Key` header carrying the key of *that* account. The key
-is a random secret the backend issues per UID, stores hashed, and shows exactly once — there is
-no login, no password and no account of your own to create.
+Writing asks for a key. Editing an agent, saving a team, importing a Chronicle into an account
+that already has an owner: all of them take an `X-Account-Key` header carrying the key of
+*that* account. The key is a random secret the backend issues per UID, stores hashed, and shows
+exactly once — there is no login, no password and no account of your own to create.
 
-You get the key one of two ways:
+**The only way to get one is to import the account's Battle Chronicle with the browser
+extension.** Typing a UID into the web (`POST /accounts`) starts tracking it and hands out
+nothing: a UID is a public number, and typing one in says nothing about whose account it is. An
+account nobody has imported can be read by everyone and written by no one.
 
-- **From the web.** The first person to track a UID (`POST /accounts`) or to claim one nobody
-  owns yet (`POST /accounts/{uid}/claim`) is handed the key on the spot, and the app shows it
-  once with a "write this down" banner. This proves nothing: whoever got there first holds the
-  UID, whether it is theirs or not.
-- **From the extension.** Importing a UID's Battle Chronicle takes the account over from a
-  claim made on the web: the key rotates, and the extension both keeps the new one and hands
-  it to the app through the link it opens, so nothing has to be copied by hand.
+An import proves nothing on its own either — a bundle is a JSON the client chose, UID included
+— so what it buys is the right to take an account **nobody has taken yet**. The first import
+claims the UID and answers with the key once; from then on the key is the only thing that
+speaks for the account, and an import without it is refused with a 403 rather than rotating
+anything. First come, first served, like a username.
 
-An import proves no more than a web claim does — a bundle is a JSON the client chose, UID
-included — so what it buys is only the right to take an account **nobody has taken yet**. From
-the first import onwards the key is the only thing that speaks for the account: a second import
-that does not present it is refused with a 403, however correctly it names the UID. Otherwise
-anyone could forge a bundle, become the owner and then drive the stored HoYoLAB cookies with
-`chronicle/sync`.
+The extension keeps the key it was handed and passes it to the app through the link it opens,
+so nothing has to be copied by hand — except onto a second machine, where you paste it once.
+`GET /accounts/{uid}/ownership` with the key answers whether it is the right one (204) without
+writing anything, so a bad paste says so immediately instead of at the first failed save.
 
-The cost of that rule is that losing the key is not recoverable from the browser. It takes
-`zzz-tracker rotate-key <uid>` on the machine that holds the database, which is exactly the
-price that makes the rule worth something.
+Losing the key is not recoverable from the browser: re-importing will not give you a new one.
+It takes `zzz-tracker rotate-key <uid>` on the machine that holds the database, which is
+exactly the price that makes the rule worth something.
 
-`docs/OWNERSHIP.md` has the whole model: the claim levels, what an import is and is not allowed
-to prove, and why the key belongs to an account rather than to a caller.
+`docs/OWNERSHIP.md` has the whole model: what an import is and is not allowed to prove, why the
+key belongs to an account rather than to a caller, and how the errors are meant to be read.
 
 ## Where the data comes from
 
@@ -106,28 +107,23 @@ simply stay unresolved.
 ### HoYoLAB's Battle Chronicle
 
 The Chronicle covers what the showcase cannot: the whole roster with its builds, bangboos,
-Shiyu Defense and Deadly Assault runs, and Lost Void progress. There are two ways in, and they
-share a single persistence path in the backend.
+Shiyu Defense and Deadly Assault runs, and Lost Void progress. It gets in one way only — the
+**browser extension**, which reads HoYoLAB from your own browser with your own session and IP,
+and posts the raw payloads to `POST /accounts/{uid}/chronicle/import`. The backend never sees a
+cookie, keeps no credentials and makes no request of its own.
 
-The **browser extension** is the recommended one. It reads HoYoLAB from your own browser, with
-your own session and IP, and uploads the raw payloads to
-`POST /accounts/{uid}/chronicle/import`; the backend never sees a cookie and makes no request
-of its own. It also solves what a server cannot: HoYoLAB's captcha, which is unanswerable
-headless, and the rate limits that datacenter IPs attract. See `extension/README.md` to install
-and use it, and `docs/EXTENSION.md` for the plan behind it.
+That is deliberate, and it is what a server cannot do: HoYoLAB's captcha is unanswerable
+headless, and datacenter IPs attract both the captcha and the rate limits. In the user's
+browser the captcha can be shown and solved. The price is that the Chronicle is only as fresh
+as the last manual import, which is cheap — the seasons last weeks.
 
-The **server-side sync** is the older path, and stays for whoever prefers pasting cookies and
-for the cron. `zzz-tracker set-credentials` stores the `ltuid_v2` / `ltoken_v2` pair encrypted
-with `ZZZ_CREDENTIALS_KEY`, and from then on the backend can call HoYoLAB itself, honouring a
-ttl between syncs and backing off after a rate limit or a captcha.
-`POST /accounts/{uid}/chronicle/sync` does it on demand; `zzz-tracker sync-chronicle` does it
-for every account with usable cookies, which is the mode meant for a cron on a machine with a
-residential IP. `docs/HOYOLAB.md` is the technical reference: endpoints, retcodes, the mapper
-and its schema versions, and the limits that are known.
+See `extension/README.md` to install and use it, `docs/EXTENSION.md` for the plan behind it,
+and `docs/HOYOLAB.md` for the technical reference: what each endpoint returns, how the payloads
+are interpreted, the retcodes, and what is still unverified.
 
-`ZZZ_API_TOKEN` fits here as an optional extra bar: when it is set, the import endpoint demands
-a `Bearer` on top of the account key. It cannot be the only defence — a token that ships inside
-a published extension is not a secret — so it defaults to empty.
+`ZZZ_API_TOKEN` is an optional extra bar on that import: when set, the endpoint demands a
+`Bearer` on top of the ownership rules. It cannot be the only defence — a token that ships
+inside a published extension is not a secret — so it defaults to empty.
 
 ## Command line
 
@@ -142,21 +138,12 @@ options.
   with them.
 - `init-db` — creates the missing tables directly, for local work without Alembic. Anything
   that will be deployed goes through `alembic upgrade head` instead.
-- `new-credentials-key` — prints a fresh Fernet key for `ZZZ_CREDENTIALS_KEY`. Changing that
-  key makes every credential already stored unreadable, so it is generated once and kept.
-- `set-credentials UID [--ltuid] [--ltoken]` — stores an account's HoYoLAB cookies, encrypted.
-  Omitting the options makes it ask for them, and it asks for the `ltoken_v2` without echoing
-  it, which keeps the token out of the shell history.
-- `claim UID` — takes ownership of a tracked account nobody owns and prints its key, once. It
-  is meant for accounts that predate account keys — the ones the migration left `unclaimed`,
-  and therefore read-only. The web claims new accounts by itself, and an account that already
-  has an owner is refused.
+- `claim UID` — takes ownership of a tracked account nobody owns and prints its key, once,
+  without going through the extension. It is how the accounts that predate account keys stop
+  being read-only, and the escape hatch for anyone who cannot run the extension. An account
+  that already has an owner is refused; use `rotate-key` for those.
 - `rotate-key UID` — issues a new key and kills the one the account had, printing it once. It
-  is the way back in for an owner who lost theirs, since an import cannot take over an account
-  that was already claimed. Whoever runs it becomes the owner, and anything still holding the
-  old key — a browser, the extension on another machine — has to be given the new one.
-- `sync-chronicle [UID] [--force] [--no-previous]` — reads the Battle Chronicle over the
-  network using the stored cookies. With no UID it walks every account that has usable ones,
-  skipping (and naming) those whose cookies HoYoLAB has rejected: that is the cron mode. It
-  exits 1 if any account failed. `--force` ignores the ttl and is for debugging, not for the
-  cron; `--no-previous` reads only the running season instead of that one and the last.
+  is the only way back in for an owner who lost theirs, since no import can take over an
+  account that already has one. Whoever runs it becomes the owner, so it is run for the real
+  one; anything still holding the old key — a browser, the extension on another machine — has
+  to be given the new one.
