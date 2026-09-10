@@ -43,7 +43,7 @@ def test_the_three_rarities_reach_the_same_cap_at_their_own_max_level() -> None:
 
 
 def test_a_main_stat_past_its_rarity_max_level_has_no_value() -> None:
-    # B discs stop at 15; asking for a level they cannot reach is a bug, not a maxed disc.
+    # B discs stop at 9; asking for a level they cannot reach is a bug, not a maxed disc.
     assert main_stat_total(550, RARITY_B, 15) is None
     assert main_stat_total(550, RARITY_S, 16) is None
     assert main_stat_total(550, RARITY_S, -1) is None
