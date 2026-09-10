@@ -3,17 +3,25 @@
 Decidido el 2026-09-09 con Maxi. Reemplaza al punto §4 de `docs/PENDIENTES.md` ("Sin auth y
 ahora se guardan cookies de HoYoLAB") y retira el `ZZZ_API_TOKEN` global como único portero.
 
+**Revisado el mismo día**, después de decidir que el backend no sincroniza nada por su
+cuenta: todo lo de HoYoLAB entra por la extensión, a mano. Eso sacó del medio las cookies
+guardadas —el activo que más valía la pena robar— y con ellas la mitad de este documento.
+Lo que queda es más chico y más honesto.
+
 ## El problema
 
-El tracker no tiene login y no lo va a tener. Pero guarda cosas que no son públicas —
-cookies de HoYoLAB, el Chronicle importado, las ediciones manuales — y hoy cualquiera que
-sepa un UID puede dispararle `POST /accounts/{uid}/chronicle/sync` usando las credenciales
-guardadas de esa cuenta. En local da igual; publicado, no.
+El tracker no tiene login y no lo va a tener. Pero guarda cosas que no son públicas —el
+Chronicle importado, las ediciones manuales— y sin nada que lo frene cualquiera que sepa un
+UID puede escribirle encima. En local da igual; publicado, no.
 
 La forma de la URL **no** es el problema. Mover el UID al body no protege nada: un body es
 tan adivinable como un path. Lo que protege es que el que escribe tenga que presentar un
 secreto. Por eso las rutas quedan como están (`/accounts/{uid}/...`) y lo que cambia es
 quién puede escribir.
+
+Cuánto vale lo que se protege cambió con el rumbo nuevo: sin cookies guardadas, el peor caso
+de que te roben una cuenta pasó de "manejo tu sesión de HoYoLAB" a "te ensucio datos de
+tracking". Por eso el modelo es de un solo nivel y no de tres.
 
 ## El modelo
 
@@ -22,68 +30,67 @@ quién puede escribir.
 | Operación | Sin key | Con `X-Account-Key` |
 | --- | --- | --- |
 | `GET` de perfil, roster, builds, teams, Chronicle, catálogo | ✅ | ✅ |
-| `POST /accounts` (empezar a trackear un UID; **reclama** si nadie lo tenía) | ✅ | — |
-| `POST /accounts/{uid}/claim` (reclamar uno ya trackeado y sin dueño) | ✅ | — |
+| `GET /accounts/{uid}/ownership` (¿esta key es la de este UID?) | ❌ | ✅ 204 |
+| `POST /accounts` (empezar a trackear un UID) | ✅ | — |
 | `POST /accounts/{uid}/sync` (refrescar desde Enka) | ✅ | ✅ |
 | `POST /accounts/{uid}/chronicle/import` | ✅ mientras nadie la haya reclamado | ✅ |
 | `POST/PATCH/DELETE` de agentes y teams | ❌ | ✅ |
-| `PUT/DELETE /accounts/{uid}/credentials` | ❌ | ✅ |
-| `POST /accounts/{uid}/chronicle/sync` | ❌ | ✅ |
 
 Las lecturas quedan libres a propósito: el showcase de Enka ya es público, y un tracker que
 no se puede mirar sin instalar nada no sirve. Lo de Enka se refresca libre por la misma
 razón — es dato público y el TTL ya frena el abuso.
 
-## Los dos reclamos
+## El único reclamo
 
-Una cuenta tiene un `claim_level`:
+Una cuenta tiene dueño o no lo tiene: `has_owner`, un booleano. No hay niveles.
 
-- **`unclaimed`** — existe pero nadie la reclamó (filas viejas, anteriores a este cambio).
-  No se puede escribir. Se sale de acá reclamándola, y hay tres puertas que reclaman:
-  `POST /accounts/{uid}/claim`, un import, y `POST /accounts` — trackear un UID que nadie
-  tenía lo reclama de paso y devuelve la key en el mismo `account_key` (si ya tenía dueño,
-  refresca desde Enka y devuelve `account_key: null`).
-- **`provisional`** — alguien escribió el UID en la web y se llevó una key. Puede editar a
-  mano ya mismo, sin instalar nada. **No prueba nada**: el que llegó primero se quedó con el
-  UID, sea suyo o no.
-- **`verified`** — alguien importó el Chronicle de ese UID. **Tampoco prueba nada por sí
-  solo**, y esto es importante: un bundle es un JSON que manda el cliente, así que el UID que
-  nombra lo elige el que lo manda, y un UID es público. No hay forma de verificar del lado
-  del servidor que un bundle salió de una sesión de HoYoLAB. Lo que hace fuerte al nivel
-  `verified` no es el bundle: es que **a partir de ahí manda la key y ningún bundle la
-  puede pisar**.
+- **Sin dueño** — existe pero nadie la reclamó: la trackeó alguien desde la web, o es una
+  fila anterior a este cambio. Se puede leer, no se puede escribir.
+- **Con dueño** — alguien importó su Chronicle con la extensión y se llevó la key.
 
-**Un reclamo verificado no se pisa.** El import solo reclama lo que todavía no tiene dueño:
+**Trackear un UID no lo reclama.** Escribir un número público en un formulario no dice nada
+sobre de quién es la cuenta, así que `POST /accounts` es gratis y no devuelve ninguna key.
+Lo único que reclama es el import.
 
-- Cuenta `unclaimed` → se importa y se reclama. `verified` si el bundle nombra el UID,
-  `provisional` si no lo nombra (el `index` real no trae UID; ver abajo).
-- Cuenta `provisional` → un bundle que nombra el UID le gana al ocupante: la key rota, el
-  nivel pasa a `verified` y la key vieja muere. Un bundle que no lo nombra, no.
-- Cuenta `verified` **sin la key vigente** → **403**. No se importa, no rota, no se escribe
-  nada. Ni siquiera con un bundle que nombre el UID.
-- Con la key vigente, en cualquier nivel → se importa y la key **no** rota.
+**Un reclamo no se pisa.** El import solo reclama lo que todavía no tiene dueño:
 
-El 403 sobre `verified` es la regla que sostiene todo lo demás. Sin ella, cualquiera que
-supiera un UID mandaba `{"index":{"role":{"role_id":"<uid>"}}}`, se llevaba una key nueva,
-dejaba al dueño afuera y después disparaba `chronicle/sync` con las cookies de HoYoLAB
-guardadas de la víctima.
+- Cuenta **sin dueño** → se importa y queda reclamada; la key se devuelve una vez, en esa
+  respuesta.
+- Cuenta **con dueño**, sin la key vigente → **403**. No se importa, no rota, no se escribe
+  nada. Da igual lo completo que venga el bundle.
+- Cuenta **con dueño**, con la key vigente → se importa y la key **no** rota.
+
+Que el import no pruebe nada por sí solo es central y conviene decirlo claro: un bundle es
+un JSON que arma el cliente, así que el UID que nombra lo elige el que lo manda, y un UID es
+público. No hay forma de verificar del lado del servidor que un bundle salió de una sesión
+de HoYoLAB. Lo que hace fuerte a la propiedad no es el bundle: es que **a partir del primer
+reclamo manda la key y ningún bundle la puede pisar**. El primero que importa se queda con
+el UID, igual que el primero que llega se queda con un nombre de usuario.
 
 Costo aceptado: el dueño real que pierde la key **no** se recupera desde el navegador.
-Importar de nuevo ya no alcanza. La única salida es el CLI, y por eso el CLI exige acceso a
-la base:
+Importar de nuevo no alcanza. La única salida es el CLI, y por eso el CLI exige acceso a la
+base:
 
 ```
 zzz-tracker rotate-key <uid>
 ```
 
 que imprime una key nueva y mata la anterior. El que lo corre pasa a ser el dueño, así que
-se corre solo para el dueño real.
+se corre solo para el dueño real. Dos navegadores del mismo dueño se resuelven copiando la
+key de uno al otro desde las opciones de la extensión.
 
-Consecuencia relacionada: dos navegadores del mismo dueño no se pelean la key, pero el
-segundo tampoco entra solo — hay que copiarle la key desde las opciones de la extensión.
+Como pegar la key a mano es la **única** forma de tenerla en una segunda máquina, hay una
+lectura para validarla en el momento en vez de descubrir el error al primer guardado:
 
-Si al rotar había ediciones manuales del ocupante anterior, no se borran: quedan marcadas
-como `source='manual'` y la UI le ofrece al dueño nuevo descartarlas.
+```
+GET /accounts/{uid}/ownership     con X-Account-Key
+```
+
+204 si la key es la de ese UID, 403 si falta o es de otra cuenta, 409 `unclaimed_account` si
+el UID no tiene dueño todavía, 404 si no está trackeado. No escribe nada y no devuelve la
+key ni un fragmento de ella: el status *es* la respuesta. Usa exactamente la misma
+dependencia que las escrituras, para que no haya dos maneras de validar una key que puedan
+divergir.
 
 ## Qué se valida del import
 
@@ -95,9 +102,10 @@ auténtico?" sino "¿esto alcanza para escribir *esta* cuenta?".
    `index` que devuelve HoYoLAB de verdad no trae perfil — ni nickname, ni nivel, ni UID.
 2. Si el bundle nombra un UID —`record_card`, o un `role` con `game_role_id` / `game_uid` /
    `uid` / `role_id`— tiene que ser el `{uid}` del path; si no, 422. Nombrar el UID correcto
-   no prueba nada (es público), pero es el piso para reclamar una cuenta libre.
-3. Si el bundle **no** nombra ningún UID, solo se acepta contra una cuenta que nadie reclamó
-   —o con la key vigente—, y el reclamo que consigue es apenas `provisional`.
+   no prueba nada (es público); el chequeo evita el import equivocado, no el malicioso.
+3. Que el bundle no nombre ningún UID no cambia nada: la captura de `record_card` falla a
+   menudo y el `index` real no trae UID, así que sería una regla que castiga al usuario
+   honesto sin frenar a nadie. Lo que decide es si la cuenta tiene dueño.
 4. La `region` del body se acepta solo si es una región que existe, y la validación está
    en dos capas porque no se comportan igual: por **HTTP** el schema rechaza con **422** una
    región desconocida (vacío sí se acepta: significa "deducila del UID"); llamando al **caso
@@ -121,8 +129,8 @@ Los que aparecen en este flujo:
 
 | status | `code` | cuándo |
 | --- | --- | --- |
-| 403 | `forbidden` | la cuenta tiene dueño y falta la key, o la key no es la de esa cuenta; también el import forjado contra una cuenta `verified` |
-| 409 | `unclaimed_account` | la cuenta existe pero nadie la reclamó: reclamala primero |
+| 403 | `forbidden` | la cuenta tiene dueño y falta la key, o la key no es la de esa cuenta; también el import contra una cuenta que ya tiene dueño |
+| 409 | `unclaimed_account` | la cuenta existe pero nadie la reclamó: importá su Chronicle primero |
 | 409 | `conflict` | choque de dominio, p. ej. ese agente ya está trackeado |
 | 401 | `unauthorized` | falta el `Bearer` y `ZZZ_API_TOKEN` está seteado |
 | 404 | `not_found` | el UID, el agente o el team no existen |
@@ -142,29 +150,33 @@ propio formato y no traen `code`.
 
 ## Modelo de datos
 
-Tabla nueva `account_keys`, espejo de `hoyolab_credentials` (migración `0006_account_keys`):
+Tabla `account_keys` (migración `0006_account_keys`):
 
 | columna | tipo | nota |
 | --- | --- | --- |
 | `id` | int PK | |
 | `account_uid` | FK → `accounts.uid`, unique, index, `ON DELETE CASCADE` | una key por cuenta |
 | `key_hash` | `String(64)` | sha256 hex |
-| `claim_level` | `String(16)` | `provisional` \| `verified` |
 | `claimed_at` | datetime | |
-| `rotated_at` | datetime \| None | última vez que un import la pisó |
+| `rotated_at` | datetime \| None | última vez que el CLI emitió una nueva |
 | `last_used_at` | datetime \| None | para poder detectar keys muertas |
 
-`Account.claim_level` es una property derivada: `unclaimed` si no hay fila.
+`Account.is_claimed` es una property derivada: la fila existe o no existe. Eso es lo que la
+API expone como `has_owner`.
 
-Backfill de la migración: **ninguno**. Las cuentas que ya existen quedan `unclaimed` y por lo
-tanto de solo lectura hasta que alguien las reclame. Para la base local de Maxi eso es un
-`POST /accounts/{uid}/claim` por UID, o un comando `zzz-tracker claim <uid>` que imprime la key.
+La migración `0007_drop_hoyolab_credentials` completa el cambio de rumbo: dropea
+`hoyolab_credentials`, la columna `accounts.chronicle_failed_at` (marcaba el backoff del
+sync que ya no existe) y `account_keys.claim_level` (quedó con un solo valor posible).
+
+Backfill: **ninguno**. Las cuentas que ya existen quedan sin dueño y por lo tanto de solo
+lectura hasta que alguien importe su Chronicle. Para la base local de Maxi eso es un
+`zzz-tracker claim <uid>` por UID.
 
 Los dos comandos del CLI, que son los que exigen acceso a la base:
 
 | comando | para qué |
 | --- | --- |
-| `zzz-tracker claim <uid>` | reclamar una cuenta sin dueño (falla con 409 si ya lo tiene) |
+| `zzz-tracker claim <uid>` | reclamar una cuenta sin dueño sin pasar por la extensión (falla con 409 si ya lo tiene) |
 | `zzz-tracker rotate-key <uid>` | emitir una key nueva y matar la anterior: la recuperación |
 
 ## La key es de una cuenta, no del que llama
@@ -174,8 +186,6 @@ La key pertenece a un UID, pero la mitad de las escrituras no nombran ningún UI
 ```
 POST   /accounts/{uid}/agents      el uid está en el path
 POST   /accounts/{uid}/teams
-PUT    /accounts/{uid}/credentials
-POST   /accounts/{uid}/chronicle/sync
 
 PATCH  /agents/{agent_id}          no hay uid en ningún lado
 DELETE /agents/{agent_id}
@@ -210,49 +220,48 @@ más `require_team_owner_key` igual pero con `account_uid_for_team`.
 Que el 404 salga antes o después del chequeo de la key da igual: `GET /agents/{id}` es público,
 así que enumerar ids no filtra nada que no se pueda leer de todos modos.
 
-## Backend — qué se toca
+## Backend — qué quedó
 
-- `storage/models.py` — modelo `AccountKey`, constantes `CLAIM_PROVISIONAL` / `CLAIM_VERIFIED`
-  / `CLAIM_UNCLAIMED`, relación `Account.key`.
-- `storage/keys.py` (nuevo) — `generate_key()`, `hash_key()`, `verify_key()`. Chico y sin
-  dependencias, al lado de `crypto.py`.
-- `alembic/versions/20260909_0006_account_keys.py`.
-- `web/deps.py` — `require_account_key` y `require_agent_owner_key` / `require_team_owner_key`
-  (ver "La key es de una cuenta, no del que llama", más abajo).
-- `errors.py` — `ForbiddenError` (403, "esta cuenta tiene dueño; falta `X-Account-Key`") y
-  `UnclaimedAccountError` (409, "reclamá la cuenta antes de escribirla"). `UnauthorizedError`
-  se queda, con el token ahora opcional. `ImportDisabledError` se **borra**: nació para
-  rechazar el import cuando no había token, que es exactamente lo que este cambio deja de
-  hacer, así que quedaría como una clase que nadie levanta y que además describe la regla
-  vieja. Si alguna vez hace falta deshabilitar el import de verdad, son cuatro líneas.
-- `tracker/service.py` — `claim_account(uid)`, `rotate_key(uid, level)`, `verify_key(uid, key)`,
-  `account_uid_for_agent(id)`, `account_uid_for_team(id)`; y `import_chronicle` pasa a devolver
-  la key nueva cuando rota.
-- `web/schemas.py` — `AccountRead.claim_level`; `AccountCreatedRead` y `ClaimResponse` con
-  `account_key: str | None`; `ChronicleImportResponse.account_key: str | None`.
-- Routers: la dependencia en agents (POST/PATCH/DELETE), teams (POST/PUT/DELETE) y chronicle
-  (credentials PUT/DELETE, chronicle/sync). `import` con la lógica de rotación.
+- `storage/models.py` — `AccountKey` (una fila = un dueño) y `Account.is_claimed`.
+- `storage/keys.py` — `generate_key()`, `hash_key()`, `verify_key()`.
+- `web/deps.py` — `require_account_key`, `require_agent_owner_key`, `require_team_owner_key`
+  (ver "La key es de una cuenta, no del que llama").
+- `errors.py` — `ForbiddenError` (403) y `UnclaimedAccountError` (409); `UnauthorizedError`
+  se queda, con el token opcional.
+- `tracker/service.py` — `claim_account(uid)`, `rotate_key(uid)`, `verify_key(uid, key)`,
+  `account_uid_for_agent(id)`, `account_uid_for_team(id)`, y en `import_chronicle` el par
+  `_ensure_import_allowed` / `_claim_by_import`.
+- `web/schemas.py` — `AccountRead.has_owner`; `ChronicleImportResponse.account_key`.
+- Migraciones `0006_account_keys` y `0007_drop_hoyolab_credentials`.
+
+Lo que se borró con el cambio de rumbo, para que nadie lo busque: `storage/crypto.py`,
+`hoyolab/client.py`, la tabla `hoyolab_credentials`, `POST /accounts/{uid}/chronicle/sync`,
+los tres endpoints de `credentials`, `POST /accounts/{uid}/claim`, los comandos
+`sync-chronicle`, `set-credentials` y `new-credentials-key`, los settings de HoYoLAB
+(`ZZZ_CREDENTIALS_KEY`, `ZZZ_HOYOLAB_*`) y los errores que solo levantaba el cliente de
+HoYoLAB (`MissingCredentialsError`, `InvalidCredentialsError`, `DataNotPublicError`,
+`CaptchaRequiredError`). **`hoyolab/mapper.py` y `hoyolab/build_mapper.py` se quedan**: el
+bundle de la extensión trae el `data` crudo y se parsea por el mismo camino de siempre.
 
 ## Frontend — qué se toca
 
-- `lib/accountKey.ts` (nuevo) — leer/guardar `localStorage['zzz.key.<uid>']`.
+- `lib/accountKey.ts` — leer/guardar `localStorage['zzz.key.<uid>']`.
 - `api/client.ts` — `request()` acepta el uid dueño de la operación y cuelga `X-Account-Key`
   cuando hay key guardada. Las lecturas no la mandan.
-- Al crear una cuenta o reclamarla, mostrar la key **una vez** con un cartel de "guardá esto,
+- La key se muestra **una vez**, cuando la devuelve el import, con un cartel de "guardá esto,
   no se vuelve a mostrar" (`Banner` de New Eridu, ver `docs/DESIGN.md`).
 - Leer `#key=` del fragmento cuando la extensión abre la app, guardarla y limpiar la URL con
   `history.replaceState` para que no quede en el historial.
-- Las pantallas de escritura (editar agente, teams, credenciales) miran si hay key: sin key,
-  se ven en modo lectura con un aviso de "este UID tiene dueño" o "reclamalo para editar".
-- Un lugar para pegar una key a mano (venís de otra máquina) — cae bien en `CredentialsPage`,
-  que ya es la pantalla de "conectar".
+- Las pantallas de escritura miran si hay key: sin key, se ven en modo lectura con un aviso
+  de "este UID tiene dueño" o "importá tu Chronicle para reclamarlo".
+- Un lugar para pegar una key a mano, para cuando venís de otra máquina.
 
 ## Extensión — qué se toca
 
 - `lib/tracker.ts` — `STORAGE_KEYS.accountKeys` (`Record<uid, key>`), mandar `X-Account-Key`
   en el import, y guardar la key nueva cuando la respuesta la trae.
 - `entrypoints/background.ts` — después del import, `accountUrl(...)` + `#key=<key>` para que
-  el frontend quede autenticado sin copiar y pegar nada (la línea 119 de hoy).
+  el frontend quede autenticado sin copiar y pegar nada.
 - `entrypoints/options/App.tsx` — el campo de `apiToken` pasa a opcional y se explica; se
   suma ver/copiar/pegar la key por UID, que es lo que permite usar dos navegadores.
 - `README.md` de la extensión: qué es la key, que se muestra una sola vez, cómo se recupera.
@@ -261,18 +270,19 @@ así que enumerar ids no filtra nada que no se pueda leer de todos modos.
 
 Backend, por escenario:
 
-- una cuenta nueva desde la web devuelve key y queda `provisional`;
-- `claim` sobre una cuenta con dueño da 409;
+- trackear un UID desde la web no devuelve key y deja la cuenta sin dueño;
+- el primer import de un UID lo reclama y devuelve la key una vez;
 - escribir sin header da 403, con key equivocada 403, con key vigente 200;
-- escribir sobre una cuenta `unclaimed` da 409;
-- un import sin key sobre cuenta `provisional` rota, devuelve key nueva y deja `verified`,
-  y la key vieja deja de funcionar;
-- un import **con** la key vigente no rota;
-- **un bundle forjado (sin key, nombrando el UID) contra una cuenta `verified` da 403, no
+- `GET /ownership` responde 204 con la key correcta, 403 sin ella o con una ajena, 409 si la
+  cuenta no tiene dueño y 404 si el UID no está trackeado, sin escribir ni devolver nada;
+- escribir sobre una cuenta sin dueño da 409 y apunta al import;
+- un import **con** la key vigente no rota y devuelve `account_key: null`;
+- **un bundle forjado (sin key, nombrando el UID) contra una cuenta con dueño da 403, no
   rota, no escribe nada, y la key del dueño sigue funcionando**;
+- un import con una key que no es la vigente da 403 sin rotar;
 - un import cuyo `role_id` no coincide con el uid del path se rechaza;
-- un import que no nombra ningún UID no puede tomar una cuenta que ya tiene dueño;
-- un import que nombra una región inexistente no le cambia la región a la cuenta;
+- un bundle que no nombra ningún UID igual reclama una cuenta libre;
+- un import que nombra una región inexistente da 422;
 - `zzz-tracker rotate-key` emite una key nueva e invalida la anterior;
 - con `ZZZ_API_TOKEN` seteado, el import sigue exigiendo el `Bearer`;
 - `PATCH /agents/{id}` resuelve la cuenta dueña por el agente y no por el path;
@@ -283,15 +293,16 @@ Backend, por escenario:
 Frontend: que las lecturas no manden el header, que las escrituras sí, que el fragmento
 `#key=` se consuma y se limpie, y que una pantalla sin key se renderice en modo lectura.
 
-Extensión: que el import mande el header cuando hay key guardada y que persista la rotada.
+Extensión: que el import mande el header cuando hay key guardada y que persista la nueva.
 
 ## Orden
 
-1. Backend: modelo, migración, `storage/keys.py`, servicio, dependencia, routers, tests.
-2. Extensión: header, persistencia de la key rotada, `#key=` en el redirect.
+1. Backend: modelo, migraciones, `storage/keys.py`, servicio, dependencia, routers, tests.
+2. Extensión: header, persistencia de la key, `#key=` en el redirect.
 3. Frontend: storage de la key, header en escrituras, modo lectura, cartel de key nueva.
 4. Docs: `README.md` (comandos y el modelo de propiedad), `PENDIENTES.md` (§4 tachado),
-   `EXTENSION.md` (el token deja de ser obligatorio).
+   `EXTENSION.md` (el token deja de ser obligatorio), `HOYOLAB.md` (el backend ya no
+   sincroniza).
 
 Recién después de esto tiene sentido la fase 8 (deploy): es lo que hacía falta decidir antes
 de publicar.
