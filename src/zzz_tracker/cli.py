@@ -74,9 +74,10 @@ def tracker_service(settings: Settings) -> Iterator[TrackerService]:
 @app.command(
     "claim",
     help="Claim a tracked account and print its key, the secret every write to it needs. "
-    "Meant for accounts that predate account keys; the web claims new ones by itself. "
-    "It refuses an account that already has an owner — to replace the key of one of those, "
-    "use `rotate-key`.",
+    "Claiming is normally the browser extension's job: importing an account's chronicle is "
+    "what takes ownership of it. This is the way in for the accounts that predate account "
+    "keys, and for an owner who cannot run the extension. It refuses an account that "
+    "already has an owner — to replace the key of one of those, use `rotate-key`.",
 )
 def claim(
     uid: str = typer.Argument(..., help="UID of the account to take ownership of."),

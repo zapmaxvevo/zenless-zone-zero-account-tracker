@@ -135,6 +135,28 @@ def test_claim_points_a_lost_key_at_rotate_key_and_not_at_an_import(
     assert "an import cannot take a claimed account back" in result.stderr
 
 
+def flattened(text: str) -> str:
+    """Typer wraps help text to the terminal width; the words are what matters here."""
+    return " ".join(text.split())
+
+
+def test_the_help_of_claim_says_the_extension_is_what_normally_takes_ownership(
+    runner: CliRunner,
+) -> None:
+    """The fourth text about how a key is obtained to go stale; this one is pinned.
+
+    Claiming moved from the web to the import, so a help that sends someone to the web —
+    or anywhere other than the extension — is worse than no help at all.
+    """
+    result = runner.invoke(app, ["claim", "--help"])
+
+    assert result.exit_code == 0
+    help_text = flattened(result.stdout)
+    assert "importing an account's chronicle is what takes ownership" in help_text
+    assert "rotate-key" in help_text
+    assert "the web claims" not in help_text
+
+
 def test_claim_of_an_account_that_already_has_an_owner_fails_without_printing_a_key(
     runner: CliRunner, cli_env: CliEnvironment
 ) -> None:

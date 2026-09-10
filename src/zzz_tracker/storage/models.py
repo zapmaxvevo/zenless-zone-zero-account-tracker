@@ -33,8 +33,8 @@ REGIONS_BY_UID_PREFIX = {
 DEFAULT_REGION = "prod_gf_eu"
 CHINA_REGION = "prod_gf_cn"
 # Every region HoYoLAB actually serves. An import names its own region in the body, so what
-# it says is checked against this before it is believed: the region picks the host the
-# server-side sync will call later, and a made-up one would point the account at nothing.
+# it says is checked against this before it is believed: the region is stored on the account
+# and served with it, and a made-up one would sit there being read as fact.
 KNOWN_REGIONS = frozenset(REGIONS_BY_UID_PREFIX.values()) | {DEFAULT_REGION, CHINA_REGION}
 
 

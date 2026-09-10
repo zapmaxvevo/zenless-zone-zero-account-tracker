@@ -110,8 +110,9 @@ auténtico?" sino "¿esto alcanza para escribir *esta* cuenta?".
    en dos capas porque no se comportan igual: por **HTTP** el schema rechaza con **422** una
    región desconocida (vacío sí se acepta: significa "deducila del UID"); llamando al **caso
    de uso** `import_chronicle()` directo —CLI, tests— una región desconocida se **reemplaza**
-   por la que implica el prefijo del UID en vez de romper. La región elige a qué host le pega
-   después el sync server-side, así que no puede salir libre del body.
+   por la que implica el prefijo del UID en vez de romper. La región se guarda en
+   `Account.region` y sale en `AccountRead`, así que una inventada queda persistida como si
+   fuera cierta: no puede salir libre del body.
 5. Opcional y aparte: si `ZZZ_API_TOKEN` está seteado, se sigue exigiendo el `Bearer` además
    de la key. Deja de ser obligatorio, pero queda como reja extra para el deploy propio —
    un token que viaja adentro de una extensión publicada no es secreto, así que no puede ser
@@ -197,10 +198,10 @@ En la primera familia se compara contra la key del `{uid}` del path. En la segun
 traer la fila de la base, mirar su `account_uid` y recién ahí saber contra qué key comparar.
 
 **El agujero que esto evita**: los ids de agente y de team son globales, no por cuenta. Si la
-dependencia preguntara "¿el que llama presenta *alguna* key válida?", cualquiera reclamaría un
-UID vacío — que es gratis, `POST /accounts` te da una key — y con esa key legítima editaría o
-borraría los agentes de todos los demás. La pregunta correcta es "¿presenta la key **de la
-cuenta dueña de esta fila**?".
+dependencia preguntara "¿el que llama presenta *alguna* key válida?", cualquiera se haría de
+una key legítima —importando el Chronicle de cualquier UID que todavía no tenga dueño, que no
+cuesta nada— y con ella editaría o borraría los agentes de todos los demás. La pregunta
+correcta es "¿presenta la key **de la cuenta dueña de esta fila**?".
 
 Son dos dependencias, no una:
 

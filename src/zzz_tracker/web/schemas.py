@@ -54,9 +54,9 @@ MIN_SUBSTAT_ROLLS = 1
 def _known_region(region: str) -> str:
     """Refuse a region HoYoLAB does not serve.
 
-    The region decides which host the server-side sync will call for this account later, so
-    a typo would not fail here but much later, as an unrelated network error. Empty is the
-    honest answer for "I do not know", and the UID answers it instead.
+    The region is kept on the account and served with it, so a typo would not fail here but
+    settle in as a fact nobody questions. Empty is the honest answer for "I do not know",
+    and the UID answers it instead.
     """
     if region and region not in KNOWN_REGIONS:
         known = ", ".join(sorted(KNOWN_REGIONS))

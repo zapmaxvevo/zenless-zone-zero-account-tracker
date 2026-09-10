@@ -113,18 +113,17 @@ class TeamEdit:
 
 @dataclass(frozen=True, slots=True)
 class ChroniclePayloads:
-    """The raw `data` of every Battle Chronicle endpoint, however it was obtained.
+    """The raw `data` of every Battle Chronicle endpoint, as the browser received it.
 
-    The server-side sync and the extension import both end up here, so persistence has a
-    single path; `source` records which of the two brought the bundle. `index` is the only
-    mandatory section; a `None` (or an empty season map) means that section was not
-    available and gets skipped, not refused. `avatar_info` holds one response per agent,
-    each with the whole build of that agent.
+    `source` records how the bundle got here, and today there is one answer: the extension.
+    `index` is the only mandatory section; a `None` (or an empty season map) means that
+    section was not available and gets skipped, not refused. `avatar_info` holds one
+    response per agent, each with the whole build of that agent.
 
     `record_card` is not a chronicle endpoint but the ZZZ entry of the HoYoLAB profile, and
     the only payload that names the account: the `index` carries neither UID, nickname nor
-    level. Only the browser can fetch it, so the server-side sync never has one and it is
-    never reported as a skipped section.
+    level. A capture that could not fetch it is normal, so its absence is never reported as
+    a skipped section.
     """
 
     region: str
@@ -547,9 +546,9 @@ class TrackerService:
     ) -> ChronicleImportReport:
         """Store a chronicle bundle captured in the user's browser, tracking the UID if new.
 
-        The bundle carries the raw `data` of each endpoint, so it persists through the same
-        path as the server-side sync. Only `index` is mandatory, and any other absent or null
-        section is skipped and reported.
+        The bundle carries the raw `data` of each endpoint, untouched, which is why the same
+        mappers read it. Only `index` is mandatory, and any other absent or null section is
+        skipped and reported.
 
         **A bundle proves nothing.** Every byte of it is chosen by whoever sends it, the UID
         it names included, and a UID is public. So the first import of a UID takes it —
@@ -591,10 +590,10 @@ class TrackerService:
     def _import_region(self, account: Account, region: str) -> str:
         """Take the region the bundle claims only if it is one that exists.
 
-        The region decides which HoYoLAB host the server-side sync will call later, and it
-        arrives in the body like everything else, so a typo — or a made-up string — would
-        quietly point the account at nothing. Anything unrecognised falls back to what the
-        UID itself implies, which is the answer that never depended on the caller.
+        The region is stored on the account and served with it, and it arrives in the body
+        like everything else, so a typo — or a made-up string — would sit there being read
+        as fact. Anything unrecognised falls back to what the UID itself implies, which is
+        the answer that never depended on the caller.
         """
         if region in KNOWN_REGIONS:
             return region
@@ -711,10 +710,10 @@ class TrackerService:
     def _name_account(self, account: Account, payloads: ChroniclePayloads) -> None:
         """Give the account its nickname and level, from whichever payload happens to know.
 
-        The record card is the only one that answers for sure, and the browser is the only one
-        that can fetch it. Failing that, the `index` is asked (it does carry a profile in some
-        versions) and finally the challenge payloads, which sign their answer with `nick_name`
-        and are the last chance the server-side sync has to learn the name.
+        The record card is the only one that answers for sure, and a capture often comes
+        without it. Failing that, the `index` is asked (it does carry a profile in some
+        versions) and finally the challenge payloads, which sign their answer with
+        `nick_name` and are the last chance to learn the name at all.
         """
         card = parse_record_card(payloads.record_card) if payloads.record_card else None
         profile = parse_chronicle_account(payloads.index)
