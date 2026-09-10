@@ -3,6 +3,12 @@ const FRAGMENT_PARAM = 'key';
 
 export const KEY_PREFIX = 'zzk_';
 
+const MASK_CHARACTERS = 24;
+
+export function maskKey(key: string, revealed: boolean): string {
+  return revealed ? key : '•'.repeat(MASK_CHARACTERS);
+}
+
 type Listener = () => void;
 
 const listeners = new Set<Listener>();

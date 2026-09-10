@@ -1314,9 +1314,9 @@ a.ne-ghost {
 }
 
 /**
- * La key de una cuenta, en la única pantalla donde se puede leer.
+ * La key de una cuenta, en la única pantalla que la muestra.
  *
- * Es la cifra que importa del banner, así que va en acento (regla 6). Se lee carácter por
+ * Es la cifra que importa del bloque, así que va en acento (regla 6). Se lee carácter por
  * carácter, como el UID y las cookies, así que va en mono; y es larga y no se puede cortar por
  * una palabra, así que rompe donde caiga en vez de estirar el bloque. Por eso no es
  * `.ne-data-pill`, que es un dato corto de una sola línea.
@@ -1335,6 +1335,17 @@ a.ne-ghost {
   word-break: break-all;
   color: var(--accent);
   user-select: all;
+}
+
+/**
+ * La misma caja, tapada: la key va enmascarada hasta que alguien pide verla, igual que en las
+ * opciones de la extensión. Los puntos no son el dato, así que van en el gris de lo ausente
+ * (regla 11) y no se pueden seleccionar — copiar puntos creyendo que es la key es peor que no
+ * copiar nada. Para eso está el botón Copiar, que no necesita revelarla.
+ */
+.ne-key.is-masked {
+  color: var(--text-dim);
+  user-select: none;
 }
 
 /**

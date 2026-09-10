@@ -35,7 +35,7 @@ export interface AccountRead {
   agent_count: number;
 }
 
-export type ChronicleImportSource = 'extension' | 'server';
+export type ChronicleImportSource = 'extension';
 
 export interface StatRead {
   prop_id: number;

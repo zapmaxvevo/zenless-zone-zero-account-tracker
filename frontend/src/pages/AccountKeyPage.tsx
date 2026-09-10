@@ -11,7 +11,7 @@ import SectionHead from '../components/ui/SectionHead';
 import { STORAGE_BLOCKED_MESSAGE, useAccountAccess } from '../hooks/useAccountAccess';
 import type { AccountAccess } from '../hooks/useAccountAccess';
 import { useApi } from '../hooks/useApi';
-import { KEY_PREFIX, looksLikeKey } from '../lib/accountKey';
+import { KEY_PREFIX, looksLikeKey, maskKey } from '../lib/accountKey';
 import { formatDateTime } from '../lib/time';
 import '../styles/chronicle.css';
 
@@ -107,6 +107,7 @@ function KeySection({ access }: KeySectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   async function handlePaste(event: FormEvent) {
     event.preventDefault();
@@ -134,6 +135,7 @@ function KeySection({ access }: KeySectionProps) {
       return;
     }
     setPasted('');
+    setRevealed(false);
     setDone('El backend aceptó la key: desde este navegador se puede escribir el UID.');
   }
 
@@ -147,6 +149,7 @@ function KeySection({ access }: KeySectionProps) {
     setDone('Key borrada de este navegador.');
     setError(null);
     setCopied(false);
+    setRevealed(false);
   }
 
   function copyKey() {
@@ -171,11 +174,21 @@ function KeySection({ access }: KeySectionProps) {
             <p className="ne-prose">
               La key vive solo en este navegador, nunca viaja a ningún lado que no sea este tracker
               y el backend la guarda hasheada. Copiala para usar el mismo UID desde otra máquina: es
-              la única forma de llevarla, porque no se puede volver a leer del servidor.
+              la única forma de llevarla, porque no se puede volver a leer del servidor. Copiar no
+              la revela, así que para llevártela no hace falta mostrarla.
             </p>
 
             <div className="ne-actions">
-              <code className="ne-key">{access.key}</code>
+              <code className={revealed ? 'ne-key' : 'ne-key is-masked'}>
+                {maskKey(access.key, revealed)}
+              </code>
+              <button
+                type="button"
+                className="ne-ghost"
+                onClick={() => setRevealed((shown) => !shown)}
+              >
+                {revealed ? 'Ocultar' : 'Ver'}
+              </button>
               <button type="button" className="ne-ghost" onClick={copyKey}>
                 {copied ? 'Copiada' : 'Copiar'}
               </button>

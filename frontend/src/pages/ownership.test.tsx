@@ -127,15 +127,19 @@ describe('pantallas sin la key del UID', () => {
 });
 
 describe('pegar la key a mano habilita la escritura', () => {
-  it('con la key en el navegador aparece copiarla y olvidarla', () => {
+  it('con la key en el navegador aparece copiarla y olvidarla, pero tapada', () => {
     stubStoredKeys({ [UID]: KEY });
 
     const html = render(`/account/${UID}/key`, <AccountKeyPage />);
 
     expect(html).toContain('Puede escribir');
-    expect(html).toContain(KEY);
     expect(html).toContain('Olvidar la key');
     expect(html).not.toContain('Este navegador no guarda la key del UID');
+
+    expect(html).not.toContain(KEY);
+    expect(html).toContain('ne-key is-masked');
+    expect(html).toContain('Ver');
+    expect(html).toContain('Copiar');
   });
 
   it('el roster y los equipos recuperan sus acciones de escritura', () => {

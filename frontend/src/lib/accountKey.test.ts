@@ -5,6 +5,7 @@ import {
   forgetKey,
   keyFromHash,
   looksLikeKey,
+  maskKey,
   normalizeKey,
   readKey,
   saveKey,
@@ -167,5 +168,23 @@ describe('el fragmento con el que la extensión abre la app', () => {
 
     expect(consumed).toBeNull();
     expect(replaced).toEqual(['/']);
+  });
+});
+
+describe('mostrar la key', () => {
+  it('por default la tapa, y el toggle la revela entera', () => {
+    const masked = maskKey(KEY, false);
+
+    expect(masked).not.toContain(KEY);
+    expect(masked).not.toContain(KEY_PREFIX);
+    expect(masked).toMatch(/^•+$/);
+    expect(maskKey(KEY, true)).toBe(KEY);
+  });
+
+  it('la máscara no delata el largo de la key', () => {
+    const short = maskKey(`${KEY_PREFIX}corta`, false);
+    const long = maskKey(`${KEY}${KEY}`, false);
+
+    expect(short).toBe(long);
   });
 });
