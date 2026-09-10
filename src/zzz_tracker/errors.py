@@ -5,14 +5,7 @@ from fastapi.responses import JSONResponse
 
 
 class ZZZTrackerError(Exception):
-    """Base class for domain errors raised by the tracker.
-
-    `code` is the half of the answer meant for a program and `detail` the half meant for a
-    person. A client branches on the code, never on the words: the wording is free to change
-    with no notice, and a status alone does not say enough — 409 is both "that agent is
-    already tracked" and "this account has no owner yet". Codes are part of the API, so
-    renaming one is a breaking change and `tests/test_errors.py` pins every one of them.
-    """
+    """Base class for domain errors. `code` is API contract; renaming one breaks clients."""
 
     status_code = 500
     code = "internal_error"

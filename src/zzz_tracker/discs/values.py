@@ -1,23 +1,6 @@
 """Turn the base values Enka serves into the numbers the game actually shows.
 
-Enka never sends a displayed value. Its own docs spell out what the two fields mean:
-`PropertyValue` is the *base* and `PropertyLevel` is the *roll count* ("Amount of rolls, only
-matters if substat"). So both stats need reconstructing, each by its own rule:
-
-- a **main stat** grows with the disc level, `base * (1 + scale / 10000)`, where the scale comes
-  from a table indexed by rarity and level and tops out at `30000` -- `x4.0` -- for all three
-  rarities, each at its own max level;
-- a **substat** is `base * rolls`, flat, because every roll of a given stat on a given rarity
-  adds exactly the same amount. ZZZ has no per-roll random range, unlike Genshin or HSR.
-
-That last property is what lets the tracker count rolls instead of measuring values.
-
-The tables below are the game's own, read from `RandPropertyLibraryTemplateTb` (substat bases,
-one library per rarity) and `EquipmentLevelTemplateTb` (main stat scales). Enka's store publishes
-neither, so they are vendored here.
-
-Percentage properties are stored at 100x, the same scale Enka uses everywhere else: CRIT DMG
-`480` is 4.8%.
+Percentages are stored at 100x, the scale Enka uses everywhere: CRIT DMG `480` is 4.8%.
 """
 
 from __future__ import annotations
@@ -96,9 +79,7 @@ MAX_DISC_LEVEL: dict[int, int] = {
 }
 LEVELS_PER_PROC = 3
 
-# A disc drops with three or four substats and caps at four. Every proc adds exactly one to the
-# disc's total roll count, whether it upgrades a substat or creates the fourth one, so a single
-# substat only reaches `MAX_SUBSTAT_ROLLS` on a disc that dropped with four.
+# A single substat only reaches `MAX_SUBSTAT_ROLLS` on a disc that dropped with four substats.
 MIN_SUBSTATS = 3
 MAX_SUBSTATS = 4
 MAX_SUBSTAT_ROLLS = 6
@@ -121,11 +102,7 @@ def substat_total(base: int, rolls: int) -> int:
 
 
 def main_stat_total(base: int, rarity: int | None, level: int) -> int | None:
-    """The value the game shows for a main stat, or None when rarity or level are out of range.
-
-    Returning None rather than the unscaled base keeps a missing rarity visible instead of
-    quietly passing a level-0 value off as the real one.
-    """
+    """The value the game shows for a main stat, or None when rarity or level are out of range."""
     if rarity is None:
         return None
     scale = MAIN_STAT_SCALE.get(rarity)

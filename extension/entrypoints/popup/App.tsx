@@ -66,8 +66,7 @@ export default function App() {
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
   const refresh = useCallback(() => {
-    // Alcanza con la URL del tracker: el token es opcional (sólo lo pide un backend con
-    // ZZZ_API_TOKEN seteado) y la key de la cuenta la emite el propio import.
+    // Alcanza con la URL del tracker: el token es opcional y la key la emite el import.
     void browser.storage.sync
       .get(STORAGE_KEYS.trackerUrl)
       .then((sync) => setConfigured(Boolean(sync[STORAGE_KEYS.trackerUrl])));
@@ -80,8 +79,7 @@ export default function App() {
 
   useEffect(() => {
     refresh();
-    // Si se cerró el popup a mitad de un import, el background sigue: al reabrir se
-    // le pregunta si hay uno en curso para mantener el botón deshabilitado.
+    // El import sigue con el popup cerrado: hay que preguntarle al background si sigue vivo.
     void browser.runtime
       .sendMessage({ type: 'zzz-import-status' })
       .then((reply) => setRunning(Boolean((reply as { running?: boolean } | undefined)?.running)))
@@ -150,8 +148,7 @@ export default function App() {
         {running ? 'Importando…' : 'Importar'}
       </button>
 
-      {/* El import normal sólo pide la build de los agentes que cambiaron; después de un
-          cambio en el mapper del backend hay que rellenar las que ya estaban. */}
+      {/* El import normal sólo pide las builds que cambiaron; esto las pide todas. */}
       <button
         className="secondary"
         disabled={running || configured !== true}

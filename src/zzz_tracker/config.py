@@ -10,8 +10,7 @@ class Settings(BaseSettings):
     static_data_dir: str = "./data/static"
     enka_base_url: str = "https://enka.network/api/zzz"
 
-    # Nothing here talks to HoYoLAB: the Battle Chronicle arrives as a bundle the browser
-    # extension captured and posted. `api_token`, when set, is an extra gate on that import.
+    # An extra gate on the chronicle import, when set. Nothing here talks to HoYoLAB.
     api_token: str = ""
 
     model_config = SettingsConfigDict(

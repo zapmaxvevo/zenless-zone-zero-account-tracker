@@ -15,8 +15,9 @@ import {
   accountKeyFor,
   accountKeysAfterImport,
   accountUrl,
-  parseAccountKeys,
+  parseSettings,
   postChronicleImport,
+  SETTINGS_KEYS,
   STORAGE_KEYS,
   TrackerError,
 } from '../lib/tracker';
@@ -53,20 +54,10 @@ export default defineBackground(() => {
 });
 
 async function runImport(options: { reimportAll: boolean }): Promise<ImportOutcome> {
-  const stored = await browser.storage.sync.get([
-    STORAGE_KEYS.trackerUrl,
-    STORAGE_KEYS.frontendUrl,
-    STORAGE_KEYS.apiToken,
-    STORAGE_KEYS.accountKeys,
-  ]);
-  const storedUrl: unknown = stored[STORAGE_KEYS.trackerUrl];
-  const storedFrontendUrl: unknown = stored[STORAGE_KEYS.frontendUrl];
-  const storedToken: unknown = stored[STORAGE_KEYS.apiToken];
-  const trackerUrl = typeof storedUrl === 'string' ? storedUrl : '';
-  const frontendUrl = typeof storedFrontendUrl === 'string' ? storedFrontendUrl : '';
-  // El token dejó de ser obligatorio: un backend sin ZZZ_API_TOKEN no lo pide (docs/OWNERSHIP.md).
-  const apiToken = typeof storedToken === 'string' ? storedToken : '';
-  const accountKeys = parseAccountKeys(stored[STORAGE_KEYS.accountKeys]);
+  // El token es opcional: un backend sin ZZZ_API_TOKEN no lo pide (docs/OWNERSHIP.md).
+  const { trackerUrl, frontendUrl, apiToken, accountKeys } = parseSettings(
+    await browser.storage.sync.get([...SETTINGS_KEYS]),
+  );
   if (!trackerUrl) {
     return {
       ok: false,
@@ -74,8 +65,7 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
     };
   }
 
-  // El snapshot del roster vive en el background: el content script sólo recibe con qué
-  // comparar y devuelve qué agentes trajo de verdad.
+  // El snapshot vive acá: el content script sólo recibe con qué comparar y devuelve qué trajo.
   const localStored = await browser.storage.local.get(STORAGE_KEYS.rosterSnapshot);
   const rosterSnapshot = options.reimportAll
     ? {}
@@ -126,8 +116,7 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
       payload,
     });
 
-    // Si la respuesta trae key, la vieja ya murió en el backend: hay que persistir la nueva
-    // sí o sí, es la única vez que se puede leer.
+    // Si la respuesta trae key hay que persistirla: es la única vez que se puede leer.
     const nextKeys = accountKeysAfterImport(accountKeys, uid, response);
     if (nextKeys !== accountKeys) {
       await browser.storage.sync.set({ [STORAGE_KEYS.accountKeys]: nextKeys });
@@ -135,8 +124,7 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
     const accountKey = accountKeyFor(nextKeys, uid);
 
     const summary = summarizeImport(response);
-    // Sin URL del frontend configurada no hay link: la del backend daría un 404 del SPA.
-    // Con key, viaja en el fragmento para que el frontend quede autenticado sin copiar y pegar.
+    // Sin URL del frontend no hay link: la del backend daría un 404 del SPA.
     const url = frontendUrl ? accountUrl(frontendUrl, uid, accountKey) : undefined;
     const lastImport: LastImport = {
       at: new Date().toISOString(),
@@ -145,8 +133,7 @@ async function runImport(options: { reimportAll: boolean }): Promise<ImportOutco
       summary,
       accountUrl: url,
     };
-    // El snapshot se guarda recién ahora: si se guardara antes del POST, un import fallido
-    // dejaría a esos agentes marcados como al día y no se volverían a pedir nunca.
+    // Recién ahora: guardarlo antes del POST dejaría al día a agentes que nunca llegaron.
     await browser.storage.local.set({
       [STORAGE_KEYS.lastImport]: lastImport,
       [STORAGE_KEYS.rosterSnapshot]: nextSnapshot({

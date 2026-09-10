@@ -1,10 +1,5 @@
-// Sync incremental del roster.
-//
-// `avatar/info` acepta UN id por request y el roster completo son ~36 agentes: pedirlos
-// todos es ~50 s de import. Como `avatar/basic` es un solo request y ya trae `level` y
-// `rank` de todos, guardamos un snapshot de esos dos números y sólo pedimos la build de
-// los agentes nuevos o que cambiaron. La lógica vive acá (pura, testeable) y no adentro
-// del content script.
+// Sync incremental del roster: `avatar/info` es un id por request y son ~36 agentes (~50 s),
+// así que se diffea contra el `{level, rank}` que trae `avatar/basic` en un solo request.
 import type { RawPayload } from './chronicle';
 
 export interface RosterAgent {
@@ -47,13 +42,9 @@ function sameMark(mark: RosterMark | undefined, agent: RosterAgent): boolean {
 }
 
 /**
- * Los ids cuya build hay que pedir: los que no están en el snapshot y los que subieron
- * de nivel o de mindscape. Con `reimportAll` se pide el roster entero (hace falta cuando
- * cambia el mapper del backend y hay que rellenar builds ya importadas).
- *
- * Límite conocido: `level` y `rank` es TODO lo que da `avatar/basic`, que no trae nada del
- * equipamiento. Un agente al que le cambiaste los discos o el W-Engine sin subirlo de nivel
- * no se vuelve a pedir. No se puede arreglar desde acá; la salida es "Reimportar todo".
+ * Los ids cuya build hay que pedir: los nuevos y los que subieron de nivel o de mindscape.
+ * `avatar/basic` no trae nada del equipamiento, así que un cambio de discos sin subir de
+ * nivel NO se detecta: la única salida es `reimportAll`.
  */
 export function agentsToFetch(
   roster: readonly RosterAgent[],
@@ -65,9 +56,8 @@ export function agentsToFetch(
 }
 
 /**
- * El snapshot a guardar después de un import exitoso. Un agente sólo avanza a su marca
- * actual si su build viajó de verdad: el que falló conserva la marca vieja (y se vuelve
- * a pedir el próximo import) y el nuevo que falló ni siquiera entra.
+ * El snapshot a guardar después de un import exitoso: un agente sólo avanza a su marca
+ * actual si su build viajó de verdad, así el que falló se vuelve a pedir el próximo import.
  */
 export function nextSnapshot(args: {
   previous: RosterSnapshot;
@@ -95,11 +85,7 @@ export interface BuildResult {
   data: RawPayload | null;
 }
 
-/**
- * Separa lo que viajó de lo que no: los payloads van al POST y los ids alimentan el
- * snapshot. Un agente sólo cuenta como traído si hay `data`; los fallos parciales se
- * caen acá y el resto del import sigue.
- */
+/** Separa lo que viajó de lo que no: los payloads van al POST y los ids al snapshot. */
 export function collectBuilds(results: readonly BuildResult[]): {
   payloads: RawPayload[];
   fetchedIds: number[];

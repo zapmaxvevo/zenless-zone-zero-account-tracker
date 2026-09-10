@@ -26,8 +26,7 @@ export type RetcodeKind =
 export const RETCODES_INVALID_SESSION: readonly number[] = [-100, 10001];
 export const RETCODES_NOT_PUBLIC: readonly number[] = [10102, 10104];
 export const RETCODES_RATE_LIMITED: readonly number[] = [10101, -110, 1028];
-// 5003 no aparece en el bundle de ZZZ (en genshin.py es "ya reclamado" de recompensas
-// diarias); queda fuera de la familia captcha hasta que la fase 0 lo observe de verdad.
+// El 5003 queda fuera hasta observarlo en ZZZ: en genshin.py es otra cosa.
 export const RETCODES_CAPTCHA: readonly number[] = [1034, 10035];
 export const RETCODE_HARD_LIMIT = 10041;
 // Parámetros mal armados: la sesión del usuario está bien, la URL que mandamos no.
@@ -74,9 +73,7 @@ export function userMessage(
       text = 'HoYoLAB pidió un captcha. Abrí act.hoyolab.com, resolvelo y reintentá a mano.';
       break;
     case 'hard_limit':
-      // Afirma qué pasó con el import, así que sólo sirve en el camino fatal (las 8 secciones
-      // principales). Un corte durante las builds sube igual lo que ya trajo y arma su propio
-      // texto con `SectionFailure.text`.
+      // Afirma que se canceló el import: sólo vale en el camino fatal, no en las builds.
       text =
         'HoYoLAB cortó el acceso (retcode 10041). Se canceló el import entero; probá más tarde.';
       break;
@@ -144,9 +141,8 @@ export function chronicleUrl(
 }
 
 /**
- * `avatar/info` de UN agente. Forma verificada el 2026-08-30: los corchetes de `id_list[]`
- * van literales y repetidos (la forma indexada `id_list[0]` devuelve -400005) y el endpoint
- * acepta un solo id por request (con 3 o con 36 también devuelve -400005).
+ * `avatar/info` de UN agente: el endpoint acepta un solo id por request y los corchetes de
+ * `id_list[]` van literales y repetidos. Cualquier otra forma devuelve -400005.
  */
 export function avatarInfoUrl(role: RoleRef, id: number | string): string {
   const endpoint: ChronicleEndpoint = ENDPOINTS.avatar_info;

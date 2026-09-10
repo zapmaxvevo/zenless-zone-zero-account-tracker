@@ -8,6 +8,22 @@ Zenless Zone Zero (ZZZ) account tracker: account info, character stats, builds, 
 
 Greenfield repo — the stack below is the intended setup. When scaffolding, match it; if a structural decision isn't covered here, follow the patterns in the sibling projects `../bazoooka` (backend) and `../aventurero` (frontend).
 
+## Start here
+
+**The first read for understanding the system is `docs/reference/README.md`**, which is the door into
+the reference bank: architecture, data flow, data model, API contract, domain vocabulary and a map
+of the repo.
+
+`docs/` has two halves, and they are not interchangeable:
+
+- **`docs/reference/` is the present** — it describes the system as it stands today. Trust it.
+- **The rest is plans and history** — `PLAN.md`, `EXTENSION.md`, `PENDIENTES.md`, `DISC_SCORE*.md`.
+  They record what was intended or what happened, and do **not** necessarily describe the current
+  state. Don't take them as the source of truth for how the code works today.
+
+`docs/DESIGN.md` is the exception on both counts: it is the source of truth for the look, and it is
+mandatory reading before touching a screen (see **Design** below).
+
 ## Stack & structure
 
 - **Backend**: Python 3.12+, FastAPI, managed with **uv** (`pyproject.toml` at repo root, code in `src/`, tests in `tests/`). Dev tools: ruff, mypy, pytest.

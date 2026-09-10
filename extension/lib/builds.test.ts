@@ -70,6 +70,48 @@ describe('fetchBuilds', () => {
     expect(builds.requested).toBe(6);
   });
 
+  it('la sesión caída, el rate limit y el captcha cortan la pasada igual que el hard limit', async () => {
+    for (const retcode of [-100, 10101, 10035]) {
+      const { fetchFn, urls } = fakeFetch((id) =>
+        id === 3 ? { retcode, message: 'cortado' } : okFor(id),
+      );
+      const builds = await fetchBuilds({ role, ids: [1, 2, 3, 4, 5], fetchFn, wait: noWait });
+
+      expect(builds.fetchedIds).toEqual([1, 2]);
+      expect(urls).toHaveLength(3);
+      expect(builds.stopped).not.toBeNull();
+      expect(builds.requested).toBe(5);
+    }
+  });
+
+  it('el 429 del WAF corta aunque no traiga retcode', async () => {
+    const urls: string[] = [];
+    const fetchFn: FetchLike = async (url) => {
+      urls.push(url);
+      if (urls.length < 3) return body(okFor(Number(/id_list\[\]=(\d+)/.exec(url)?.[1])));
+      return { status: 429, headers: { get: () => 'trace-429' }, json: async () => null };
+    };
+    const builds = await fetchBuilds({ role, ids: [1, 2, 3, 4], fetchFn, wait: noWait });
+
+    expect(builds.stopped?.kind).toBe('rate_limited');
+    expect(builds.fetchedIds).toEqual([1, 2]);
+    expect(urls).toHaveLength(3);
+  });
+
+  it('un corte en el primer agente no trae nada y deja a todos pendientes', async () => {
+    const roster: RosterAgent[] = [
+      { id: 1, level: 60, rank: 0 },
+      { id: 2, level: 60, rank: 0 },
+    ];
+    const { fetchFn } = fakeFetch(() => ({ retcode: 10041, message: 'blocked' }));
+    const builds = await fetchBuilds({ role, ids: [1, 2], fetchFn, wait: noWait });
+
+    expect(builds.payloads).toEqual([]);
+    // Sin marcas, `agentsToFetch` los vuelve a proponer enteros en el próximo import.
+    const snapshot = nextSnapshot({ previous: {}, roster, fetchedIds: builds.fetchedIds });
+    expect(snapshot).toEqual({});
+  });
+
   it('lo que quedó afuera del import cortado se pide en el próximo', async () => {
     const roster: RosterAgent[] = [
       { id: 1, level: 60, rank: 0 },

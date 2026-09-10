@@ -32,9 +32,7 @@ REGIONS_BY_UID_PREFIX = {
 }
 DEFAULT_REGION = "prod_gf_eu"
 CHINA_REGION = "prod_gf_cn"
-# Every region HoYoLAB actually serves. An import names its own region in the body, so what
-# it says is checked against this before it is believed: the region is stored on the account
-# and served with it, and a made-up one would sit there being read as fact.
+# Every region HoYoLAB serves. An import names its own, so what it says is checked here first.
 KNOWN_REGIONS = frozenset(REGIONS_BY_UID_PREFIX.values()) | {DEFAULT_REGION, CHINA_REGION}
 
 
@@ -117,7 +115,7 @@ class Account(Base):
 
     @property
     def is_claimed(self) -> bool:
-        """Whether anybody holds the key of this account. Nobody, at first, and for ever."""
+        """Whether anybody holds the key of this account."""
         return self.key is not None
 
     def next_sync_available_at(self) -> datetime | None:
@@ -135,13 +133,7 @@ class Account(Base):
 
 
 class AccountKey(Base):
-    """The hashed write key of one account.
-
-    One row per account, holding a secret that is never read back: the row existing is what
-    "this account has an owner" means. Only the first import of a UID creates one — after
-    that the key is the only thing that speaks for the account — so `rotated_at` marks the
-    deliberate reissues, which only happen from the CLI.
-    """
+    """The hashed write key of one account; the row existing is what "it has an owner" means."""
 
     __tablename__ = "account_keys"
 
@@ -334,12 +326,7 @@ class WEngine(Base):
 
 
 class DriveDisc(Base):
-    """Equipped drive disc.
-
-    `game_id` is the individual piece id and `set_id` the set it completes, resolved from the
-    static data. `roll_count` is Enka's BreakLevel: how many substat rolls the piece received.
-    `substats` is a list of `{"prop_id": int, "value": int, "rolls": int}`.
-    """
+    """Equipped drive disc. `substats` is a list of `{prop_id, value, rolls}`."""
 
     __tablename__ = "drive_discs"
     __table_args__ = (UniqueConstraint("agent_id", "slot", name="uq_drive_discs_agent_slot"),)
@@ -361,14 +348,7 @@ class DriveDisc(Base):
 
 
 class AgentBuildSnapshot(Base):
-    """The raw `avatar/info` entry an import brought for one agent.
-
-    One row per account and agent, overwritten by every import: the snapshot is the escape
-    valve for whatever the mapper does not read yet, so what matters is that it mirrors the
-    build currently stored, not how it looked last month. Keeping a history here would grow
-    without bound for a value nobody reads twice; a build history, if it ever exists, belongs
-    to the tracked build and not to a copy of the payload.
-    """
+    """The raw `avatar/info` entry an import brought for one agent, overwritten every time."""
 
     __tablename__ = "agent_build_snapshots"
     __table_args__ = (

@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Query
 
 from zzz_tracker.errors import NotFoundError
 from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
 from zzz_tracker.web.deps import (
     AccountKeyHeader,
     TrackerServiceDep,
+    UidPath,
     require_api_token,
 )
 from zzz_tracker.web.schemas import (
-    UID_PATTERN,
     BangbooListResponse,
     BangbooRead,
     ChallengeRunListResponse,
@@ -24,9 +24,6 @@ from zzz_tracker.web.schemas import (
 
 router = APIRouter(prefix="/accounts", tags=["chronicle"])
 
-UidPath = Annotated[
-    str, Path(pattern=UID_PATTERN, description="In-game UID of the tracked account")
-]
 ModeQuery = Annotated[
     str | None,
     Query(description=f"Filter by mode: `{MODE_SHIYU_DEFENSE}` or `{MODE_DEADLY_ASSAULT}`"),
@@ -46,13 +43,8 @@ def import_chronicle(
 ) -> ChronicleImportResponse:
     """Store a chronicle bundle captured in the browser, tracking the account if it is new.
 
-    The only way HoYoLAB data reaches this backend, and the only way an account gets an
-    owner. A bundle proves nothing on its own — the client picks every byte of it, the UID
-    it names included, and a UID is public — so it goes through without a key only where
-    nothing can be taken: an account nobody owns yet, which it then claims, answering with
-    the key once. Against an account that has an owner it takes that owner's key, and
-    answers 403 without it; the way back in from a lost key is `zzz-tracker rotate-key` on
-    the machine that holds the database.
+    Without a key it only goes through against an account nobody owns yet, which it claims,
+    answering with the key once; against an owned account it needs that owner's key.
     """
     report = service.import_chronicle(
         uid, payload.payloads, region=payload.region, account_key=x_account_key

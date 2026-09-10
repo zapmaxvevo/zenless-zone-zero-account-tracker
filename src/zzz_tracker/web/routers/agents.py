@@ -1,28 +1,24 @@
 """The roster and the build behind each agent.
 
-Every name, icon and stat label is resolved here from Enka's static data, so the frontend
-never sees a raw game id it has to look up. Unlike the catalog, these endpoints still answer
-when the static data is missing: what the player owns is worth showing with `null` names.
-
-The showcase only exposes the agents the player put on display, so the rest of the roster is
-typed in here. Anything written by hand is marked `manual` and from then on survives every
-sync, which also means correcting an imported agent freezes it against Enka.
+Unlike the catalog, these endpoints still answer when the static data is missing, with
+`null` names. Anything written by hand is marked `manual` and survives every later sync.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, Path, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from zzz_tracker.web.deps import (
+    AgentIdPath,
     StaticDataDep,
     TrackerServiceDep,
+    UidPath,
     require_account_key,
     require_agent_owner_key,
 )
 from zzz_tracker.web.schemas import (
-    UID_PATTERN,
     AgentDetailRead,
     AgentListResponse,
     AgentRead,
@@ -45,11 +41,6 @@ WRITE_ERRORS: dict[int | str, dict[str, Any]] = {
 }
 
 router = APIRouter(tags=["agents"], responses=NOT_FOUND)
-
-UidPath = Annotated[
-    str, Path(pattern=UID_PATTERN, description="In-game UID of the tracked account")
-]
-AgentIdPath = Annotated[int, Path(ge=1, description="Tracked agent id")]
 
 
 @router.get("/accounts/{uid}/agents", response_model=AgentListResponse)
@@ -111,8 +102,7 @@ def update_agent(
 def delete_agent(agent_id: AgentIdPath, service: TrackerServiceDep) -> Response:
     """Stop tracking an agent, with its build.
 
-    Any team comp that fielded it loses that slot and keeps the rest of its members, so a
-    deleted agent never leaves a team pointing at nothing.
+    A team comp that fielded it loses that slot and keeps the rest of its members.
     """
     service.delete_agent(agent_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

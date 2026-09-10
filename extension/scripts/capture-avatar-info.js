@@ -1,20 +1,10 @@
 // Captura de `avatar/info`: la build completa de cada agente, un request por agente.
-//
-// Para qué sirve: reproduce exactamente lo que hace el import de la extensión, así que la
-// captura es a la vez la fixture de los tests del backend y la medición real de cuánto
-// tarda un import completo (el JSON guarda `elapsed_ms`).
-//
-// Acotarlo a los agentes que el tracker ya tiene por Enka
-// (`select game_id from agents where source='enka'`) deja el mismo agente medido por dos
-// fuentes, que es lo único que prueba de verdad que `value = base / level` y el índice de
-// skills están bien y no solo parecen bien.
+// Reproduce la pasada de builds del import y mide cuánto tarda (`elapsed_ms` en el JSON).
+// Ver docs/reference/notas/extension.md.
 //
 // Uso: logueado, en https://act.hoyolab.com/app/zzz-game-record, DevTools → Console,
-// pegar entero → Enter. Sin tocar nada trae el roster COMPLETO, que es justo lo que hace el
-// primer import de la extensión: un request por agente, ~1,4 s cada uno.
-//
-// Para capturar solo algunos, poner sus ids en IDS. Los seis del ejemplo comentado son los
-// que el tracker ya tenía por Enka, o sea los que sirven para el test diferencial del mapper.
+// pegar entero → Enter. Sin tocar nada trae el roster COMPLETO (~1,4 s por agente).
+// Para capturar solo algunos, poner sus ids en IDS.
 
 (async () => {
   // const IDS = [1091, 1311, 1321, 1371, 1431, 1451];
@@ -73,8 +63,7 @@
   }
   const roleQs = `role_id=${zzz.game_role_id}&server=${zzz.region}`;
 
-  // El roster manda: pedir un id que la cuenta no tiene sería un fallo confuso, y de paso
-  // el name_mi18n hace legible el JSON resultante.
+  // El roster manda: pedir un id que la cuenta no tiene sería un fallo confuso.
   const basic = await call('avatar_basic', `${BASE}/avatar/basic?${roleQs}`);
   const roster = new Map(
     (basic?.avatar_list ?? []).map((avatar) => [Number(avatar.id), avatar.name_mi18n]),
@@ -88,15 +77,14 @@
 
   const started = Date.now();
   for (const id of ids) {
-    // La forma verificada el 2026-08-30: `id_list[]` repetido y UN id por request.
+    // `id_list[]` repetido y UN id por request: cualquier otra forma devuelve -400005.
     const data = await call(
       `avatar_info ${id} (${roster.get(Number(id))})`,
       `${BASE}/avatar/info?id_list[]=${id}&need_wiki=false&${roleQs}`,
     );
     if (data) out.agents.push({ id, name: roster.get(Number(id)) ?? null, data });
   }
-  // Cuánto tarda de verdad el roster completo: el número que decide si el primer import
-  // de la extensión se banca de una o hay que partirlo en tandas.
+  // Cuánto tarda de verdad el roster completo.
   out.elapsed_ms = Date.now() - started;
   out.requested = ids;
 

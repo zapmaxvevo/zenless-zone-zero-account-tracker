@@ -21,12 +21,7 @@ export interface SectionFailure {
   traceId: string | null;
   /** Lo que dijo HoYoLAB, crudo. */
   message: string;
-  /**
-   * El texto ya escrito para el usuario, cuando quien arma el fallo sabe más que el genérico
-   * por retcode. Envolver una oración completa en la explicación de `userMessage` sólo puede
-   * empeorarla: el `10041` de las builds diría "se canceló el import entero" al lado de
-   * "volvé a importar para completarlas", y la primera mitad ya no es cierta.
-   */
+  /** El texto ya escrito, para cuando quien arma el fallo sabe más que el genérico por retcode. */
   text?: string;
 }
 
@@ -49,10 +44,7 @@ export interface SyncResult {
 
 export type ProgressStatus = 'fetching' | 'done' | 'failed';
 
-/**
- * Avance dentro de una sección que son muchos requests. `avatar_info` no puede enumerar
- * 36 secciones, así que lleva su propio contador y el popup lo muestra como "Builds 12/36".
- */
+/** Avance dentro de una sección que son muchos requests; el popup lo muestra "Builds 12/36". */
 export interface SectionProgress {
   done: number;
   total: number;

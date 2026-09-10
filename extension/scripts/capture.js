@@ -1,16 +1,10 @@
-// Fase 0 — captura de payloads reales del Battle Chronicle de ZZZ.
+// Captura de los payloads reales del Battle Chronicle de ZZZ (ver docs/reference/notas/extension.md).
 //
 // Cómo usarlo:
 //   1. Iniciar sesión en hoyolab.com y abrir https://act.hoyolab.com/app/zzz-game-record
 //   2. Abrir DevTools (F12) → Console, pegar este archivo entero y dar Enter.
-//   3. Esperar: corre en serie con jitter de 300-800 ms entre requests (nunca en ráfaga,
-//      para no disparar el rate limit ni el captcha).
-//   4. Al final descarga un único JSON con todos los payloads crudos. Ese archivo,
-//      anonimizado (role_id, ltuid, nickname), es la materia prima para reemplazar las
-//      fixtures inventadas de tests/fixtures/ y correr el checklist de HOYOLAB.md.
-//
-// Cada request anota retcode y x-trace-id en la consola; el x-trace-id es lo único que
-// sirve para correlacionar un fallo con HoYoLAB.
+//   3. Esperar: corre en serie con jitter de 300-800 ms, nunca en ráfaga.
+//   4. Descarga un JSON con los payloads crudos; anonimizarlo antes de usarlo como fixture.
 
 (async () => {
   const BASE = 'https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz';
@@ -21,8 +15,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const jitter = () => 300 + Math.floor(Math.random() * 501);
 
-  // Incógnita: headers x-rpc-* mínimos. Mandamos los que el bundle oficial manda
-  // (device_id y device_fp van vacíos a propósito); si esto funciona, son suficientes.
+  // Los mismos que manda el bundle oficial; device_id y device_fp van vacíos a propósito.
   const headers = {
     'x-rpc-lang': LANGUAGE,
     'x-rpc-language': LANGUAGE,
@@ -70,15 +63,14 @@
     return data;
   }
 
-  // ltuid_v2 sale de las cookies del propio sitio: es lo único que hace falta tipear... nada.
+  // El ltuid sale de las cookies del sitio: no hay que tipear nada.
   const ltuid = (document.cookie.match(/(?:^|; )ltuid_v2=([^;]*)/) || [])[1];
   if (!ltuid) {
     console.error('[capture] no encuentro la cookie ltuid_v2: ¿sesión iniciada en hoyolab.com?');
     return;
   }
 
-  // Descubrimiento de role_id + server: getGameRecordCard con el ltuid de las cookies.
-  // Confirma que el usuario no necesita tipear UID ni región.
+  // role_id + server salen de getGameRecordCard: `index` no los trae.
   const card = await call('getGameRecordCard', `${CARD}?uid=${encodeURIComponent(ltuid)}`);
   const zzz = (card?.list ?? []).find((game) => Number(game.game_id) === ZZZ_GAME_ID);
   if (!zzz) {
@@ -93,7 +85,7 @@
   const roleQs = `role_id=${roleId}&server=${server}`;
   const uidQs = `uid=${roleId}&region=${server}`;
 
-  // La familia role_id + server (la trampa de los parámetros de HOYOLAB.md).
+  // La familia role_id + server.
   await call('index', `${BASE}/index?${roleQs}`);
   const basic = await call('avatar_basic', `${BASE}/avatar/basic?${roleQs}`);
 
@@ -101,27 +93,21 @@
   if (ids.length === 0) {
     console.warn('[capture] avatar/basic no trajo ids; se saltea avatar/info.');
   } else {
-    // Verificado el 2026-08-30: la forma buena es `id_list[]` repetido (como genshin.py),
-    // NO `id_list[0]` indexado — eso devuelve -400005 "Parameter Error". Y el endpoint
-    // acepta UN SOLO id: con 3 y con 36 también da -400005. Un request por agente.
+    // `id_list[]` repetido y UN id por request: cualquier otra forma devuelve -400005.
     await call('avatar_info', `${BASE}/avatar/info?id_list[]=${ids[0]}&need_wiki=false&${roleQs}`);
   }
 
   await call('buddy_info', `${BASE}/buddy/info?${roleQs}`);
 
   // Shiyu Defense: schedule_type 1 (actual) y 2 (anterior); no hay más historia.
-  // Del payload interesa hadal_ver, si la errata fitfh_layer_detail sigue viva, y
-  // todas las claves que terminan en _layer_detail (mapa capa → nodo).
   await call('shiyu_defense_1', `${BASE}/hadal_info_v2?schedule_type=1&${roleQs}`);
   await call('shiyu_defense_2', `${BASE}/hadal_info_v2?schedule_type=2&${roleQs}`);
 
-  // La familia uid + region. En Deadly Assault buscar cualquier clave de rating:
-  // hoy se asume que no existe (HOYOLAB.md, "Lo que no se sabe todavía").
+  // La familia uid + region: acá los parámetros se llaman distinto.
   await call('deadly_assault_1', `${BASE}/hadal_mem_detail_v2?schedule_type=1&${uidQs}`);
   await call('deadly_assault_2', `${BASE}/hadal_mem_detail_v2?schedule_type=2&${uidQs}`);
 
-  // Lost Void: verificar que el mapeo no quede todo en 0 (así se ve un fallo silencioso).
-  // abysss2 con tres eses es la errata real de HoYoLAB.
+  // abysss2 con tres eses es la errata real de HoYoLAB, no un typo.
   await call('lost_void', `${BASE}/abysss2_abstract?${uidQs}`);
 
   download();

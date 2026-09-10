@@ -1,65 +1,152 @@
 ---
-description: Python/Django coding standards for the backend
+description: Backend standards — FastAPI + SQLAlchemy in src/zzz_tracker, run through uv
 paths:
-  - "**/*.py"
+  - "src/**/*.py"
+  - "api/**/*.py"
+  - "alembic/**/*.py"
 ---
 
-# Python / Django standards
+# Backend (FastAPI + SQLAlchemy) standards
 
-<!-- ADAPTAR:
-  1. Acotar `paths:` al directorio del backend (ej. "backend/**/*.py").
-  2. Completar el bloque "Version constraints" con las versiones reales del proyecto.
-     Ejemplo para un proyecto legacy: "Django 2.2 / Python 3.9 — never use newer APIs;
-     for 3.9-incompatible generics (list[str], X | None) use `from __future__ import annotations`
-     or typing (List, Optional)."
--->
+El backend vive en `src/zzz_tracker/`, se maneja con **uv** y no tiene nada de Django. Todo
+comando pasa por `uv run`:
 
-## Version constraints
-
-**Declare here the project's Django/Python versions and stick to them.** Before using any API, verify it exists in those versions. If the project is on an older Python without modern generics support, prefer `from __future__ import annotations` at the top of the file over `typing.List`/`Optional`.
-
-When editing existing files, match their local style; the rules below are the go-forward standard for new code.
-
-## Language split
-- **Spanish for domain code, English for development of `/lib` and other functionalities that may be reused on other projects (e.g. a WhatsApp API client, geolocation, an external CRM integration).** Domain classes/methods/attributes in Spanish (`obtener_vendedor()`, `marcar_como_leida()`); infra/lib code in English (`call()`, `headers()`, `serialize()`, `parse()`). This applies to names, not comments.
-
-## Object design
-- Favor classes with **dependency injection** over module-level functions. Inject collaborators (senders, repos, services) so they can be mocked in tests.
-- Construct via **named constructor classmethods**, not bare `__init__`. Spanish in domain (`nuevo`, `nuevo_con`, `nuevo_para`, `para`), English in lib/infra (`new`, `new_to`). `nuevo()` reads config from `settings`; `nuevo_con(collaborator)` injects for tests.
-- Private methods/attributes use a single `_` prefix.
-- For new APIs/clients under `lib/`, follow the **`crear-api` skill** exactly (ApiClient subclass, errors hierarchy, mocks).
-
-## Errors & logging
-- Raise custom exceptions from a base class (e.g. `ClientComunicationError` for lib; per-app bases like `ErrorDeServicioDeChat`), constructed via factory (`ErrorDeServicioDeChat.nuevo(...)`). Domain code should catch connection errors (e.g. `ClientConnectionError`) and degrade gracefully (e.g. return `None`) rather than let them bubble to the view.
-- **Prefer a centralized logger class** for any code that talks to external CRMs/APIs — e.g. a `LoggerDeCRMs` class with one constant + one `para_xxx()` method per integration, so every external call logs through the same place. For other app code, use a module-level `logging.getLogger('<descriptive-domain-name>')`. Don't sprinkle `getLogger(__name__)` in domain code.
-
-Example of the centralized logger pattern:
-
-```python
-class LoggerDeCRMs(object):
-    GEOLOCALIZACION = 'geolocalizacion'
-
-    def para_geolocalizacion(self):
-        return self._logging_para(self.GEOLOCALIZACION)
-
-    def _logging_para(self, nombre):
-        return logging.getLogger(nombre)
+```bash
+uv run pytest
+uv run ruff check .        # y `uv run ruff format .`
+uv run mypy src api
+uv run alembic upgrade head
+uv run zzz-tracker serve --reload
 ```
 
-## DRF
-- Class-based `APIView`s with explicit `parser_classes` / `permission_classes` / `authentication_classes`.
-- Serializers use a factory `@classmethod para(...)` with subclass variants per case.
+Dependencias con `uv add` / `uv add --dev`, nunca editando `pyproject.toml` ni `uv.lock` a mano.
 
-## Style (prescribed for new code)
-- **Single quotes** for strings.
-- **Use f-strings** for new interpolation (don't add new `%` or `.format()` usage).
-- **Add type hints** on new public method signatures (respecting the version constraints declared above).
-- **FORBIDDEN TO WRITE COMMENTS** YOU WILL BE PUNISHED. DO NOT WRITE COMMENTS UNLESS SPECIFICALLY REQUESTED.
+> El frontend es Vite + React y vive en `frontend/`; la extensión, en `extension/`. Backend y
+> frontend hablan **solo por HTTP** y no comparten código. Las reglas de `frontend.md` no aplican acá.
+
+## Versión y tipado
+
+- **Python 3.12+** (`requires-python = ">=3.12"`). No hay restricción de APIs viejas: se usan
+  genéricos nativos (`list[str]`, `dict[str, Any]`, `X | None`), `match`, `Self`.
+- **`from __future__ import annotations` como primera línea de todo archivo `.py`.** Es la regla
+  que ya sigue el 100% del backend; un archivo nuevo sin eso desentona.
+- **mypy en `strict`**, con el plugin de pydantic. Toda función lleva anotación de argumentos y de
+  retorno, incluidas las que devuelven `None`. Nada de `Any` suelto donde se puede nombrar el tipo;
+  el `Any` legítimo es el JSON crudo que llega de una API externa antes de mapearse.
+- `TYPE_CHECKING` sólo si hace falta romper un ciclo de imports.
+
+## La regla de capas
+
+```
+web/routers/  →  tracker/  →  storage/
+                    ↑
+        enka/  y  hoyolab/  (mappers de borde)
+```
+
+- **`web/routers/` no toca modelos.** Un router recibe schemas de pydantic, llama a
+  `TrackerService` y devuelve schemas. No importa nada de `storage.models` ni arma un `select()`.
+  La conversión modelo → schema vive en el schema (`AccountRead.from_account(...)`), no en el router.
+- **`tracker/`** es el dominio: `TrackerService` es lo único que orquesta sesión, mappers y
+  modelos. Es donde se levantan los errores de dominio.
+- **`storage/`** son los modelos de SQLAlchemy, el `DatabaseManager` y `keys`. No sabe que existe HTTP.
+- **`enka/` y `hoyolab/` son mappers de borde: no tocan la sesión.** Reciben JSON crudo y devuelven
+  dataclasses `Parsed*` (`ParsedAgent`, `ParsedRosterAgent`, `ParsedChallengeRun`…). Que importen
+  una constante de `storage.models` (`MODE_SHIYU_DEFENSE`) está bien; que abran una `Session`, no.
+  `EnkaClient` es el único que hace I/O de red, y se inyecta.
+- Los helpers de parseo defensivo (`as_int`, `as_dict`, `as_list`, `timestamp_to_datetime`) están en
+  `parsing.py` y los usan los dos mappers. Un tercer `int(x or 0)` a mano es duplicación.
+
+## Inyección por `Depends`
+
+Nada se construye dentro de un handler. Todo colaborador entra por `Depends`, y los alias viven en
+`web/deps.py` — usá el alias, no repitas el `Annotated[..., Depends(...)]`:
+
+`SettingsDep`, `DatabaseManagerDep`, `SessionDep`, `EnkaClientDep`, `StaticDataDep`,
+`RequiredStaticDataDep`, `TrackerServiceDep`, más los path/header types `UidPath`, `AgentIdPath`,
+`TeamIdPath`, `AccountKeyHeader`.
+
+```python
+@router.get("/{uid}", response_model=AccountRead)
+def get_account(uid: UidPath, service: TrackerServiceDep) -> AccountRead:
+    return AccountRead.from_account(service.get_account(uid))
+```
+
+Los guards de escritura (`require_account_key`, `require_agent_owner_key`,
+`require_team_owner_key`) van en `dependencies=[Depends(...)]` del decorador, no en el cuerpo.
+Un alias nuevo se agrega a `deps.py`; no se define ad hoc en un router.
+
+Esto es también lo que hace testeable el backend: los tests arman la app con `create_app(settings,
+enka=..., static=...)` y sustituyen el borde externo sin parchear nada.
+
+## Errores de dominio
+
+Todo error que el cliente tiene que poder distinguir es una subclase de `ZZZTrackerError`
+(`errors.py`), con su `status_code`, su `code` y su `default_detail`. Se levantan desde `tracker/`
+o desde los guards; **nunca** se hace `raise HTTPException` en un router.
+
+```python
+raise ConflictError(f"Agent {game_id} is already tracked for account {uid}")
+```
+
+- El `detail` es para una persona y puede cambiar de palabras cuando quieras.
+- **El `code` es contrato: renombrarlo rompe a los clientes.** `tests/test_errors.py` pinea cada
+  uno. Un error nuevo se agrega con un `code` nuevo; uno existente no se renombra.
+- Un status por sí solo no alcanza: 409 es a la vez `conflict` y `unclaimed_account`. Por eso el
+  código, y no el status, es lo que se mira del otro lado.
+
+## Pydantic sólo en el borde HTTP
+
+Los schemas de `web/schemas/` (`accounts`, `agents`, `catalog`, `chronicle`, `common`, `teams`) son
+la forma de entrada y salida de la API, y nada más. El dominio no habla pydantic: `tracker/` y los
+mappers usan dataclasses. La validación de forma (patrones de UID, rangos) va en el schema o en el
+`Path(...)`; la validación que necesita mirar la base es `ValidationError` desde el servicio.
+
+Un endpoint declara siempre `response_model`, y sus errores esperados en `responses=`.
+
+## Migraciones
+
+Un cambio en `storage/models.py` necesita su revisión de Alembic en el mismo cambio:
+
+```bash
+uv run alembic revision --autogenerate -m "lo que cambia"
+uv run alembic upgrade head && uv run alembic check && uv run alembic downgrade base
+```
+
+`alembic check` es lo que CI corre contra Postgres para detectar deriva. Toda revisión tiene
+`downgrade()` real. Producción es Postgres y los tests corren en SQLite: nada de tipos exclusivos
+de un motor sin mirar el otro.
+
+## Estilo
+
+- **ruff** con `line-length = 100`, `target-version = "py312"`, reglas `E, F, I, UP, B, C4, SIM`.
+  `uv run ruff format .` antes de terminar; el import order lo arregla ruff (`I`).
+- **Comillas dobles.** Es lo que formatea ruff, y reformatear a comillas simples te lo va a revertir.
+- f-strings para interpolar.
+- Nombres en **inglés**, que es el idioma del backend entero (`sync_account`, `verify_key`,
+  `parse_shiyu_defense`). Los docstrings y comentarios también.
+- Privados con un `_` de prefijo.
+
+## Comentarios: el código dice *qué*, el *por qué* va a `docs/reference/`
+
+Un comentario o docstring se queda **sólo si dice algo que el código no puede decir en una línea**.
+
+Se queda:
+- La primera línea del docstring de una función pública, diciendo qué hace.
+- Un comentario de **una** línea que avisa de algo no obvio: un límite de una API externa, una
+  unidad, un orden que importa, una comparación en tiempo constante hecha a propósito.
+
+Se va:
+- Todo párrafo de rationale y toda justificación de diseño.
+- Toda historia ("antes esto era X y se cambió porque…").
+- Todo comentario que repite lo que el código ya dice.
+
+Lo que se va **no se tira**: se muda a `docs/reference/`. Esa es la mitad de la documentación que
+describe el presente del sistema; el resto de `docs/` (`PLAN.md`, `EXTENSION.md`, `PENDIENTES.md`,
+`DISC_SCORE*.md`) son planes e historia y no describen necesariamente lo que hay hoy.
 
 ## Tests
-- Run with the `/run-tests` skill (uv + the project's test settings module).
-- Use Django `TestCase` (not pytest).
-- **When writing or generating tests, follow `tests.md`** — it is the detailed standard. Core idea:
-  test **domain behavior** (real gestores/servicios, assert observable outcomes), not methods in
-  isolation; inject mocks for the external edge instead of `@patch`. Reserve `@patch` /
-  `assert_called_*` / payload-shape checks for the boundary unit test of the sender/cliente itself.
+
+`uv run pytest`. La forma la manda **`.claude/rules/tests.md`**, que es el estándar detallado. En
+una línea: se testea **comportamiento de dominio** — la app real contra la base real, con
+`TestClient`, afirmando el resultado observable — y se stubbea sólo el borde externo (Enka y
+HoYoLAB). Nada de `assert_called_*` ni de mockear un colaborador interno.

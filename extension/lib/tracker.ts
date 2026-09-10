@@ -27,6 +27,32 @@ export function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
 
+/** Las claves de `storage.sync` que hay que leer para armar un import. */
+export const SETTINGS_KEYS = [
+  STORAGE_KEYS.trackerUrl,
+  STORAGE_KEYS.frontendUrl,
+  STORAGE_KEYS.apiToken,
+  STORAGE_KEYS.accountKeys,
+] as const;
+
+export interface StoredSettings {
+  trackerUrl: string;
+  frontendUrl: string;
+  apiToken: string;
+  accountKeys: AccountKeys;
+}
+
+/** Lo que devolvió `storage.sync.get(SETTINGS_KEYS)`, normalizado: storage puede tener basura. */
+export function parseSettings(stored: Record<string, unknown>): StoredSettings {
+  const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+  return {
+    trackerUrl: text(stored[STORAGE_KEYS.trackerUrl]),
+    frontendUrl: text(stored[STORAGE_KEYS.frontendUrl]),
+    apiToken: text(stored[STORAGE_KEYS.apiToken]),
+    accountKeys: parseAccountKeys(stored[STORAGE_KEYS.accountKeys]),
+  };
+}
+
 /** Lee el mapa de keys de storage descartando cualquier cosa que no sea `uid -> string`. */
 export function parseAccountKeys(value: unknown): AccountKeys {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
@@ -41,11 +67,7 @@ export function accountKeyFor(keys: AccountKeys, uid: string): string | undefine
   return keys[uid];
 }
 
-/**
- * Devuelve el mapa con la key de ese UID puesta al día. La entrada está indexada por UID, así
- * que una key rotada **reemplaza** a la anterior en vez de acumularse: la vieja ya está muerta
- * en el backend y guardarla sólo serviría para mandar una key inválida en el próximo import.
- */
+/** El mapa con la key de ese UID al día: la rotada reemplaza a la vieja, que ya está muerta. */
 export function withAccountKey(keys: AccountKeys, uid: string, key: string): AccountKeys {
   const trimmed = key.trim();
   if (!trimmed) return keys;
@@ -53,11 +75,8 @@ export function withAccountKey(keys: AccountKeys, uid: string, key: string): Acc
 }
 
 /**
- * El mapa de keys que queda después de un import. La respuesta trae `account_key` sólo cuando
- * el import reclama una cuenta sin dueño: esa es la única vez que se puede leer, así que se
- * persiste siempre. Un import con la key vigente no rota y no la trae, y contra una cuenta con
- * dueño ajena no hay respuesta que mirar: es un 403. En los dos casos devuelve el mismo mapa
- * —misma referencia— y no hay nada que escribir.
+ * El mapa de keys que queda después de un import. Sin `account_key` en la respuesta devuelve
+ * la MISMA referencia, que es como quien llama sabe que no hay nada que escribir.
  */
 export function accountKeysAfterImport(
   keys: AccountKeys,
@@ -81,8 +100,7 @@ export function importUrl(baseUrl: string, uid: string): string {
 // La ruta del SPA es /account/:uid (singular); /accounts/... es la API JSON del backend.
 export function accountUrl(frontendBaseUrl: string, uid: string, accountKey?: string): string {
   const url = `${normalizeBaseUrl(frontendBaseUrl)}/account/${encodeURIComponent(uid)}`;
-  // La key viaja en el fragmento, no en el query: el fragmento no llega al servidor ni queda
-  // en sus logs. El frontend la guarda y limpia la URL con history.replaceState.
+  // La key va en el fragmento, no en el query: el fragmento no llega al servidor ni a sus logs.
   return accountKey ? `${url}#key=${encodeURIComponent(accountKey)}` : url;
 }
 
@@ -100,14 +118,11 @@ export class TrackerError extends Error {
 }
 
 /**
- * El 403 del import significa una sola cosa: esa cuenta ya tiene dueño y este navegador no
- * tiene su key. El backend no escribió nada y no emitió ninguna key nueva —la propiedad no se
- * pierde con otro bundle—, así que el mensaje tiene que decir cómo conseguir la key en vez de
- * dejar al usuario reintentando.
+ * El texto del 403: la cuenta ya tiene dueño y este navegador no tiene su key. Dice cómo
+ * conseguirla, porque reintentar no sirve —el backend no escribió nada ni emitió key nueva.
  */
 export function ownedAccountHelp(uid: string, sentKey = false): string {
-  // Mandamos key y aun así rebotó: ya no se la puede haber llevado otro import —una cuenta con
-  // dueño no cambia de manos—, así que o la rotaron en el servidor o nunca fue de este UID.
+  // Si mandamos key y aun así rebotó, o la rotaron en el servidor o nunca fue de este UID.
   const problem = sentKey
     ? `El UID ${uid} tiene dueño y la key guardada acá ya no sirve: la rotaron en el servidor ` +
       'o es de otra cuenta.'
@@ -121,10 +136,7 @@ export function ownedAccountHelp(uid: string, sentKey = false): string {
 
 /**
  * El `detail` de un error del backend, como texto. FastAPI lo manda como string en los errores
- * propios, pero como **lista** de `{loc, msg, …}` cuando lo que falla es la validación del
- * schema — el 422 del import, por ejemplo, cuando la región no está en el allowlist. Sin
- * desarmar esa lista el usuario lee sólo "El tracker respondió 422." y no se entera de qué
- * rechazó el backend.
+ * propios y como lista de `{loc, msg, …}` cuando falla la validación del schema.
  */
 export function extractDetail(body: unknown): string {
   if (typeof body !== 'object' || body === null) return '';
@@ -161,13 +173,11 @@ export async function postChronicleImport(args: {
 }): Promise<ChronicleImportResponse> {
   const doFetch = args.fetchFn ?? (fetch as unknown as FetchLike);
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  // El Bearer es opcional: sólo lo exige el backend que tenga ZZZ_API_TOKEN seteado. Mandar
-  // `Bearer ` vacío haría fallar a ese backend con un token inválido en vez de "falta token".
+  // El Bearer es opcional: `Bearer ` vacío fallaría como token inválido, no como token ausente.
   if (args.settings.apiToken?.trim()) {
     headers.authorization = `Bearer ${args.settings.apiToken.trim()}`;
   }
-  // Con la key vigente el import no rota nada. Sin ella, una cuenta sin dueño se reclama y sale
-  // una key; una cuenta con dueño responde 403 y no escribe nada (ver docs/OWNERSHIP.md).
+  // Sin key, una cuenta libre se reclama y sale una key; una con dueño da 403 (docs/OWNERSHIP.md).
   const accountKey = args.settings.accountKey?.trim() ?? '';
   if (accountKey) headers['x-account-key'] = accountKey;
   let response;

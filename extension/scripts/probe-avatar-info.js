@@ -1,11 +1,8 @@
-// Fase 0 (continuación) — sonda de `avatar/info`.
+// Sonda de `avatar/info`: prueba una por una las formas posibles de `id_list` hasta que
+// alguna responda retcode 0, y después mide cuántos ids acepta por request.
 //
-// Por qué existe: la captura del 2026-08-30 trajo retcode 0 en TODOS los endpoints menos
-// `avatar/info`, que devolvió -400005 "Parameter Error" con `id_list[0]=<id>&need_wiki=false`.
-// Los ids eran correctos (salen de avatar/basic), así que lo que está mal es la forma de los
-// parámetros. Esta sonda prueba las variantes de a una, con jitter, y en cuanto una responde
-// retcode 0 sigue con el batch: resuelve la incógnita 1 del plan (¿id_list acepta N ids?)
-// en la misma corrida.
+// La respuesta ya se conoce y está en `avatarInfoUrl` y en docs/reference/notas/extension.md:
+// esto sólo se vuelve a correr si HoYoLAB cambia la forma de los parámetros.
 //
 // Uso: igual que capture.js — logueado, en https://act.hoyolab.com/app/zzz-game-record,
 // DevTools → Console → pegar entero → Enter. Descarga un JSON al terminar.
@@ -62,8 +59,7 @@
       retcode,
       message: body?.message ?? '',
       avatar_list_count: count,
-      // El data solo se guarda del ganador: es lo que hace falta para el mapper, y así el
-      // JSON no pesa 40 MB si varias variantes funcionan.
+      // El data sólo se guarda del ganador; si no, el JSON pesa decenas de MB.
       data: keepData ? (body?.data ?? null) : undefined,
     });
     await sleep(jitter());
@@ -92,9 +88,7 @@
   const id = ids[0];
   console.log(`[probe] ${ids.length} agentes en el roster; sondeo con id=${id}`);
 
-  // Una variante por dimensión, para que el resultado diga QUÉ estaba mal y no solo que
-  // "esta anda": corchetes repetidos vs indexados vs sin corchetes, codificados o no,
-  // y need_wiki en sus cuatro formas.
+  // Una variante por dimensión, para que el resultado diga QUÉ estaba mal y no sólo cuál anda.
   const variants = [
     ['repetido_wiki_false', `id_list[]=${id}&need_wiki=false`],
     ['repetido_wiki_true', `id_list[]=${id}&need_wiki=true`],
@@ -117,8 +111,7 @@
   }
 
   if (!winner) {
-    // -400005 en todas las formas de parámetros apunta a la ruta, no a los parámetros.
-    // avatar/basic responde OK, así que la sesión y el role_id están bien.
+    // Si ninguna forma anda, el problema es la ruta: avatar/basic responde OK con esta sesión.
     console.warn('[probe] ninguna variante anduvo; pruebo rutas alternativas.');
     for (const path of ['avatar/detail', 'avatar/list', 'avatar/get_info']) {
       const data = await call(`ruta_${path.replace('/', '_')}`, `${BASE}/${path}?id_list[]=${id}&need_wiki=false&${roleQs}`);
@@ -137,8 +130,7 @@
 
   out.winner = winner;
   const path = winner.path ?? 'avatar/info';
-  // El need_wiki y la forma del array salen de la variante ganadora, no de un default:
-  // el batch tiene que repetir exactamente lo que HoYoLAB aceptó.
+  // El batch tiene que repetir exactamente lo que HoYoLAB aceptó, no un default.
   const needWiki = /need_wiki=([^&]*)/.exec(winner.qs)?.[1] ?? null;
   const serialize = winner.qs.includes('id_list[]') || winner.qs.includes('id_list%5B%5D')
     ? (values) => values.map((value) => `id_list[]=${value}`).join('&')
@@ -150,11 +142,10 @@
       .filter(Boolean)
       .join('&');
 
-  // El data completo de un solo agente: de acá salen la forma de properties/equip/weapon,
-  // si hay conteo de rolls y si promotion_level y core_skill_enhancement vienen explícitos.
+  // El data completo de un solo agente: la forma de properties/equip/weapon sale de acá.
   await call('ganador_single', build([id]), { keepData: true });
 
-  // Incógnita 1: ¿cuántos ids por request? Tres primero, después todo el roster.
+  // ¿Cuántos ids por request? Tres primero, después todo el roster.
   await call('batch_3', build(ids.slice(0, 3)), { keepData: true });
   await call('batch_all', build(ids), { keepData: true });
 

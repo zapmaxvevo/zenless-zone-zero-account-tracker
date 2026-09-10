@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from zzz_tracker.web.deps import TrackerServiceDep, require_account_key
+from zzz_tracker.web.deps import TrackerServiceDep, UidPath, require_account_key
 from zzz_tracker.web.schemas import (
-    UID_PATTERN,
     AccountCreate,
     AccountListResponse,
     AccountRead,
@@ -15,9 +14,6 @@ from zzz_tracker.web.schemas import (
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
-UidPath = Annotated[
-    str, Path(pattern=UID_PATTERN, description="In-game UID of the tracked account")
-]
 ForceQuery = Annotated[bool, Query(description="Fetch even if Enka's ttl has not expired")]
 
 OWNERSHIP_ERRORS: dict[int | str, dict[str, Any]] = {
@@ -29,12 +25,7 @@ OWNERSHIP_ERRORS: dict[int | str, dict[str, Any]] = {
 
 @router.post("", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
 def create_account(payload: AccountCreate, service: TrackerServiceDep) -> AccountRead:
-    """Track an account, importing whatever Enka exposes for its UID.
-
-    Free, and with no consequence for ownership: a UID is a public number, and typing one
-    in says nothing about whose it is. Owning an account starts with importing its
-    chronicle, which is the only thing a stranger cannot do for you.
-    """
+    """Track an account, importing whatever Enka exposes for its UID."""
     return AccountRead.from_account(service.sync_account(payload.uid))
 
 
@@ -59,14 +50,7 @@ def get_account(uid: UidPath, service: TrackerServiceDep) -> AccountRead:
 def check_ownership(uid: UidPath) -> Response:
     """Ask whether the key you hold is the one that owns this account, changing nothing.
 
-    Since nothing reissues a key over HTTP, pasting one in by hand is how a second machine
-    gets it, and a wrong paste would otherwise only surface at the first failed save. This
-    answers before that: 204 if the key owns the account, 403 if it is missing or belongs to
-    another account, 409 if nobody owns the account yet, 404 if the UID is not tracked.
-
-    It is the same guard the writes use, on purpose — a second way to check a key is a
-    second way for the answer to be wrong. The key itself never comes back, in whole or in
-    part: the status *is* the answer.
+    The key never comes back, in whole or in part: the status *is* the answer.
     """
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

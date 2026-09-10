@@ -17,8 +17,7 @@ export interface ChroniclePayloads {
   lost_void?: RawPayload | null;
 }
 
-// El `data` de `index` no trae UID, nickname ni nivel: lo único que los tiene es
-// `getGameRecordCard`. Por eso su entrada de ZZZ viaja como sección propia.
+// `index` no trae UID, nickname ni nivel: lo único que los tiene es `getGameRecordCard`.
 const RECORD_CARD_FIELDS = [
   'game_role_id',
   'nickname',
@@ -29,10 +28,8 @@ const RECORD_CARD_FIELDS = [
 ] as const;
 
 /**
- * La entrada de ZZZ de `getGameRecordCard`, recortada a lo que el tracker usa. Se filtra por
- * dos razones: la card trae también las otras cuentas de HoYoverse del usuario (Genshin, HSR…)
- * y el tracker no tiene por qué verlas, y de la entrada de ZZZ sólo importan estos campos.
- * Devuelve null si la card falló o no tiene una cuenta de ZZZ: la sección es opcional.
+ * La entrada de ZZZ de `getGameRecordCard`, recortada a lo que el tracker usa: la card trae
+ * también las otras cuentas de HoYoverse del usuario y ésas no viajan. Null si no hay ZZZ.
  */
 export function recordCardSection(cardData: unknown): RawPayload | null {
   const list = (cardData as { list?: unknown } | null | undefined)?.list;
@@ -75,19 +72,10 @@ export function buildImportPayload(args: {
   };
 }
 
-/**
- * El espejo de `ChronicleImportResponse` de `src/zzz_tracker/web/schemas.py`. Los campos van
- * opcionales a propósito —el backend los manda todos salvo `account_key`— para que un cambio
- * de forma se degrade en un resumen incompleto y no en una pantalla rota.
- */
+/** El espejo de `ChronicleImportResponse` de `src/zzz_tracker/web/schemas.py`. */
 export interface ChronicleImportResponse {
   account_uid?: string;
-  /**
-   * Sólo viene cuando el import reclama una cuenta que no tenía dueño, que es el único momento
-   * en que la key rota. Se muestra una vez y hay que guardarla: el backend la tiene hasheada y
-   * no la vuelve a devolver. Un import con la key vigente no la trae; uno sin key contra una
-   * cuenta con dueño ni llega a esta respuesta: es un 403.
-   */
+  /** Sólo cuando el import reclama una cuenta sin dueño; es la única vez que se puede leer. */
   account_key?: string | null;
   agents_synced?: number;
   bangboos_synced?: number;

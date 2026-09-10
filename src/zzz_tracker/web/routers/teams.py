@@ -1,25 +1,24 @@
 """Team comps: named groups of up to three agents of a tracked account.
 
-Teams are written whole. `POST` and `PUT` both carry the complete comp, so editing one
-slot means sending the three members again; that keeps the slots consistent and spares the
-frontend a per-member endpoint. Members come back with the agent already resolved to its
-name, icon and W-Engine, the same shape the roster serves.
+Teams are written whole: `POST` and `PUT` both carry the complete comp. Members come back
+with the agent already resolved, the same shape the roster serves.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, Path, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from zzz_tracker.web.deps import (
     StaticDataDep,
+    TeamIdPath,
     TrackerServiceDep,
+    UidPath,
     require_account_key,
     require_team_owner_key,
 )
 from zzz_tracker.web.schemas import (
-    UID_PATTERN,
     ErrorResponse,
     TeamListResponse,
     TeamRead,
@@ -34,11 +33,6 @@ TEAM_ERRORS: dict[int | str, dict[str, Any]] = {
 }
 
 router = APIRouter(tags=["teams"], responses=TEAM_ERRORS)
-
-UidPath = Annotated[
-    str, Path(pattern=UID_PATTERN, description="In-game UID of the tracked account")
-]
-TeamIdPath = Annotated[int, Path(ge=1, description="Team id")]
 
 
 @router.get("/accounts/{uid}/teams", response_model=TeamListResponse)

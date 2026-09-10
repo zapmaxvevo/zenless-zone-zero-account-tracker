@@ -5,6 +5,7 @@ import { rarityLabel } from '../lib/labels';
 import { rarityColor } from '../lib/palette';
 import '../styles/forms.css';
 import Button from './ui/Button';
+import NumberField from './ui/NumberField';
 
 interface DiscFieldsProps {
   disc: DiscDraft;
@@ -86,33 +87,21 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
               </select>
             </div>
 
-            <div className="field">
-              <label className="ne-label" htmlFor={`disc-${disc.slot}-level`}>
-                Nivel
-              </label>
-              <input
-                id={`disc-${disc.slot}-level`}
-                type="number"
-                min={LIMITS.discLevel[0]}
-                max={LIMITS.discLevel[1]}
-                value={disc.level}
-                onChange={(event) => patch({ level: event.target.value })}
-              />
-            </div>
+            <NumberField
+              id={`disc-${disc.slot}-level`}
+              label="Nivel"
+              limits={LIMITS.discLevel}
+              value={disc.level}
+              onChange={(level) => patch({ level })}
+            />
 
-            <div className="field">
-              <label className="ne-label" htmlFor={`disc-${disc.slot}-rolls`}>
-                Rolls
-              </label>
-              <input
-                id={`disc-${disc.slot}-rolls`}
-                type="number"
-                min={LIMITS.discProcs[0]}
-                max={LIMITS.discProcs[1]}
-                value={disc.roll_count}
-                onChange={(event) => patch({ roll_count: event.target.value })}
-              />
-            </div>
+            <NumberField
+              id={`disc-${disc.slot}-rolls`}
+              label="Rolls"
+              limits={LIMITS.discProcs}
+              value={disc.roll_count}
+              onChange={(roll_count) => patch({ roll_count })}
+            />
           </div>
 
           <div className="field-row ne-field-row">

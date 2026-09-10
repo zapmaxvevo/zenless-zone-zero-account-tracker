@@ -1,12 +1,4 @@
-"""Serverless entrypoint for Vercel.
-
-Vercel turns every file under `api/` into a function and hands it the request with the
-original path, so `/api/accounts/1500123456` arrives here spelled in full. The routers are
-mounted at the root (`/accounts/...`) because that is what `frontend/vite.config.ts` proxies
-to in development, where the `/api` prefix is rewritten away before the request leaves the
-dev server. `StripApiPrefix` does the same rewrite in production, which keeps a single URL
-shape in `frontend/src/api/client.ts` for both.
-"""
+"""Serverless entrypoint for Vercel."""
 
 from __future__ import annotations
 
@@ -17,12 +9,10 @@ from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# The package lives in `src/` and Vercel does not `pip install` the project itself.
+# Vercel does not `pip install` the project itself.
 sys.path.insert(0, str(ROOT / "src"))
 
-# `static_data_dir` defaults to a path relative to the working directory, which is not a
-# place we control here. The store files ride along in the deployment (see `.gitignore` and
-# `docs/DEPLOY.md`); point at them absolutely unless the environment already says otherwise.
+# `static_data_dir` defaults to a path relative to a working directory we do not control here.
 os.environ.setdefault("ZZZ_STATIC_DATA_DIR", str(ROOT / "data" / "static"))
 
 from zzz_tracker.app import create_app  # noqa: E402
@@ -39,7 +29,10 @@ API_PREFIX = "/api"
 
 
 class StripApiPrefix:
-    """Drop the `/api` prefix Vercel routes on, before the ASGI app sees the path."""
+    """Drop the `/api` prefix Vercel routes on, before the ASGI app sees the path.
+
+    The same rewrite `frontend/vite.config.ts` does in development.
+    """
 
     def __init__(self, application: object) -> None:
         self.application = application

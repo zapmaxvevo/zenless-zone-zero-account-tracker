@@ -4,6 +4,8 @@ import {
   DEFAULT_TRACKER_URL,
   normalizeBaseUrl,
   parseAccountKeys,
+  parseSettings,
+  SETTINGS_KEYS,
   STORAGE_KEYS,
   withAccountKey,
   withoutAccountKey,
@@ -24,26 +26,16 @@ export default function App() {
   const [keyError, setKeyError] = useState('');
 
   useEffect(() => {
-    void browser.storage.sync
-      .get([
-        STORAGE_KEYS.trackerUrl,
-        STORAGE_KEYS.frontendUrl,
-        STORAGE_KEYS.apiToken,
-        STORAGE_KEYS.accountKeys,
-      ])
-      .then((stored) => {
-        const storedUrl: unknown = stored[STORAGE_KEYS.trackerUrl];
-        const storedFrontendUrl: unknown = stored[STORAGE_KEYS.frontendUrl];
-        const storedToken: unknown = stored[STORAGE_KEYS.apiToken];
-        if (typeof storedUrl === 'string') setTrackerUrl(storedUrl);
-        if (typeof storedFrontendUrl === 'string') setFrontendUrl(storedFrontendUrl);
-        if (typeof storedToken === 'string') setApiToken(storedToken);
-        setAccountKeys(parseAccountKeys(stored[STORAGE_KEYS.accountKeys]));
-      });
+    void browser.storage.sync.get([...SETTINGS_KEYS]).then((stored) => {
+      const settings = parseSettings(stored);
+      setTrackerUrl(settings.trackerUrl);
+      setFrontendUrl(settings.frontendUrl);
+      setApiToken(settings.apiToken);
+      setAccountKeys(settings.accountKeys);
+    });
   }, []);
 
-  // Un import que rota la key la escribe desde el background: si estas opciones están
-  // abiertas en ese momento, la key nueva tiene que aparecer sola.
+  // La key la escribe el background: con las opciones abiertas tiene que aparecer sola.
   useEffect(() => {
     const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
       if (area !== 'sync' || !(STORAGE_KEYS.accountKeys in changes)) return;

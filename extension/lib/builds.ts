@@ -1,10 +1,5 @@
-// La pasada de builds: un request de `avatar/info` por agente.
-//
-// Vive acá y no en el content script para que se pueda testear el caso que importa: la
-// pasada se corta a la mitad (hard limit, sesión caída) y lo que ya se trajo tiene que
-// llegar igual al tracker. Un corte acá NO es fatal — para este momento el paquete ya
-// tiene `index`, el roster, los bangboos y los modos —, así que el import sube incompleto
-// y el snapshot deja a los agentes que faltaron pendientes para el próximo.
+// La pasada de builds: un request de `avatar/info` por agente. Un corte acá NO es fatal —el
+// paquete ya tiene `index`, roster, bangboos y modos—, así que el import sube incompleto.
 import type { RawPayload } from './chronicle';
 import {
   avatarInfoUrl,
@@ -66,8 +61,7 @@ export async function fetchBuilds(args: {
       const data = response.kind === 'ok' ? response.data : null;
       results.push({ id, data });
       if (!data) {
-        // Un retcode 0 sin `data` no es un OK: no hay build que mandar y el agente queda
-        // pendiente igual que si hubiera fallado.
+        // Un retcode 0 sin `data` no es un OK: no hay build, y el agente queda pendiente.
         const reason =
           response.kind === 'ok' ? 'respuesta sin datos' : response.message || 'sin detalle';
         failures.push({
@@ -95,14 +89,9 @@ export async function fetchBuilds(args: {
 }
 
 /**
- * Las 36 builds son 36 fallos posibles, y el popup los renderiza uno por `<li>`: veinte
- * líneas casi idénticas entierran el resumen del import. Así que los fallos de `avatar_info`
- * viajan como UNA advertencia con lo único accionable: cuántas builds faltaron sobre cuántas
- * se pidieron, el motivo más frecuente con un agente de ejemplo, el `x-trace-id` de ése para
- * diagnosticar, y que reimportando se completan.
- *
- * El faltante se cuenta contra los pedidos, no contra los fallos: un corte deja agentes que
- * nunca se llegaron a pedir y que también están sin build.
+ * Los fallos de las 36 builds colapsados en UNA advertencia, con el motivo más frecuente y un
+ * agente de ejemplo. El faltante se cuenta contra los pedidos, no contra los fallos: un corte
+ * deja agentes que nunca se llegaron a pedir y que también están sin build.
  */
 export function collapseBuildFailures(builds: BuildsSync): SectionFailure | null {
   const missing = builds.requested - builds.fetchedIds.length;
