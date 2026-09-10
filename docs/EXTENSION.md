@@ -168,8 +168,9 @@ Decisiones:
 
 ## Contrato del import
 
-`POST /accounts/{uid}/chronicle/import` — `X-Account-Key: <key del UID>` (y
-`Authorization: Bearer <ZZZ_API_TOKEN>` sólo si el backend tiene el token seteado).
+`POST /accounts/{uid}/chronicle/import` — `X-Account-Key: <key del UID>`, que hace falta sólo
+si la cuenta ya tiene dueño (el primer import de un UID libre lo reclama y recibe la key), más
+`Authorization: Bearer <ZZZ_API_TOKEN>` sólo si el backend tiene el token seteado.
 
 ```jsonc
 {
@@ -179,6 +180,7 @@ Decisiones:
   "region": "prod_gf_us",
   "language": "en-us",
   "payloads": {
+    "record_card":         { /* entrada de ZZZ de getGameRecordCard, recortada */ },
     "index":               { /* data crudo de index */ },
     "avatar_basic":        { /* data crudo de avatar/basic */ },
     "avatar_info":         [ { /* data crudo de avatar/info, uno por request */ } ],
@@ -190,23 +192,43 @@ Decisiones:
 }
 ```
 
-- Cada valor es **el `data` ya desenvuelto** de la respuesta de HoYoLAB, así
-  los `parse_*` se aplican sin adaptador. Si un endpoint falló en el navegador, la clave viene
-  ausente o `null` y el backend lo salta y lo lista en `unavailable_modes` / `skipped_sections`.
-- Toda clave es opcional salvo `index` (de ahí salen nickname/nivel y se confirma el UID): un
-  import parcial es válido. `avatar_info` es una lista de respuestas crudas, no un merge, para
-  no perder la forma exacta.
-- Respuesta: `ChronicleSyncResponse` extendida con `builds_synced` y `skipped_sections` —
-  y, desde el modelo de propiedad, `account_key`: viene con la key nueva cuando el import se
-  quedó con el UID, y `null` cuando el que llamó ya presentó la vigente.
-- El `uid` del path se valida contra `index.role.game_role_id` (o el campo real): si no
-  coincide → 422. La cuenta **se crea si no existe** (`POST /accounts` implícito), porque el
-  flujo de la extensión no pasa por la home del tracker.
-- Errores: 401 sin token o token inválido, **sólo donde el token está configurado**; 403
-  cuando la cuenta ya fue reclamada por un import y el bundle no trae su key; 422 payload
-  malformado o UID que no coincide; el resto como hoy.
-- El import **no** toca `HoyolabCredential`, no arma backoff (no hubo red del lado del backend)
-  y sí escribe `chronicle_synced_at`, `region`, `chronicle_public = True`.
+Esta sección se mantiene al día contra `src/zzz_tracker/web/schemas.py`: es contrato, no plan.
+
+- Cada valor de `payloads` es **el `data` ya desenvuelto** de la respuesta de HoYoLAB, así los
+  `parse_*` se aplican sin adaptador. Una sección que el navegador no pudo traer viene ausente
+  o `null`, y el backend la salta y la nombra en `skipped_sections`. `unavailable_modes` es
+  otra cosa: son las temporadas que **sí** llegaron pero vienen con `has_data == false`.
+- **`index` es la única clave obligatoria**, y alcanza con que esté y no venga vacía; sin ella,
+  **422**. No es de donde salen el nickname y el nivel —el `index` real no trae perfil—: eso
+  sale de `record_card`, que la extensión arma desde `getGameRecordCard` recortando la entrada
+  de ZZZ. `avatar_info` es una **lista** de respuestas crudas, una por agente, no un merge,
+  para no perder la forma exacta.
+- **El UID del path se valida contra `record_card` primero y contra el `index` después**
+  (`parse_chronicle_uid`: `game_role_id` / `game_uid` / `uid` / `role_id`). Si lo que encuentra
+  no coincide → **422**. Si el bundle no nombra ningún UID, se acepta igual: nombrarlo no
+  prueba nada —es público— y exigirlo sólo castigaría al usuario cuya captura de `record_card`
+  falló. La cuenta **se crea si no existe**, porque el flujo de la extensión no pasa por la
+  home del tracker.
+- **`region` se valida contra las regiones que existen**: vacío significa "deducila del UID",
+  y cualquier string que no sea una región conocida lo rechaza el schema con **422**.
+- **`source`, `extension_version`, `captured_at` y `language` se aceptan y hoy se ignoran.**
+  El backend fija `chronicle_import_source = "extension"` por su cuenta. Están en el contrato
+  para que la extensión pueda mandarlos sin que el import los rechace, no porque hagan algo.
+  Cualquier clave desconocida también se ignora (`extra="ignore"`), así la extensión puede ir
+  adelante del backend.
+- **Respuesta: `ChronicleImportResponse`**, un schema propio —`ChronicleSyncResponse` se borró
+  con el sync server-side—: `account_uid`, `agents_synced`, `bangboos_synced`, `builds_synced`,
+  `lost_void_synced`, `unavailable_modes`, `skipped_sections`, `runs` y `account_key`.
+  `account_key` viene con la key **una sola vez en la vida de la cuenta**: en el import que le
+  dio dueño. Todo import posterior presenta esa key y recibe `null`, así un cliente nunca
+  guarda una key que no le están entregando.
+- **Errores**: **401** si falta el `Bearer` o está mal, *sólo* donde `ZZZ_API_TOKEN` está
+  configurado; **403** si la cuenta ya tiene dueño y el bundle no trae su key —no rota nada, no
+  escribe nada—; **422** si falta `index`, si el UID no coincide o si la región no existe. Los
+  422 que arma FastAPI por el schema no traen `code`; los del dominio sí.
+- **El import no toca nada más.** No hay credenciales que actualizar, ni TTL, ni backoff: el
+  backend no salió a la red. Escribe `chronicle_synced_at`, `region`, `chronicle_public = True`
+  y `chronicle_import_source = "extension"`, en una sola transacción con todo lo demás.
 
 ### Precedencia de fuentes con builds de HoYoLAB
 
@@ -221,6 +243,11 @@ escribir builds enteras (W-Engine + discos), de todo el roster. Decisión:
   con distinta latencia (Enka lee el showcase, HoYoLAB lee la cuenta). Si aparece un conflicto
   real (p. ej. HoYoLAB sin conteo de rolls y Enka con él), se resuelve en la fase 3 con datos
   en la mano, no ahora.
+
+→ **Salió tal cual.** La regla sigue siendo la única (`_write_build` es el cuerpo compartido de
+`_upsert_agent` y `_upsert_hoyolab_build`, y los dos se saltan al agente `manual`),
+`AgentSource` ya incluye `'hoyolab'`, y el conflicto de los rolls no apareció: HoYoLAB sí trae
+el conteo, en `properties[].level`. El detalle está en `HOYOLAB.md`, *Qué pisa qué*.
 
 ## Fases
 
@@ -259,7 +286,9 @@ Salida: fixtures reales + `HOYOLAB.md` corregido (`avatar/info` en la tabla, ret
   persistencia** para CLI, cron y extensión. Nuevo `import_chronicle(uid, payload) ->
   ChronicleSyncReport` que crea la cuenta si falta, valida el UID contra `index` y llama a
   `_persist_chronicle`. Guarda `avatar_info` crudo en `raw` de… (ver fase 3; en fase 1 se
-  ignora, pero se acepta).
+  ignora, pero se acepta). → De ese reparto quedó sólo `_persist_chronicle`, que hoy no tiene
+  con quién compartirse: el fetch, `sync_chronicle` y el cron se borraron, y el tipo que
+  devuelve se llama `ChronicleImportReport`.
 - Router `chronicle.py`: `POST /accounts/{uid}/chronicle/import`.
 - Tests: `tests/test_chronicle_import.py` con las fixtures reales de la fase 0: import
   completo, parcial, sin token, UID que no coincide, cuenta nueva, agentes `manual` intactos,
