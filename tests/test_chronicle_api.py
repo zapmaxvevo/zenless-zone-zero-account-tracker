@@ -19,17 +19,21 @@ from .conftest import (
     PREVIOUS_ASSAULT_SEASON,
     PREVIOUS_SHIYU_SEASON,
     SCHEDULE_CURRENT,
+    SCHEDULE_PREVIOUS,
     TRACKED_UID,
     UNKNOWN_UID,
     chronicle_bundle,
     import_chronicle,
     imported_account,
+    shiyu_season,
     shiyu_season_with_every_layer,
     track_account,
 )
 
 SHIYU_RANK_PERCENT = 2.5
 ASSAULT_RANK_PERCENT = 1.2
+# The cycle after the one the recorded bundle carries, for the reimports that move on.
+NEXT_SHIYU_SEASON = 3903
 
 
 def test_the_imported_seasons_are_listed_newest_first_with_their_rank_as_a_percentage(
@@ -267,3 +271,86 @@ def test_reading_the_chronicle_of_an_account_that_is_not_tracked_answers_not_fou
     assert challenges.status_code == 404
     assert bangboos.status_code == 404
     assert lost_void.status_code == 404
+
+
+def total_entries(client: TestClient, uid: str = TRACKED_UID) -> int:
+    """Every stage row stored for the account, across every season of every mode."""
+    runs = client.get(f"/accounts/{uid}/challenges").json()["items"]
+    return sum(len(run["entries"]) for run in runs)
+
+
+def test_a_season_hoyolab_no_longer_serves_survives_in_the_stored_history(
+    client: TestClient,
+) -> None:
+    """HoYoLAB only ever serves two cycles, so a routine reimport stops naming an old one.
+
+    The tracker is the only place that season still exists after that, which is most of the
+    point of keeping one: an import adds and rewrites, it never prunes.
+    """
+    # Given
+    imported_account(client)
+
+    # When
+    import_chronicle(
+        client,
+        chronicle_bundle(
+            shiyu={
+                SCHEDULE_CURRENT: shiyu_season(NEXT_SHIYU_SEASON, score=30000),
+                SCHEDULE_PREVIOUS: shiyu_season(CURRENT_SHIYU_SEASON),
+            }
+        ),
+    )
+
+    # Then
+    items = client.get(
+        f"/accounts/{TRACKED_UID}/challenges", params={"mode": MODE_SHIYU_DEFENSE}
+    ).json()["items"]
+    assert [item["schedule_id"] for item in items] == [
+        NEXT_SHIYU_SEASON,
+        CURRENT_SHIYU_SEASON,
+        PREVIOUS_SHIYU_SEASON,
+    ]
+    forgotten = items[2]
+    assert forgotten["rating"] == "S"
+    assert forgotten["score"] == 28000
+    assert [(entry["position"], entry["score"]) for entry in forgotten["entries"]] == [
+        (1, 14000),
+        (2, 14000),
+    ]
+
+
+def test_reimporting_a_season_that_was_already_stored_rewrites_it_instead_of_duplicating_it(
+    client: TestClient,
+) -> None:
+    # Given
+    imported_account(client)
+    entries_before = total_entries(client)
+
+    # When
+    import_chronicle(
+        client,
+        chronicle_bundle(
+            shiyu={
+                SCHEDULE_CURRENT: shiyu_season(
+                    CURRENT_SHIYU_SEASON,
+                    rating="S",
+                    score=20000,
+                    zone_names=("Reclaimed District",),
+                )
+            }
+        ),
+    )
+
+    # Then
+    items = client.get(
+        f"/accounts/{TRACKED_UID}/challenges", params={"mode": MODE_SHIYU_DEFENSE}
+    ).json()["items"]
+    assert [item["schedule_id"] for item in items] == [
+        CURRENT_SHIYU_SEASON,
+        PREVIOUS_SHIYU_SEASON,
+    ]
+    rewritten = items[0]
+    assert rewritten["rating"] == "S"
+    assert rewritten["score"] == 20000
+    assert [(entry["position"], entry["score"]) for entry in rewritten["entries"]] == [(1, 10000)]
+    assert total_entries(client) == entries_before - 1

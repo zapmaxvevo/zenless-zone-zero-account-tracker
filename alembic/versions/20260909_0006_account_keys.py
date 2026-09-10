@@ -4,9 +4,14 @@ Revision ID: 0006
 Revises: 0005
 Create Date: 2026-09-09 11:20:00.000000
 
-Nothing is backfilled on purpose: an account that existed before this table has no owner,
-reads `unclaimed` and stays read-only until someone claims it, either through
-`POST /accounts/{uid}/claim` or with `zzz-tracker claim <uid>`.
+Nothing is backfilled on purpose: an account that existed before this table has no owner and
+stays read-only until somebody claims it.
+
+When this was written, claiming had three levels (`unclaimed` / `provisional` / `verified`)
+and two doors, `POST /accounts/{uid}/claim` and `zzz-tracker claim <uid>`. `0007` dropped
+the levels along with that endpoint: ownership is now a yes or no, and it is an import of
+the account's chronicle that grants it — see `docs/OWNERSHIP.md`. What is written below is
+left exactly as it ran.
 """
 
 from collections.abc import Sequence
