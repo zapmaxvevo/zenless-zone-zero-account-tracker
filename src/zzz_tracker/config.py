@@ -10,11 +10,8 @@ class Settings(BaseSettings):
     static_data_dir: str = "./data/static"
     enka_base_url: str = "https://enka.network/api/zzz"
 
-    hoyolab_base_url: str = "https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz"
-    hoyolab_language: str = "en-us"
-    hoyolab_sync_ttl_seconds: int = 3600
-    hoyolab_backoff_seconds: int = 900
-    credentials_key: str = ""
+    # Nothing here talks to HoYoLAB: the Battle Chronicle arrives as a bundle the browser
+    # extension captured and posted. `api_token`, when set, is an extra gate on that import.
     api_token: str = ""
 
     model_config = SettingsConfigDict(

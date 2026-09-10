@@ -40,6 +40,11 @@ ICONS: dict[str, dict[str, str]] = {
         "ether": "Icon_Ether.png",
         "frost": "Icon_Frost.png",
         "auric-ink": "Icon_Auric_Ink.png",
+        "wind": "Icon_Wind.png",
+        "lumiflux": "Icon_Lumiflux.png",
+        # `Assault` es como Enka nombra el atributo de Ye Shunguang (`ZhenZhenAssault`);
+        # el juego y la wiki lo llaman `Honed Edge`.
+        "assault": "Icon_Honed_Edge.png",
     },
     # Especialidades (los "roles" del equipo).
     "profession": {

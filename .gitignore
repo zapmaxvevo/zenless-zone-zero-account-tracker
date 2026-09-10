@@ -8,8 +8,13 @@ __pycache__/
 dist/
 *.egg-info/
 
-# Local data: sqlite db and Enka static data dumps
-data/
+# Local data: the sqlite database. Enka's static store files are kept in the repo on
+# purpose — see docs/DEPLOY.md — because Vercel's filesystem is read-only and `sync-static`
+# has nowhere to write there.
+data/*
+!data/static/
+data/static/*
+!data/static/*.json
 
 # Node / frontend
 node_modules/

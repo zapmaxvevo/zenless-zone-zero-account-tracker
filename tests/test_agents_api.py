@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from zzz_tracker.storage.models import SOURCE_MANUAL, Agent
 
-from .conftest import TRACKED_UID, UNKNOWN_UID
+from .conftest import TRACKED_UID, UNKNOWN_UID, track_account
 
 SOLDIER_11 = 1041
 ELLEN = 1191
@@ -28,7 +28,7 @@ def test_the_roster_shows_every_imported_agent_with_names_icons_and_its_wengine(
     client: TestClient,
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
 
     # When
     roster = roster_of(client)
@@ -62,7 +62,7 @@ def test_the_roster_shows_every_imported_agent_with_names_icons_and_its_wengine(
 
 def test_an_agent_without_discs_still_shows_up_in_the_roster(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
 
     # When
     ellen = entry_for(roster_of(client), ELLEN)
@@ -78,7 +78,7 @@ def test_an_agent_added_by_hand_is_listed_next_to_the_imported_ones(
     client: TestClient, session: Session
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
     session.add(Agent(account_uid=TRACKED_UID, game_id=1211, level=40, source=SOURCE_MANUAL))
     session.commit()
 
@@ -98,7 +98,7 @@ def test_an_id_the_static_data_does_not_know_is_served_without_a_name(
     client: TestClient, session: Session
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
     session.add(Agent(account_uid=TRACKED_UID, game_id=999999, source=SOURCE_MANUAL))
     session.commit()
 
@@ -123,7 +123,7 @@ def test_asking_for_the_roster_of_an_account_that_is_not_tracked_answers_not_fou
 
 def test_the_detail_of_an_agent_resolves_its_whole_build(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
     agent_id = entry_for(roster_of(client), SOLDIER_11)["id"]
 
     # When
@@ -197,7 +197,7 @@ def test_without_the_static_data_the_roster_and_the_build_still_answer_with_raw_
 ) -> None:
     # Given
     client = client_without_static_data
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
 
     # When
     roster = roster_of(client)

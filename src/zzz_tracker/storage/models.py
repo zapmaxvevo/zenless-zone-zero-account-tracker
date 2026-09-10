@@ -19,7 +19,6 @@ SOURCE_ENKA = "enka"
 SOURCE_MANUAL = "manual"
 SOURCE_HOYOLAB = "hoyolab"
 
-CHRONICLE_SOURCE_SERVER = "server"
 CHRONICLE_SOURCE_EXTENSION = "extension"
 
 MODE_SHIYU_DEFENSE = "shiyu_defense"
@@ -33,6 +32,10 @@ REGIONS_BY_UID_PREFIX = {
 }
 DEFAULT_REGION = "prod_gf_eu"
 CHINA_REGION = "prod_gf_cn"
+# Every region HoYoLAB actually serves. An import names its own region in the body, so what
+# it says is checked against this before it is believed: the region is stored on the account
+# and served with it, and a made-up one would sit there being read as fact.
+KNOWN_REGIONS = frozenset(REGIONS_BY_UID_PREFIX.values()) | {DEFAULT_REGION, CHINA_REGION}
 
 
 def region_for_uid(uid: str) -> str:
@@ -80,9 +83,6 @@ class Account(Base):
         DateTime(timezone=True), default=None
     )
     chronicle_import_source: Mapped[str | None] = mapped_column(String(16), default=None)
-    chronicle_failed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -104,7 +104,7 @@ class Account(Base):
         cascade="all, delete-orphan",
         order_by="Bangboo.game_id",
     )
-    credential: Mapped[HoyolabCredential | None] = relationship(
+    key: Mapped[AccountKey | None] = relationship(
         back_populates="account",
         cascade="all, delete-orphan",
         uselist=False,
@@ -114,6 +114,11 @@ class Account(Base):
         cascade="all, delete-orphan",
         order_by="ChallengeRun.schedule_id.desc()",
     )
+
+    @property
+    def is_claimed(self) -> bool:
+        """Whether anybody holds the key of this account. Nobody, at first, and for ever."""
+        return self.key is not None
 
     def next_sync_available_at(self) -> datetime | None:
         """When Enka is expected to serve fresh data again; None if never synced."""
@@ -128,50 +133,29 @@ class Account(Base):
             return True
         return (now or utc_now()) >= next_sync
 
-    def is_in_chronicle_backoff(self, backoff_seconds: int, now: datetime | None = None) -> bool:
-        failed_at = as_utc(self.chronicle_failed_at)
-        if failed_at is None:
-            return False
-        return (now or utc_now()) < failed_at + timedelta(seconds=backoff_seconds)
 
-    def is_chronicle_sync_due(
-        self,
-        ttl_seconds: int,
-        backoff_seconds: int = 0,
-        now: datetime | None = None,
-    ) -> bool:
-        moment = now or utc_now()
-        if self.is_in_chronicle_backoff(backoff_seconds, moment):
-            return False
-        synced_at = as_utc(self.chronicle_synced_at)
-        if synced_at is None:
-            return True
-        return moment >= synced_at + timedelta(seconds=ttl_seconds)
+class AccountKey(Base):
+    """The hashed write key of one account.
 
+    One row per account, holding a secret that is never read back: the row existing is what
+    "this account has an owner" means. Only the first import of a UID creates one — after
+    that the key is the only thing that speaks for the account — so `rotated_at` marks the
+    deliberate reissues, which only happen from the CLI.
+    """
 
-class HoyolabCredential(Base):
-    __tablename__ = "hoyolab_credentials"
+    __tablename__ = "account_keys"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     account_uid: Mapped[str] = mapped_column(
         ForeignKey("accounts.uid", ondelete="CASCADE"), unique=True, index=True
     )
-    ltuid_v2: Mapped[str] = mapped_column(String(32))
-    encrypted_ltoken: Mapped[str] = mapped_column(Text)
+    key_hash: Mapped[str] = mapped_column(String(64))
 
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, onupdate=utc_now
-    )
-
-    account: Mapped[Account] = relationship(back_populates="credential")
-
-    @property
-    def is_rejected(self) -> bool:
-        return self.rejected_at is not None
+    account: Mapped[Account] = relationship(back_populates="key")
 
 
 class Bangboo(Base):

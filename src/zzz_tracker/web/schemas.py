@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from zzz_tracker.discs.values import MAX_SUBSTAT_ROLLS, main_stat_total, substat_total
 from zzz_tracker.enka.mapper import ParsedAgent, ParsedDisc, ParsedStat, ParsedWEngine
 from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.storage.models import (
+    KNOWN_REGIONS,
     Account,
     Agent,
     ChallengeRun,
     ChallengeRunEntry,
     DriveDisc,
-    HoyolabCredential,
     LostVoidProgress,
     Team,
     WEngine,
@@ -26,7 +26,7 @@ from zzz_tracker.tracker.service import (
     DISC_SLOTS,
     TEAM_SLOTS,
     AgentEdit,
-    ChronicleSyncReport,
+    ChronicleImportReport,
     TeamEdit,
     TeamMemberEdit,
 )
@@ -51,10 +51,40 @@ MAX_DISC_PROCS = 5
 MIN_SUBSTAT_ROLLS = 1
 
 
+def _known_region(region: str) -> str:
+    """Refuse a region HoYoLAB does not serve.
+
+    The region is kept on the account and served with it, so a typo would not fail here but
+    settle in as a fact nobody questions. Empty is the honest answer for "I do not know",
+    and the UID answers it instead.
+    """
+    if region and region not in KNOWN_REGIONS:
+        known = ", ".join(sorted(KNOWN_REGIONS))
+        raise ValueError(f"{region!r} is not a HoYoLAB region; expected one of: {known}")
+    return region
+
+
+RegionField = Annotated[
+    str,
+    Field(
+        description=(
+            "HoYoLAB region of the account; empty to derive it from the UID. "
+            f"One of: {', '.join(sorted(KNOWN_REGIONS))}."
+        ),
+    ),
+    AfterValidator(_known_region),
+]
+
+
 class ErrorResponse(BaseModel):
-    """Body of every error the tracker answers with."""
+    """Body of every error the tracker answers with.
+
+    `code` is the stable half: clients branch on it, and it does not change when the wording
+    of `detail` does. The codes live next to the exceptions in `errors.py`.
+    """
 
     detail: str
+    code: str
 
 
 class HealthResponse(BaseModel):
@@ -84,7 +114,7 @@ class AccountRead(BaseModel):
     chronicle_public: bool
     chronicle_synced_at: datetime | None
     chronicle_import_source: str | None
-    has_hoyolab_credentials: bool
+    has_owner: bool
     agent_count: int
 
     @classmethod
@@ -104,7 +134,7 @@ class AccountRead(BaseModel):
             chronicle_public=account.chronicle_public,
             chronicle_synced_at=as_utc(account.chronicle_synced_at),
             chronicle_import_source=account.chronicle_import_source,
-            has_hoyolab_credentials=account.credential is not None,
+            has_owner=account.is_claimed,
             agent_count=len(account.agents),
         )
 
@@ -574,31 +604,6 @@ class CatalogPropertyListResponse(BaseModel):
     items: list[CatalogPropertyRead]
 
 
-class CredentialWrite(BaseModel):
-    ltuid_v2: str = Field(min_length=1, max_length=32)
-    ltoken_v2: str = Field(min_length=1, max_length=512)
-
-
-class CredentialRead(BaseModel):
-    account_uid: str
-    ltuid_v2: str
-    rejected: bool
-    last_used_at: datetime | None
-    created_at: datetime | None
-    updated_at: datetime | None
-
-    @classmethod
-    def from_credential(cls, credential: HoyolabCredential) -> CredentialRead:
-        return cls(
-            account_uid=credential.account_uid,
-            ltuid_v2=credential.ltuid_v2,
-            rejected=credential.is_rejected,
-            last_used_at=as_utc(credential.last_used_at),
-            created_at=as_utc(credential.created_at),
-            updated_at=as_utc(credential.updated_at),
-        )
-
-
 class ChallengeAgentRead(BaseModel):
     game_id: int
     level: int
@@ -733,28 +738,6 @@ class LostVoidRead(BaseModel):
         )
 
 
-class ChronicleSyncResponse(BaseModel):
-    account_uid: str
-    skipped: bool
-    agents_synced: int
-    bangboos_synced: int
-    lost_void_synced: bool
-    unavailable_modes: list[str]
-    runs: list[ChallengeRunRead]
-
-    @classmethod
-    def from_report(cls, report: ChronicleSyncReport) -> ChronicleSyncResponse:
-        return cls(
-            account_uid=report.account.uid,
-            skipped=report.skipped,
-            agents_synced=report.agents_synced,
-            bangboos_synced=report.bangboos_synced,
-            lost_void_synced=report.lost_void_synced,
-            unavailable_modes=list(report.unavailable_modes),
-            runs=[ChallengeRunRead.from_run(run) for run in report.runs],
-        )
-
-
 class ChronicleImportWrite(BaseModel):
     """A chronicle bundle captured in the user's browser: the raw `data` of each endpoint.
 
@@ -768,20 +751,39 @@ class ChronicleImportWrite(BaseModel):
     source: str = "extension"
     extension_version: str = ""
     captured_at: datetime | None = None
-    region: str = ""
+    region: RegionField = ""
     language: str = ""
     payloads: dict[str, Any]
 
 
-class ChronicleImportResponse(ChronicleSyncResponse):
+class ChronicleImportResponse(BaseModel):
+    """What an import stored, and the account key when the import is what claimed the UID.
+
+    `account_key` is filled in exactly once per account: on the import that gave it an
+    owner. Every later import presents that key and gets `null` back, so a client only ever
+    stores a key it is being handed.
+    """
+
+    account_uid: str
+    agents_synced: int
+    bangboos_synced: int
     builds_synced: int
+    lost_void_synced: bool
+    unavailable_modes: list[str]
     skipped_sections: list[str]
+    runs: list[ChallengeRunRead]
+    account_key: str | None = None
 
     @classmethod
-    def from_report(cls, report: ChronicleSyncReport) -> ChronicleImportResponse:
-        base = ChronicleSyncResponse.from_report(report)
+    def from_report(cls, report: ChronicleImportReport) -> ChronicleImportResponse:
         return cls(
-            **base.model_dump(),
+            account_uid=report.account.uid,
+            agents_synced=report.agents_synced,
+            bangboos_synced=report.bangboos_synced,
             builds_synced=report.builds_synced,
+            lost_void_synced=report.lost_void_synced,
+            unavailable_modes=list(report.unavailable_modes),
             skipped_sections=list(report.skipped_sections),
+            runs=[ChallengeRunRead.from_run(run) for run in report.runs],
+            account_key=report.account_key,
         )

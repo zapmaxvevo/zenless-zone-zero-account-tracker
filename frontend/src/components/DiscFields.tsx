@@ -4,6 +4,7 @@ import { DISC_RARITIES, LIMITS, MAX_SUBSTATS, emptyDiscDraft } from '../lib/agen
 import { rarityLabel } from '../lib/labels';
 import { rarityColor } from '../lib/palette';
 import '../styles/forms.css';
+import Button from './ui/Button';
 
 interface DiscFieldsProps {
   disc: DiscDraft;
@@ -189,23 +190,22 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
                   />
                 </div>
 
-                <button
-                  type="button"
-                  className="zui-button zui-button-danger zui-button-sm"
+                <Button
+                  tone="danger"
+                  size="sm"
                   onClick={() =>
                     patch({ substats: disc.substats.filter((_, position) => position !== index) })
                   }
                 >
                   Quitar
-                </button>
+                </Button>
               </div>
             ))}
 
             {disc.substats.length < MAX_SUBSTATS && (
               <div className="ne-field-row">
-                <button
-                  type="button"
-                  className="zui-button zui-button-sm"
+                <Button
+                  size="sm"
                   onClick={() =>
                     patch({
                       substats: [
@@ -216,7 +216,7 @@ export default function DiscFields({ disc, discSets, properties, onChange }: Dis
                   }
                 >
                   Agregar substat
-                </button>
+                </Button>
               </div>
             )}
           </fieldset>

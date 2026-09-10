@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -18,21 +18,12 @@ from zzz_tracker.enka.mapper import (
 )
 from zzz_tracker.enka.static_data import StaticData
 from zzz_tracker.errors import (
-    CaptchaRequiredError,
     ConflictError,
-    InvalidCredentialsError,
-    MissingCredentialsError,
+    ForbiddenError,
     NotFoundError,
-    RateLimitedError,
     ValidationError,
 )
 from zzz_tracker.hoyolab.build_mapper import parse_agent_builds, raw_agents
-from zzz_tracker.hoyolab.client import (
-    SCHEDULE_CURRENT,
-    SCHEDULE_PREVIOUS,
-    HoyolabClient,
-    HoyolabCredentials,
-)
 from zzz_tracker.hoyolab.mapper import (
     ParsedBangboo,
     ParsedChallengeRun,
@@ -48,22 +39,22 @@ from zzz_tracker.hoyolab.mapper import (
     parse_roster_agents,
     parse_shiyu_defense,
 )
-from zzz_tracker.storage.crypto import CredentialCipher
+from zzz_tracker.storage import keys
 from zzz_tracker.storage.models import (
     CHINA_REGION,
     CHRONICLE_SOURCE_EXTENSION,
-    CHRONICLE_SOURCE_SERVER,
+    KNOWN_REGIONS,
     SOURCE_ENKA,
     SOURCE_HOYOLAB,
     SOURCE_MANUAL,
     Account,
+    AccountKey,
     Agent,
     AgentBuildSnapshot,
     Bangboo,
     ChallengeRun,
     ChallengeRunEntry,
     DriveDisc,
-    HoyolabCredential,
     LostVoidProgress,
     Team,
     TeamMember,
@@ -73,8 +64,6 @@ from zzz_tracker.storage.models import (
 )
 
 DEFAULT_SYNC_TTL_SECONDS = 60
-DEFAULT_CHRONICLE_TTL_SECONDS = 3600
-DEFAULT_CHRONICLE_BACKOFF_SECONDS = 900
 TEAM_SLOTS = 3
 DISC_SLOTS = 6
 
@@ -124,18 +113,17 @@ class TeamEdit:
 
 @dataclass(frozen=True, slots=True)
 class ChroniclePayloads:
-    """The raw `data` of every Battle Chronicle endpoint, however it was obtained.
+    """The raw `data` of every Battle Chronicle endpoint, as the browser received it.
 
-    The server-side sync and the extension import both end up here, so persistence has a
-    single path; `source` records which of the two brought the bundle. `index` is the only
-    mandatory section; a `None` (or an empty season map) means that section was not
-    available and gets skipped, not refused. `avatar_info` holds one response per agent,
-    each with the whole build of that agent.
+    `source` records how the bundle got here, and today there is one answer: the extension.
+    `index` is the only mandatory section; a `None` (or an empty season map) means that
+    section was not available and gets skipped, not refused. `avatar_info` holds one
+    response per agent, each with the whole build of that agent.
 
     `record_card` is not a chronicle endpoint but the ZZZ entry of the HoYoLAB profile, and
     the only payload that names the account: the `index` carries neither UID, nickname nor
-    level. Only the browser can fetch it, so the server-side sync never has one and it is
-    never reported as a skipped section.
+    level. A capture that could not fetch it is normal, so its absence is never reported as
+    a skipped section.
     """
 
     region: str
@@ -178,7 +166,9 @@ def _import_builds(payloads: dict[str, Any]) -> tuple[dict[str, Any], ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class ChronicleSyncReport:
+class ChronicleImportReport:
+    """What one imported bundle turned into."""
+
     account: Account
     runs: tuple[ChallengeRun, ...] = field(default_factory=tuple)
     agents_synced: int = 0
@@ -187,7 +177,8 @@ class ChronicleSyncReport:
     lost_void_synced: bool = False
     unavailable_modes: tuple[str, ...] = field(default_factory=tuple)
     skipped_sections: tuple[str, ...] = field(default_factory=tuple)
-    skipped: bool = False
+    # The key the import handed out when it claimed the account, readable this once only.
+    account_key: str | None = None
 
 
 class TrackerService:
@@ -204,18 +195,10 @@ class TrackerService:
         session: Session,
         enka: EnkaClient,
         static: StaticData | None = None,
-        hoyolab: HoyolabClient | None = None,
-        cipher: CredentialCipher | None = None,
-        chronicle_ttl_seconds: int = DEFAULT_CHRONICLE_TTL_SECONDS,
-        chronicle_backoff_seconds: int = DEFAULT_CHRONICLE_BACKOFF_SECONDS,
     ) -> None:
         self._session = session
         self._enka = enka
         self._static = static
-        self._hoyolab = hoyolab
-        self._cipher = cipher
-        self._chronicle_ttl_seconds = chronicle_ttl_seconds
-        self._chronicle_backoff_seconds = chronicle_backoff_seconds
 
     def list_accounts(self) -> list[Account]:
         return list(self._session.scalars(select(Account).order_by(Account.uid)))
@@ -228,6 +211,56 @@ class TrackerService:
         if account is None:
             raise NotFoundError(f"Account {uid} is not tracked yet")
         return account
+
+    def claim_account(self, uid: str) -> str:
+        """Take ownership of a tracked account nobody claimed, and get its key once.
+
+        Not reachable over HTTP: the web can track a UID but never own one, because typing
+        a public number proves nothing. This is the CLI door, for an account that predates
+        account keys or whose owner will never run the extension.
+        """
+        account = self.get_account(uid)
+        if account.is_claimed:
+            raise ConflictError(
+                f"Account {uid} already has an owner; write to it with its `X-Account-Key`, "
+                f"or run `zzz-tracker rotate-key {uid}` where the database lives to issue a "
+                "new key and invalidate the old one"
+            )
+        return self._issue_key(account)
+
+    def rotate_key(self, uid: str) -> str:
+        """Give the account a brand new key, killing the one it had."""
+        account = self.get_account(uid)
+        return self._issue_key(account, rotating=account.is_claimed)
+
+    def verify_key(self, uid: str, given: str) -> bool:
+        """Whether `given` is the key of that account, stamping it as used when it is."""
+        account = self.get_account(uid)
+        key = account.key
+        if key is None or not keys.verify_key(key.key_hash, given):
+            return False
+        key.last_used_at = utc_now()
+        self._session.commit()
+        return True
+
+    def account_uid_for_agent(self, agent_id: int) -> str:
+        """Which account owns an agent, since agent ids are global and name no UID."""
+        return self.get_agent(agent_id).account_uid
+
+    def account_uid_for_team(self, team_id: int) -> str:
+        return self.get_team(team_id).account_uid
+
+    def _issue_key(self, account: Account, rotating: bool = False) -> str:
+        key = account.key or AccountKey(account_uid=account.uid)
+        secret = keys.generate_key()
+        key.key_hash = keys.hash_key(secret)
+        if rotating:
+            key.rotated_at = utc_now()
+        else:
+            key.claimed_at = utc_now()
+        account.key = key
+        self._session.commit()
+        return secret
 
     def list_agents(self, uid: str) -> list[Agent]:
         self.get_account(uid)
@@ -485,46 +518,6 @@ class TrackerService:
         for stale in by_slot.values():
             agent.discs.remove(stale)
 
-    def store_credentials(self, uid: str, ltuid_v2: str, ltoken_v2: str) -> HoyolabCredential:
-        account = self.get_account(uid)
-        cipher = self._require_cipher()
-        if not ltuid_v2.strip() or not ltoken_v2.strip():
-            raise ValidationError("Both ltuid_v2 and ltoken_v2 are needed")
-
-        credential = account.credential or HoyolabCredential(account_uid=account.uid)
-        credential.ltuid_v2 = ltuid_v2.strip()
-        credential.encrypted_ltoken = cipher.encrypt(ltoken_v2.strip())
-        credential.rejected_at = None
-        account.credential = credential
-
-        self._session.commit()
-        self._session.refresh(credential)
-        return credential
-
-    def delete_credentials(self, uid: str) -> None:
-        account = self.get_account(uid)
-        if account.credential is None:
-            raise NotFoundError(f"Account {uid} has no stored HoYoLAB credentials")
-        account.credential = None
-        self._session.commit()
-
-    def credentials_for(self, uid: str) -> HoyolabCredentials:
-        account = self.get_account(uid)
-        credential = account.credential
-        if credential is None:
-            raise MissingCredentialsError(
-                f"Account {uid} has no HoYoLAB cookies stored; add them before syncing"
-            )
-        if credential.is_rejected:
-            raise InvalidCredentialsError(
-                f"The cookies stored for {uid} were rejected by HoYoLAB; paste them again"
-            )
-        cipher = self._require_cipher()
-        return HoyolabCredentials(
-            ltuid_v2=credential.ltuid_v2,
-            ltoken_v2=cipher.decrypt(credential.encrypted_ltoken),
-        )
-
     def list_challenge_runs(self, uid: str, mode: str | None = None) -> list[ChallengeRun]:
         self.get_account(uid)
         query = select(ChallengeRun).where(ChallengeRun.account_uid == uid)
@@ -548,46 +541,22 @@ class TrackerService:
             )
         )
 
-    def sync_chronicle(
-        self,
-        uid: str,
-        force: bool = False,
-        include_previous: bool = True,
-    ) -> ChronicleSyncReport:
-        account = self.get_account(uid)
-        due = account.is_chronicle_sync_due(
-            self._chronicle_ttl_seconds, self._chronicle_backoff_seconds
-        )
-        if not force and not due:
-            return ChronicleSyncReport(account=account, skipped=True)
-
-        client = self._require_hoyolab()
-        region = self._region_for(account)
-        credentials = self.credentials_for(uid)
-
-        try:
-            payloads = self._fetch_chronicle(client, uid, region, credentials, include_previous)
-        except InvalidCredentialsError:
-            self._mark_credentials_rejected(uid)
-            raise
-        except (RateLimitedError, CaptchaRequiredError):
-            self._mark_chronicle_failed(uid)
-            raise
-
-        self._touch_credentials(account)
-        return self._persist_chronicle(account, payloads)
-
     def import_chronicle(
-        self, uid: str, payloads: dict[str, Any], region: str = ""
-    ) -> ChronicleSyncReport:
+        self, uid: str, payloads: dict[str, Any], region: str = "", account_key: str = ""
+    ) -> ChronicleImportReport:
         """Store a chronicle bundle captured in the user's browser, tracking the UID if new.
 
-        The bundle carries the raw `data` of each endpoint, so it persists through the same
-        path as the server-side sync. Only `index` is mandatory, and any other absent or null
-        section is skipped and reported. The UID is confirmed against `record_card`, the one
-        payload that carries it; without a card there is nothing to confirm and the bundle is
-        trusted to belong to the UID in the path.
-        Credentials, ttl and backoff stay untouched — no request left this backend.
+        The bundle carries the raw `data` of each endpoint, untouched, which is why the same
+        mappers read it. Only `index` is mandatory, and any other absent or null section is
+        skipped and reported.
+
+        **A bundle proves nothing.** Every byte of it is chosen by whoever sends it, the UID
+        it names included, and a UID is public. So the first import of a UID takes it —
+        there is nothing there to take — and from then on the key is the only thing that
+        speaks for the account: no bundle can talk over it, however well it names the UID.
+        See `_ensure_import_allowed`. An owner who lost the key gets a new one from the CLI,
+        which takes access to the database.
+        No request leaves this backend: importing is the only way HoYoLAB data gets in.
         """
         index = _import_section(payloads, SECTION_INDEX)
         if not index:
@@ -601,9 +570,10 @@ class TrackerService:
             )
 
         account = self._find_or_create_account(uid)
+        self._ensure_import_allowed(account, account_key)
 
         bundle = ChroniclePayloads(
-            region=region or self._region_for(account),
+            region=self._import_region(account, region),
             source=CHRONICLE_SOURCE_EXTENSION,
             index=index,
             record_card=record_card,
@@ -614,7 +584,51 @@ class TrackerService:
             lost_void=_import_section(payloads, SECTION_LOST_VOID),
             avatar_info=_import_builds(payloads),
         )
-        return self._persist_chronicle(account, bundle)
+        report = self._persist_chronicle(account, bundle)
+        return replace(report, account_key=self._claim_by_import(account, account_key))
+
+    def _import_region(self, account: Account, region: str) -> str:
+        """Take the region the bundle claims only if it is one that exists.
+
+        The region is stored on the account and served with it, and it arrives in the body
+        like everything else, so a typo — or a made-up string — would sit there being read
+        as fact. Anything unrecognised falls back to what the UID itself implies, which is
+        the answer that never depended on the caller.
+        """
+        if region in KNOWN_REGIONS:
+            return region
+        return self._region_for(account)
+
+    def _ensure_import_allowed(self, account: Account, given: str) -> None:
+        """Decide whether this bundle may be written into this account at all.
+
+        An account with an owner takes the key and nothing else. A bundle cannot argue with
+        it — naming the right UID costs nothing, since a UID is public — so there is no
+        second door: no import, however complete, takes a UID that somebody already holds.
+        An account nobody holds takes any bundle, because there is nothing there to take.
+        """
+        if not account.is_claimed:
+            return
+        if account.key is not None and keys.verify_key(account.key.key_hash, given):
+            return
+        raise ForbiddenError(
+            f"Account {account.uid} already has an owner, so importing into it needs its "
+            f"key in `X-Account-Key`; run `zzz-tracker rotate-key {account.uid}` where the "
+            "database lives to issue a new one and invalidate the old"
+        )
+
+    def _claim_by_import(self, account: Account, given: str) -> str | None:
+        """Hand out a key if this import just claimed the account, and nothing otherwise.
+
+        Getting here with a key in force means the owner came back: the key stays, so
+        importing twice never makes anyone write down a new secret. Getting here without
+        one means the account had no owner a moment ago, and now it does.
+        """
+        if account.key is not None and keys.verify_key(account.key.key_hash, given):
+            account.key.last_used_at = utc_now()
+            self._session.commit()
+            return None
+        return self._issue_key(account)
 
     def _find_or_create_account(self, uid: str) -> Account:
         """Track the UID if it is new, surviving the race of two imports creating it at once."""
@@ -633,45 +647,9 @@ class TrackerService:
             return existing
         return account
 
-    def _fetch_chronicle(
-        self,
-        client: HoyolabClient,
-        uid: str,
-        region: str,
-        credentials: HoyolabCredentials,
-        include_previous: bool,
-    ) -> ChroniclePayloads:
-        index = client.fetch_profile(uid, region, credentials)
-        avatar_basic = client.fetch_agents(uid, region, credentials)
-        buddy_info = client.fetch_bangboos(uid, region, credentials)
-
-        shiyu_defense: dict[int, dict[str, Any]] = {}
-        deadly_assault: dict[int, dict[str, Any]] = {}
-        schedules = (
-            (SCHEDULE_CURRENT, SCHEDULE_PREVIOUS) if include_previous else (SCHEDULE_CURRENT,)
-        )
-        for schedule_type in schedules:
-            shiyu_defense[schedule_type] = client.fetch_shiyu_defense(
-                uid, region, credentials, schedule_type
-            )
-            deadly_assault[schedule_type] = client.fetch_deadly_assault(
-                uid, region, credentials, schedule_type
-            )
-
-        return ChroniclePayloads(
-            region=region,
-            source=CHRONICLE_SOURCE_SERVER,
-            index=index,
-            avatar_basic=avatar_basic,
-            buddy_info=buddy_info,
-            shiyu_defense=shiyu_defense,
-            deadly_assault=deadly_assault,
-            lost_void=client.fetch_lost_void(uid, region, credentials),
-        )
-
     def _persist_chronicle(
         self, account: Account, payloads: ChroniclePayloads
-    ) -> ChronicleSyncReport:
+    ) -> ChronicleImportReport:
         skipped_sections: list[str] = []
 
         self._name_account(account, payloads)
@@ -715,11 +693,10 @@ class TrackerService:
 
         account.chronicle_synced_at = utc_now()
         account.chronicle_import_source = payloads.source
-        account.chronicle_failed_at = None
 
         self._session.commit()
         self._session.refresh(account)
-        return ChronicleSyncReport(
+        return ChronicleImportReport(
             account=account,
             runs=tuple(runs),
             agents_synced=agents_synced,
@@ -733,10 +710,10 @@ class TrackerService:
     def _name_account(self, account: Account, payloads: ChroniclePayloads) -> None:
         """Give the account its nickname and level, from whichever payload happens to know.
 
-        The record card is the only one that answers for sure, and the browser is the only one
-        that can fetch it. Failing that, the `index` is asked (it does carry a profile in some
-        versions) and finally the challenge payloads, which sign their answer with `nick_name`
-        and are the last chance the server-side sync has to learn the name.
+        The record card is the only one that answers for sure, and a capture often comes
+        without it. Failing that, the `index` is asked (it does carry a profile in some
+        versions) and finally the challenge payloads, which sign their answer with
+        `nick_name` and are the last chance to learn the name at all.
         """
         card = parse_record_card(payloads.record_card) if payloads.record_card else None
         profile = parse_chronicle_account(payloads.index)
@@ -935,34 +912,3 @@ class TrackerService:
                 "cannot read from HoYoLAB"
             )
         return region
-
-    def _touch_credentials(self, account: Account) -> None:
-        if account.credential is not None:
-            account.credential.last_used_at = utc_now()
-
-    def _mark_credentials_rejected(self, uid: str) -> None:
-        self._session.rollback()
-        account = self.find_account(uid)
-        if account is None or account.credential is None:
-            return
-        if account.credential.rejected_at is None:
-            account.credential.rejected_at = utc_now()
-        self._session.commit()
-
-    def _mark_chronicle_failed(self, uid: str) -> None:
-        self._session.rollback()
-        account = self.find_account(uid)
-        if account is None:
-            return
-        account.chronicle_failed_at = utc_now()
-        self._session.commit()
-
-    def _require_hoyolab(self) -> HoyolabClient:
-        if self._hoyolab is None:
-            raise ValidationError("The HoYoLAB integration is not configured")
-        return self._hoyolab
-
-    def _require_cipher(self) -> CredentialCipher:
-        if self._cipher is None:
-            raise ValidationError("Storing HoYoLAB credentials needs ZZZ_CREDENTIALS_KEY to be set")
-        return self._cipher

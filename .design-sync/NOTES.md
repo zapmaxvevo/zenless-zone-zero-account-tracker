@@ -10,6 +10,27 @@ primitivas desacopladas (sin router, sin tipos de dominio).
 día se refactoriza para usar `zzz-ui`, esa duplicación desaparece; hasta entonces, un cambio
 de estilo hay que hacerlo en los dos lados.
 
+## Qué tiene que regenerar el próximo sync desde el frontend
+
+El paquete se regenera **desde el frontend**, nunca al revés. Dos piezas ya no viven donde
+vivían cuando se escribió esta nota, así que el converter tiene que leerlas de su lugar nuevo:
+
+- **`.zui-button`, `.zui-button-accent`, `.zui-button-danger` y `.zui-button-sm`** ya no están
+  en `frontend/src/index.css` (que quedó como reset puro): se mudaron a
+  `frontend/src/styles/eridu.css`, sección `Botón base de zzz-ui`, y esa es su **única**
+  definición en la app. Los valores son idénticos a los que hoy publica
+  `design-system/src/styles/components.css` — al regenerar, comparar contra `eridu.css`.
+- **La API del botón es `frontend/src/components/ui/Button.tsx`** (`Button` y `LinkButton`,
+  props `tone: default|accent|danger` y `size: md|sm`). Ninguna pantalla escribe `zui-button`
+  a mano; si el DS cambia el nombre de la clase, se cambia ahí y en `eridu.css`, y nada más.
+
+Lo que **no** hay que tocar: `frontend/src/styles/tokens.css` es la fuente única de tokens y un
+superset del DS (los 27 del paquete con el mismo valor exacto, más 15 de la piel New Eridu). La
+app nunca carga `zzz-ui.css`, así que en runtime hay un solo set.
+
+`.zui-input*` sigue siendo exclusivo del DS: la app estila sus formularios con
+`.field input/select/textarea` de `App.css`. Duplicación latente, todavía sin cerrar.
+
 ## Cómo correr el converter
 
 Siempre **desde la raíz del repo**:
@@ -57,15 +78,15 @@ Inter **sí** se envía: 6 woff2 (pesos 400/600/700 × subconjuntos latin y lati
 descargados de Google Fonts a `design-system/fonts/`, referenciados por `fonts/inter.css` con
 rutas locales. Sin CDN.
 
-## Hallazgo sobre la app (pendiente, no es del sync)
+## Hallazgo sobre la app (resuelto)
 
-`frontend/src/index.css` declara `--ui: 'Inter', system-ui, …` pero **la app nunca carga
-Inter** — no hay `@font-face` ni `<link>` a un servicio de fuentes en `index.html`. Hoy el
-tracker renderiza en `system-ui`.
+Cuando se escribió esta nota, `frontend/src/index.css` declaraba `--ui: 'Inter', system-ui, …`
+pero la app no cargaba Inter por ningún lado y renderizaba en `system-ui`.
 
-El DS sí envía Inter, así que los diseños hechos en Claude Design van a verse con Inter y la
-app real no. Para alinearlos, la app tiene que servir las mismas woff2 (están en
-`design-system/fonts/`) o hay que sacar `'Inter'` del stack.
+**Ya no.** `frontend/index.html` trae Archivo Black, Chakra Petch e Inter desde Google Fonts
+(`<link>` con `preconnect`), así que la app y los previews del DS comparten tipografía. La
+diferencia que queda es de origen, no de familia: el DS sirve sus woff2 locales desde
+`design-system/fonts/` y la app las pide a la red.
 
 ## Riesgos para el próximo sync
 

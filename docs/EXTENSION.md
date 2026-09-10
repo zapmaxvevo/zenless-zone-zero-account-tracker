@@ -1,13 +1,31 @@
 # Plan — Extensión de navegador para importar el Battle Chronicle
 
-Escrito el 2026-08-18. Complementa a `HOYOLAB.md` (la integración server-side, que sigue
-vigente) y a `PLAN.md`. Cuando algo de acá se implemente, la referencia técnica pasa a
-`HOYOLAB.md`; este documento es el plan, no la memoria.
+Escrito el 2026-08-18. Complementa a `HOYOLAB.md` y a `PLAN.md`. Cuando algo de acá se
+implementa, la referencia técnica pasa a `HOYOLAB.md`; este documento es el plan, no la
+memoria.
+
+**Actualización del 2026-09-09 — la extensión dejó de ser una alternativa.** Este plan se
+escribió proponiéndola como el camino *recomendado* al lado del sync server-side. Ese sync ya
+no existe: se borraron el cliente de HoYoLAB, las cookies guardadas, su cifrado, el TTL, el
+backoff, el cron y los tres comandos de CLI que lo manejaban. **Importar desde la extensión es
+la única forma de que un dato de HoYoLAB entre al tracker**, y también la única de que una
+cuenta consiga dueño. El porqué está en `HOYOLAB.md`, *No hay cron, y es a propósito*; el
+recuento de lo que se borró, en `PLAN.md`.
+
+**Y la auth del import cambió.** Donde este plan dice que `ZZZ_API_TOKEN` es obligatorio, ya no
+lo es: quien autoriza a escribir una cuenta es su **account key** (`X-Account-Key`), una por
+UID, y el token quedó como reja opcional encima. El modelo completo está en
+`docs/OWNERSHIP.md`, y lo que hace la extensión con la key (dónde la guarda, cómo se copia a
+otro navegador) en `extension/README.md`.
+
+Las secciones de abajo quedan como se escribieron, con las correcciones marcadas donde la
+afirmación vieja confundiría.
 
 ## Por qué una extensión
 
-`HOYOLAB.md` documenta tres límites de la integración actual que **no se arreglan desde el
-backend**:
+Cuando se escribió esto, el tracker sincronizaba desde el servidor. `HOYOLAB.md` documentaba
+tres límites de ese camino que **no se arreglaban desde el backend**, y son los que terminaron
+matándolo:
 
 | Límite hoy | Causa | Con la extensión |
 |---|---|---|
@@ -16,8 +34,11 @@ backend**:
 | Cookies pegadas a mano, `ltoken_v2` caduca, guardadas cifradas en nuestra base | necesitamos las cookies para salir a HoYoLAB | la extensión usa la sesión viva del navegador; **el backend nunca ve las cookies** |
 | Fixtures escritas a mano, contrato nunca verificado | nadie tuvo cookies válidas | el primer sync real produce los payloads crudos que faltan (checklist de `HOYOLAB.md`, *Lo que no se sabe todavía*) |
 
-La integración server-side no se borra: queda como camino para quien prefiera pegar cookies, y
-para el cron. Pero el camino recomendado pasa a ser la extensión.
+El plan decía acá que la integración server-side no se borraba, que quedaba para quien
+prefiriera pegar cookies y para el cron. **Se borró igual**, el 2026-09-09: mantener dos
+caminos costaba una tabla de cookies cifradas, un secreto obligatorio, un TTL, un backoff y un
+cron en una máquina propia, todo para un camino que en Vercel iba a comerse el captcha de a
+ratos. La cuenta no cerraba.
 
 ## Qué se sabe (verificado) y qué no
 
@@ -97,7 +118,7 @@ también las otras cuentas de HoYoverse del usuario).
 │                                       │                          │         │
 └───────────────────────────────────────┼──────────────────────────┼─────────┘
                                         │ POST /chronicle/import   │ fetch same-site
-                                        │ Authorization: Bearer    │ credentials: include
+                                        │ X-Account-Key: zzk_…     │ credentials: include
                                         ▼                          ▼
                               tracker (FastAPI)          sg-act-public-api.hoyolab.com
                               parse_* + _upsert_*
@@ -127,6 +148,9 @@ Decisiones:
   configurable en las opciones de la extensión. Es la primera pieza de auth del proyecto
   (`PENDIENTES.md` §4); no resuelve el problema general, pero evita que cualquiera escriba
   builds en cualquier UID. Cuando haya auth de verdad, el import se cuelga de ella.
+  → **Eso pasó** (2026-09-09): el import se cuelga ahora de la account key del UID, y el
+  token pasó a ser opcional. Vacío, la extensión ni manda el `Authorization`; seteado, se
+  exige además de la key. El campo sigue en las opciones, explicado como lo que es.
 - **CORS en el backend: no hace falta.** El POST lo hace el service worker con
   `host_permissions` sobre el dominio del tracker, y eso saltea CORS. Sí hay que declarar
   ese host en el manifest (configurable: local `http://127.0.0.1:8000/*` y el dominio de Vercel).
@@ -144,7 +168,9 @@ Decisiones:
 
 ## Contrato del import
 
-`POST /accounts/{uid}/chronicle/import` — `Authorization: Bearer <ZZZ_API_TOKEN>`.
+`POST /accounts/{uid}/chronicle/import` — `X-Account-Key: <key del UID>`, que hace falta sólo
+si la cuenta ya tiene dueño (el primer import de un UID libre lo reclama y recibe la key), más
+`Authorization: Bearer <ZZZ_API_TOKEN>` sólo si el backend tiene el token seteado.
 
 ```jsonc
 {
@@ -154,6 +180,7 @@ Decisiones:
   "region": "prod_gf_us",
   "language": "en-us",
   "payloads": {
+    "record_card":         { /* entrada de ZZZ de getGameRecordCard, recortada */ },
     "index":               { /* data crudo de index */ },
     "avatar_basic":        { /* data crudo de avatar/basic */ },
     "avatar_info":         [ { /* data crudo de avatar/info, uno por request */ } ],
@@ -165,20 +192,43 @@ Decisiones:
 }
 ```
 
-- Cada valor es **el `data` ya desenvuelto** (lo que hoy devuelve `HoyolabClient._get`), así
-  los `parse_*` se aplican sin adaptador. Si un endpoint falló en el navegador, la clave viene
-  ausente o `null` y el backend lo salta y lo lista en `unavailable_modes` / `skipped_sections`.
-- Toda clave es opcional salvo `index` (de ahí salen nickname/nivel y se confirma el UID): un
-  import parcial es válido. `avatar_info` es una lista de respuestas crudas, no un merge, para
-  no perder la forma exacta.
-- Respuesta: `ChronicleSyncResponse` extendida con `builds_synced` y `skipped_sections`.
-- El `uid` del path se valida contra `index.role.game_role_id` (o el campo real): si no
-  coincide → 422. La cuenta **se crea si no existe** (`POST /accounts` implícito), porque el
-  flujo de la extensión no pasa por la home del tracker.
-- Errores: 401 sin token o token inválido; 422 payload malformado o UID que no coincide;
-  el resto como hoy.
-- El import **no** toca `HoyolabCredential`, no arma backoff (no hubo red del lado del backend)
-  y sí escribe `chronicle_synced_at`, `region`, `chronicle_public = True`.
+Esta sección se mantiene al día contra `src/zzz_tracker/web/schemas.py`: es contrato, no plan.
+
+- Cada valor de `payloads` es **el `data` ya desenvuelto** de la respuesta de HoYoLAB, así los
+  `parse_*` se aplican sin adaptador. Una sección que el navegador no pudo traer viene ausente
+  o `null`, y el backend la salta y la nombra en `skipped_sections`. `unavailable_modes` es
+  otra cosa: son las temporadas que **sí** llegaron pero vienen con `has_data == false`.
+- **`index` es la única clave obligatoria**, y alcanza con que esté y no venga vacía; sin ella,
+  **422**. No es de donde salen el nickname y el nivel —el `index` real no trae perfil—: eso
+  sale de `record_card`, que la extensión arma desde `getGameRecordCard` recortando la entrada
+  de ZZZ. `avatar_info` es una **lista** de respuestas crudas, una por agente, no un merge,
+  para no perder la forma exacta.
+- **El UID del path se valida contra `record_card` primero y contra el `index` después**
+  (`parse_chronicle_uid`: `game_role_id` / `game_uid` / `uid` / `role_id`). Si lo que encuentra
+  no coincide → **422**. Si el bundle no nombra ningún UID, se acepta igual: nombrarlo no
+  prueba nada —es público— y exigirlo sólo castigaría al usuario cuya captura de `record_card`
+  falló. La cuenta **se crea si no existe**, porque el flujo de la extensión no pasa por la
+  home del tracker.
+- **`region` se valida contra las regiones que existen**: vacío significa "deducila del UID",
+  y cualquier string que no sea una región conocida lo rechaza el schema con **422**.
+- **`source`, `extension_version`, `captured_at` y `language` se aceptan y hoy se ignoran.**
+  El backend fija `chronicle_import_source = "extension"` por su cuenta. Están en el contrato
+  para que la extensión pueda mandarlos sin que el import los rechace, no porque hagan algo.
+  Cualquier clave desconocida también se ignora (`extra="ignore"`), así la extensión puede ir
+  adelante del backend.
+- **Respuesta: `ChronicleImportResponse`**, un schema propio —`ChronicleSyncResponse` se borró
+  con el sync server-side—: `account_uid`, `agents_synced`, `bangboos_synced`, `builds_synced`,
+  `lost_void_synced`, `unavailable_modes`, `skipped_sections`, `runs` y `account_key`.
+  `account_key` viene con la key **una sola vez en la vida de la cuenta**: en el import que le
+  dio dueño. Todo import posterior presenta esa key y recibe `null`, así un cliente nunca
+  guarda una key que no le están entregando.
+- **Errores**: **401** si falta el `Bearer` o está mal, *sólo* donde `ZZZ_API_TOKEN` está
+  configurado; **403** si la cuenta ya tiene dueño y el bundle no trae su key —no rota nada, no
+  escribe nada—; **422** si falta `index`, si el UID no coincide o si la región no existe. Los
+  422 que arma FastAPI por el schema no traen `code`; los del dominio sí.
+- **El import no toca nada más.** No hay credenciales que actualizar, ni TTL, ni backoff: el
+  backend no salió a la red. Escribe `chronicle_synced_at`, `region`, `chronicle_public = True`
+  y `chronicle_import_source = "extension"`, en una sola transacción con todo lo demás.
 
 ### Precedencia de fuentes con builds de HoYoLAB
 
@@ -194,6 +244,11 @@ escribir builds enteras (W-Engine + discos), de todo el roster. Decisión:
   real (p. ej. HoYoLAB sin conteo de rolls y Enka con él), se resuelve en la fase 3 con datos
   en la mano, no ahora.
 
+→ **Salió tal cual.** La regla sigue siendo la única (`_write_build` es el cuerpo compartido de
+`_upsert_agent` y `_upsert_hoyolab_build`, y los dos se saltan al agente `manual`),
+`AgentSource` ya incluye `'hoyolab'`, y el conflicto de los rolls no apareció: HoYoLAB sí trae
+el conteo, en `properties[].level`. El detalle está en `HOYOLAB.md`, *Qué pisa qué*.
+
 ## Fases
 
 ### Fase 0 — Espiga: payloads reales, sin código de extensión (½ día)
@@ -206,8 +261,8 @@ id y con N ids, `buddy/info`, `hadal_info_v2` ×2, `hadal_mem_detail_v2` ×2,
 1. Resolver las incógnitas: **batch de `id_list`**, forma de los valores de propiedades,
    `Referer` obligatorio o no, headers `x-rpc-*` mínimos.
 2. Reemplazar las fixtures inventadas de `tests/fixtures/` por capturas reales (anonimizando
-   `role_id`/nickname) y correr el checklist de `HOYOLAB.md`, *Checklist para la primera vez
-   con cookies reales*. Cada punto confirmado se mueve de "no se sabe" a la sección que
+   `role_id`/nickname) y correr el checklist de `HOYOLAB.md` (hoy *Checklist para la próxima
+   captura*). Cada punto confirmado se mueve de "no se sabe" a la sección que
    corresponda.
 3. Guardar el snippet en `extension/scripts/capture.js`: es el prototipo del content script y
    la herramienta de diagnóstico de acá en más.
@@ -218,7 +273,9 @@ Salida: fixtures reales + `HOYOLAB.md` corregido (`avatar/info` en la tabla, ret
 ### Fase 1 — Backend: endpoint de import (1 día)
 
 - `Settings.api_token` (`ZZZ_API_TOKEN`, default `""` = import deshabilitado con 503, igual que
-  el cipher).
+  el cipher). → Terminó al revés: el default vacío **no** deshabilita nada, sólo saltea la reja
+  del token (`web/deps.py::require_api_token`), porque el import ya está protegido por la
+  account key.
 - `web/deps.py::require_api_token` (Bearer); `errors.py`: `UnauthorizedError` 401.
 - `web/schemas.py`: `ChronicleImportWrite` (el contrato de arriba, `payloads` como
   `dict[str, Any]` tolerante, con `extra="ignore"`), `ChronicleImportResponse`.
@@ -229,7 +286,9 @@ Salida: fixtures reales + `HOYOLAB.md` corregido (`avatar/info` en la tabla, ret
   persistencia** para CLI, cron y extensión. Nuevo `import_chronicle(uid, payload) ->
   ChronicleSyncReport` que crea la cuenta si falta, valida el UID contra `index` y llama a
   `_persist_chronicle`. Guarda `avatar_info` crudo en `raw` de… (ver fase 3; en fase 1 se
-  ignora, pero se acepta).
+  ignora, pero se acepta). → De ese reparto quedó sólo `_persist_chronicle`, que hoy no tiene
+  con quién compartirse: el fetch, `sync_chronicle` y el cron se borraron, y el tipo que
+  devuelve se llama `ChronicleImportReport`.
 - Router `chronicle.py`: `POST /accounts/{uid}/chronicle/import`.
 - Tests: `tests/test_chronicle_import.py` con las fixtures reales de la fase 0: import
   completo, parcial, sin token, UID que no coincide, cuenta nueva, agentes `manual` intactos,
@@ -247,7 +306,7 @@ extension/
     background.ts            # orquesta: abre act.hoyolab.com, pide el sync, sube al tracker
     hoyolab.content.ts       # matches https://act.hoyolab.com/*  — todos los fetch a HoYoLAB
     popup/                   # React: estado de sesión, botón Importar, progreso, último import
-    options/                 # URL del tracker + ZZZ_API_TOKEN (chrome.storage.sync)
+    options/                 # URL del tracker + token opcional + keys por UID (chrome.storage.sync)
   lib/
     hoyolab.ts               # URLs, headers x-rpc-*, retcodes, jitter, tipos crudos
     chronicle.ts             # armado del paquete de import
@@ -255,7 +314,8 @@ extension/
   scripts/capture.js         # de la fase 0
 ```
 
-Flujo del usuario: instalar → opciones (URL + token) → estar logueado en hoyolab.com → popup
+Flujo del usuario: instalar → opciones (URL; el token sólo si el backend lo pide) → estar
+logueado en hoyolab.com → popup
 "Importar" → progreso por sección → "Importado: N agentes, M bangboos, runs…" → link a la
 cuenta en el tracker.
 
@@ -306,12 +366,21 @@ en `extension/README.md` (Chrome + Firefox).
 - `ChronicleNav`: el botón de sync solo aparece si hay credenciales guardadas; si la cuenta
   vino por extensión, muestra "importar de nuevo desde la extensión".
 
+→ **Salió distinto, y más simple.** Sin cookies que pegar no hay dos caminos que ofrecer:
+`CredentialsPage` se borró y en su lugar está `AccountKeyPage` (`/account/:uid/key`), que es
+donde se pega la key que trajiste de otra máquina y donde se ve si esta cuenta ya tiene dueño.
+`chronicle_import_source` quedó, pero sólo puede valer `extension`; el botón de sync no existe
+en ningún lado, y lo que muestran las pantallas de Chronicle cuando no hay nada importado es
+que hay que importar desde la extensión.
+
 ### Fase 5 — Endurecimiento (según uso)
 
 - Fast path por service worker con `host_permissions` + `credentials: 'include'`, con caída
   automática al content script cuando vuelve `-100` con sesión viva o `10035`.
-- Sync programado desde la extensión (`chrome.alarms`, diario, solo si el usuario lo activa)
-  respetando el TTL del tracker.
+- Sync programado desde la extensión (`chrome.alarms`, diario, solo si el usuario lo activa).
+  Sigue en pie, y ahora es **la única** forma posible de que algo se actualice solo: el TTL del
+  tracker que este punto proponía respetar ya no existe, así que el ritmo lo tendría que poner
+  la propia extensión.
 - Publicación en Chrome Web Store / AMO (`extension/README.md` con el proceso; hasta entonces,
   carga como "unpacked" / "temporary add-on").
 - Telemetría mínima en el popup: retcodes vistos, `x-trace-id` del último fallo.
@@ -337,7 +406,9 @@ reales; 4 y 5 después.
   fase 0 confirma batch, desaparece.
 - **Captcha**: solo se ve en el content script, y ahí es resoluble. Nunca reintentar en bucle.
 - **Token filtrado**: es un secreto de una sola cuenta de tracker; se rota cambiando la env.
-  Cuando llegue auth real, se reemplaza.
+  Cuando llegue auth real, se reemplaza. → Ya no es el riesgo que importa: el token filtrado
+  no alcanza para escribir ninguna cuenta. El riesgo equivalente hoy es la **key filtrada**,
+  y se corta con `zzz-tracker rotate-key <uid>`, que emite una nueva y mata la anterior.
 - **Firefox + iframe**: no se usa iframe en Firefox; pestaña real.
 - **Deriva de contrato entre `payloads` y el mapper**: los tests del backend corren contra las
   mismas fixtures que la extensión produce (`capture.js` escribe en `tests/fixtures/`), así

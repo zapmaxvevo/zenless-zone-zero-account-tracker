@@ -401,16 +401,6 @@
   max-width: 860px;
 }
 
-/** Nombres de variable y de cookie se leen carácter por carácter: van en mono, como el UID. */
-.ne-connect-token {
-  padding: 2px 6px;
-  background: var(--ink);
-  border: 1px solid var(--border);
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text);
-}
-
 .ne-cred-form {
   display: flex;
   flex-direction: column;

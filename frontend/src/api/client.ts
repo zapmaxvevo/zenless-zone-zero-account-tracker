@@ -1,3 +1,4 @@
+import { readKey } from '../lib/accountKey';
 import type {
   AccountListResponse,
   AccountRead,
@@ -13,9 +14,6 @@ import type {
   CatalogWEngineRead,
   ChallengeMode,
   ChallengeRunListResponse,
-  ChronicleSyncResponse,
-  CredentialRead,
-  CredentialWrite,
   HealthResponse,
   LostVoidRead,
   TeamListResponse,
@@ -25,17 +23,26 @@ import type {
 
 const BASE = '/api';
 
-export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
+export const KEY_HEADER = 'X-Account-Key';
 
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
+  readonly code: string | null;
+  readonly sentKey: boolean;
 
-  constructor(status: number, detail: string) {
+  constructor(
+    status: number,
+    detail: string,
+    code: string | null = null,
+    sentKey: boolean = false,
+  ) {
     super(`HTTP ${status}: ${detail}`);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
+    this.code = code;
+    this.sentKey = sentKey;
   }
 }
 
@@ -61,6 +68,13 @@ export function extractDetail(body: unknown, fallback: string): string {
   return fallback;
 }
 
+export function extractCode(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('code' in body)) return null;
+
+  const { code } = body as { code: unknown };
+  return typeof code === 'string' && code.trim() !== '' ? code.trim() : null;
+}
+
 export function statusFallback(status: number, statusText: string): string {
   return statusText.trim() || `Error ${status}`;
 }
@@ -76,71 +90,83 @@ export function queryString(
   return text ? `?${text}` : '';
 }
 
-async function toApiError(res: Response): Promise<ApiError> {
+async function toApiError(res: Response, sentKey: boolean): Promise<ApiError> {
   const fallback = statusFallback(res.status, res.statusText);
   const body: unknown = await res.json().catch(() => null);
-  return new ApiError(res.status, extractDetail(body, fallback));
+  return new ApiError(res.status, extractDetail(body, fallback), extractCode(body), sentKey);
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function send<T>(
+  method: string,
+  path: string,
+  body: unknown | undefined,
+  key: string | null,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (key) headers[KEY_HEADER] = key;
+
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) throw await toApiError(res, key !== null);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
+function request<T>(method: string, path: string, body?: unknown, owner?: string): Promise<T> {
+  return send<T>(method, path, body, owner ? readKey(owner) : null);
+}
+
 export function get<T>(path: string): Promise<T> {
-  return request<T>('GET', path);
+  return send<T>('GET', path, undefined, null);
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>('POST', path, body ?? {});
+export function post<T>(path: string, body?: unknown, owner?: string): Promise<T> {
+  return request<T>('POST', path, body ?? {}, owner);
 }
 
-export function put<T>(path: string, body: unknown): Promise<T> {
-  return request<T>('PUT', path, body);
+export function put<T>(path: string, body: unknown, owner?: string): Promise<T> {
+  return request<T>('PUT', path, body, owner);
 }
 
-export function patch<T>(path: string, body: unknown): Promise<T> {
-  return request<T>('PATCH', path, body);
+export function patch<T>(path: string, body: unknown, owner?: string): Promise<T> {
+  return request<T>('PATCH', path, body, owner);
 }
 
-export function del<T>(path: string): Promise<T> {
-  return request<T>('DELETE', path);
+export function del<T>(path: string, owner?: string): Promise<T> {
+  return request<T>('DELETE', path, undefined, owner);
 }
 
 export const api = {
   health: () => get<HealthResponse>('/health'),
 
   trackAccount: (uid: string) => post<AccountRead>('/accounts', { uid }),
+
   listAccounts: () => get<AccountListResponse>('/accounts'),
   getAccount: (uid: string) => get<AccountRead>(`/accounts/${uid}`),
-  syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`),
+  syncAccount: (uid: string) => post<AccountRead>(`/accounts/${uid}/sync`, {}, uid),
+
+  checkOwnership: (uid: string, key: string) =>
+    send<void>('GET', `/accounts/${uid}/ownership`, undefined, key),
 
   listAgents: (uid: string) => get<AgentListResponse>(`/accounts/${uid}/agents`),
   getAgent: (agentId: number | string) => get<AgentDetailRead>(`/agents/${agentId}`),
   createAgent: (uid: string, body: AgentWrite) =>
-    post<AgentDetailRead>(`/accounts/${uid}/agents`, body),
-  updateAgent: (agentId: number | string, body: AgentUpdate) =>
-    patch<AgentDetailRead>(`/agents/${agentId}`, body),
-  deleteAgent: (agentId: number | string) => del<void>(`/agents/${agentId}`),
+    post<AgentDetailRead>(`/accounts/${uid}/agents`, body, uid),
+  updateAgent: (uid: string, agentId: number | string, body: AgentUpdate) =>
+    patch<AgentDetailRead>(`/agents/${agentId}`, body, uid),
+  deleteAgent: (uid: string, agentId: number | string) => del<void>(`/agents/${agentId}`, uid),
 
   listTeams: (uid: string) => get<TeamListResponse>(`/accounts/${uid}/teams`),
-  createTeam: (uid: string, body: TeamWrite) => post<TeamRead>(`/accounts/${uid}/teams`, body),
+  createTeam: (uid: string, body: TeamWrite) => post<TeamRead>(`/accounts/${uid}/teams`, body, uid),
   getTeam: (teamId: number | string) => get<TeamRead>(`/teams/${teamId}`),
-  updateTeam: (teamId: number | string, body: TeamWrite) => put<TeamRead>(`/teams/${teamId}`, body),
-  deleteTeam: (teamId: number | string) => del<void>(`/teams/${teamId}`),
+  updateTeam: (uid: string, teamId: number | string, body: TeamWrite) =>
+    put<TeamRead>(`/teams/${teamId}`, body, uid),
+  deleteTeam: (uid: string, teamId: number | string) => del<void>(`/teams/${teamId}`, uid),
 
-  storeCredentials: (uid: string, body: CredentialWrite) =>
-    put<CredentialRead>(`/accounts/${uid}/credentials`, body),
-  deleteCredentials: (uid: string) => del<void>(`/accounts/${uid}/credentials`),
-
-  syncChronicle: (uid: string, options: ChronicleSyncOptions = {}) =>
-    post<ChronicleSyncResponse>(`/accounts/${uid}/chronicle/sync${queryString(options)}`),
   listChallenges: (uid: string, mode?: ChallengeMode) =>
     get<ChallengeRunListResponse>(`/accounts/${uid}/challenges${queryString({ mode })}`),
   listBangboos: (uid: string) => get<BangbooListResponse>(`/accounts/${uid}/bangboos`),

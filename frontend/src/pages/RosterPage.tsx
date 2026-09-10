@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { AgentRead } from '../api/types';
 import AgentCard from '../components/AgentCard';
 import StatusMessage from '../components/StatusMessage';
+import { LinkButton } from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
+import { useAccountKey } from '../hooks/useAccountKey';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { elementLabel, nameOr, professionLabel } from '../lib/labels';
@@ -35,6 +37,7 @@ export default function RosterPage() {
   const { version } = useSync();
   const { data, error, loading, reload } = useApi(() => api.listAgents(uid), `${uid}:${version}`);
   const { art } = useAgentArt();
+  const { hasKey } = useAccountKey(uid);
 
   const [search, setSearch] = useState('');
   const [element, setElement] = useState('');
@@ -82,12 +85,11 @@ export default function RosterPage() {
         title="Roster"
         count={visible.length}
         action={
-          <Link
-            className="zui-button zui-button-accent zui-button-sm"
-            to={`/account/${uid}/agents/new`}
-          >
-            Agregar agente
-          </Link>
+          hasKey && (
+            <LinkButton tone="accent" size="sm" to={`/account/${uid}/agents/new`}>
+              Agregar agente
+            </LinkButton>
+          )
         }
       />
 

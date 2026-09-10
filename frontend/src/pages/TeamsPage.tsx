@@ -5,7 +5,9 @@ import { describeError } from '../api/errors';
 import type { TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
 import TeamCard from '../components/TeamCard';
+import { LinkButton } from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
+import { useAccountKey } from '../hooks/useAccountKey';
 import { useAgentArt } from '../hooks/useAgentArt';
 import { useApi } from '../hooks/useApi';
 import { useSync } from '../lib/syncContext';
@@ -16,6 +18,7 @@ export default function TeamsPage() {
   const { version } = useSync();
   const { data, error, loading, reload } = useApi(() => api.listTeams(uid), `${uid}:${version}`);
   const { art } = useAgentArt();
+  const { hasKey } = useAccountKey(uid);
   const [removing, setRemoving] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const teams = data?.items ?? [];
@@ -28,7 +31,7 @@ export default function TeamsPage() {
     setRemoving(team.id);
     setRemoveError(null);
     try {
-      await api.deleteTeam(team.id);
+      await api.deleteTeam(uid, team.id);
       reload();
     } catch (caught) {
       setRemoveError(describeError(caught));
@@ -49,12 +52,11 @@ export default function TeamsPage() {
           title="Equipos"
           count={teams.length}
           action={
-            <Link
-              className="zui-button zui-button-accent zui-button-sm"
-              to={`/account/${uid}/teams/new`}
-            >
-              Armar equipo
-            </Link>
+            hasKey && (
+              <LinkButton tone="accent" size="sm" to={`/account/${uid}/teams/new`}>
+                Armar equipo
+              </LinkButton>
+            )
           }
         />
 
@@ -81,7 +83,7 @@ export default function TeamsPage() {
               team={team}
               art={art}
               busy={removing === team.id}
-              onDelete={() => handleDelete(team)}
+              onDelete={hasKey ? () => handleDelete(team) : undefined}
             />
           ))}
         </div>

@@ -1,8 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AccountRead } from '../api/types';
+import { KEY_PREFIX, storageKey } from '../lib/accountKey';
 import ChronicleNav from './ChronicleNav';
+
+const UID = '1300000000';
+const KEY = `${KEY_PREFIX}0jvXwPnJHo0d8H8rWc2vQKPzE4mDwK5f`;
+
+function stubStoredKey(uid: string | null): void {
+  const entries = new Map(uid ? [[storageKey(uid), KEY]] : []);
+  vi.stubGlobal('localStorage', {
+    getItem: (name: string) => entries.get(name) ?? null,
+    setItem: (name: string, value: string) => entries.set(name, value),
+    removeItem: (name: string) => entries.delete(name),
+  });
+}
 
 function account(overrides: Partial<AccountRead> = {}): AccountRead {
   return {
@@ -20,7 +33,7 @@ function account(overrides: Partial<AccountRead> = {}): AccountRead {
     chronicle_public: true,
     chronicle_synced_at: null,
     chronicle_import_source: null,
-    has_hoyolab_credentials: false,
+    has_owner: true,
     agent_count: 0,
     ...overrides,
   };
@@ -37,15 +50,23 @@ function render(path: string, props: { account?: AccountRead | null; empty?: boo
 const PATH = '/account/1300000000/chronicle/shiyu';
 
 describe('ChronicleNav', () => {
-  it('lleva a las cuatro secciones y a la conexión con HoYoLAB', () => {
+  beforeEach(() => {
+    stubStoredKey(UID);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lleva a las cuatro secciones y a la key de la cuenta', () => {
     const html = render(PATH);
 
     expect(html).toContain('/account/1300000000/chronicle/shiyu');
     expect(html).toContain('/account/1300000000/chronicle/assault');
     expect(html).toContain('/account/1300000000/chronicle/void');
     expect(html).toContain('/account/1300000000/chronicle/bangboos');
-    expect(html).toContain('/account/1300000000/credentials');
-    expect(html).toContain('Conectar HoYoLAB');
+    expect(html).toContain('/account/1300000000/key');
+    expect(html).toContain('Key de la cuenta');
   });
 
   it('marca activa solo la sección en la que está', () => {
@@ -55,44 +76,26 @@ describe('ChronicleNav', () => {
     expect(html).toMatch(/is-active[^>]*>Vacío Perdido/);
   });
 
-  it('sin credenciales no ofrece el botón de sincronizar', () => {
-    expect(render(PATH)).not.toContain('Sincronizar Chronicle');
-    expect(render(PATH, { account: account() })).not.toContain('Sincronizar Chronicle');
-  });
-
-  it('con cookies guardadas ofrece el botón de sincronizar', () => {
-    const html = render(PATH, { account: account({ has_hoyolab_credentials: true }) });
-
-    expect(html).toContain('Sincronizar Chronicle');
-    expect(html).not.toContain('Importá de nuevo desde la extensión');
-  });
-
-  it('una cuenta importada por extensión no sincroniza desde acá', () => {
-    const html = render(PATH, {
-      account: account({ chronicle_import_source: 'extension', has_hoyolab_credentials: true }),
-    });
+  it('una cuenta importada por extensión recuerda que se refresca desde ahí', () => {
+    const html = render(PATH, { account: account({ chronicle_import_source: 'extension' }) });
 
     expect(html).toContain('Importá de nuevo desde la extensión');
-    expect(html).not.toContain('Sincronizar Chronicle');
   });
 
-  it('sin datos ni conexión manda a conectar HoYoLAB', () => {
+  it('nunca ofrece sincronizar el Chronicle: el servidor ya no habla con HoYoLAB', () => {
+    const html = render(PATH, { account: account() });
+
+    expect(html).not.toContain('Sincronizar');
+    expect(html).toContain('Key de la cuenta');
+    expect(html).toContain(`/account/${UID}/key`);
+  });
+
+  it('sin datos manda a la extensión, que es el único camino que quedó', () => {
     const html = render('/account/1300000000/chronicle/bangboos', { empty: true });
 
     expect(html).toContain('Sin datos del Chronicle');
-    expect(html).toContain('Conectá HoYoLAB');
-    expect(html).toContain('/account/1300000000/credentials');
-  });
-
-  it('sin datos pero con cookies manda a sincronizar, no a conectar', () => {
-    const html = render(PATH, {
-      account: account({ has_hoyolab_credentials: true }),
-      empty: true,
-    });
-
-    expect(html).toContain('Sin datos del Chronicle');
-    expect(html).toContain('sincronizá el Chronicle');
-    expect(html).not.toContain('Conectá HoYoLAB');
+    expect(html).toContain('El Chronicle entra solo por la extensión');
+    expect(html).toContain('/account/1300000000/key');
   });
 
   it('sin datos pero importada por extensión manda a importar de nuevo', () => {

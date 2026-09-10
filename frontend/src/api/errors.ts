@@ -1,13 +1,54 @@
 import { ApiError } from './client';
+import type { ErrorCode } from './types';
+
+export const FORBIDDEN_MESSAGE =
+  'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Si la key vigente está en otra instalación, pegala en «Key de la cuenta».';
+
+export const WRONG_KEY_MESSAGE =
+  'El backend rechazó esa key: no es la de este UID. O se pegó mal, o alguien corrió `zzz-tracker rotate-key` en el servidor y la vigente es otra. La vigente se pega en «Key de la cuenta».';
+
+export const UNCLAIMED_MESSAGE =
+  'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Importalo con la extensión: el import lo reclama y te devuelve su key.';
+
+const CODE_FORBIDDEN: ErrorCode = 'forbidden';
+const CODE_UNCLAIMED: ErrorCode = 'unclaimed_account';
+const CODE_RATE_LIMITED: ErrorCode = 'rate_limited';
+const CODE_NOT_FOUND: ErrorCode = 'not_found';
+
+const MESSAGES_BY_CODE: Partial<Record<ErrorCode, (error: ApiError) => string>> = {
+  [CODE_FORBIDDEN]: (error) => (error.sentKey ? WRONG_KEY_MESSAGE : FORBIDDEN_MESSAGE),
+  [CODE_UNCLAIMED]: () => UNCLAIMED_MESSAGE,
+};
+
+export function isMissingKeyError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === CODE_FORBIDDEN;
+}
+
+export function isUnclaimedError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === CODE_UNCLAIMED;
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === CODE_NOT_FOUND || error.status === 404);
+}
+
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === CODE_RATE_LIMITED || error.status === 429);
+}
 
 export function describeError(error: unknown): string {
-  if (error instanceof ApiError) return messageForStatus(error);
+  if (error instanceof ApiError) return messageForApiError(error);
   if (error instanceof TypeError) return NETWORK_MESSAGE;
   if (error instanceof Error) return error.message;
   return 'Ocurrió un error inesperado.';
 }
 
 const NETWORK_MESSAGE = 'No pudimos hablar con el backend. Fijate que esté levantado.';
+
+function messageForApiError(error: ApiError): string {
+  const byCode = error.code ? MESSAGES_BY_CODE[error.code as ErrorCode] : undefined;
+  return byCode ? byCode(error) : messageForStatus(error);
+}
 
 function messageForStatus(error: ApiError): string {
   switch (error.status) {

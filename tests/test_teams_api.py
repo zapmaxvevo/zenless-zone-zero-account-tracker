@@ -7,14 +7,14 @@ from sqlalchemy.orm import Session
 
 from zzz_tracker.storage.models import SOURCE_MANUAL, Account, Agent
 
-from .conftest import TRACKED_UID, UNKNOWN_UID
+from .conftest import TRACKED_UID, UNKNOWN_UID, owned_account
 
 OTHER_UID = "1300000002"
 
 
-def track_account(client: TestClient) -> list[int]:
-    """Import the recorded account and return the ids of its agents, in roster order."""
-    client.post("/accounts", json={"uid": TRACKED_UID})
+def claimed_account_roster(client: TestClient) -> list[int]:
+    """Claim the recorded account and return the ids of its agents, in roster order."""
+    owned_account(client)
     roster = client.get(f"/accounts/{TRACKED_UID}/agents").json()["items"]
     return [item["id"] for item in roster]
 
@@ -37,7 +37,7 @@ def comp(*members: tuple[int, int], name: str = "Fire team", notes: str = "") ->
 
 def test_a_saved_comp_comes_back_with_its_agents_already_resolved(client: TestClient) -> None:
     # Given
-    soldier_id, ellen_id = track_account(client)
+    soldier_id, ellen_id = claimed_account_roster(client)
 
     # When
     response = client.post(
@@ -69,7 +69,7 @@ def test_a_saved_comp_comes_back_with_its_agents_already_resolved(client: TestCl
 
 def test_editing_a_comp_replaces_its_name_notes_and_every_member(client: TestClient) -> None:
     # Given
-    soldier_id, ellen_id = track_account(client)
+    soldier_id, ellen_id = claimed_account_roster(client)
     team_id = client.post(
         f"/accounts/{TRACKED_UID}/teams", json=comp((1, soldier_id), (2, ellen_id))
     ).json()["id"]
@@ -94,7 +94,7 @@ def test_editing_a_comp_replaces_its_name_notes_and_every_member(client: TestCli
 
 def test_deleting_a_comp_leaves_the_agents_it_grouped_tracked(client: TestClient) -> None:
     # Given
-    soldier_id, _ = track_account(client)
+    soldier_id, _ = claimed_account_roster(client)
     team_id = client.post(f"/accounts/{TRACKED_UID}/teams", json=comp((1, soldier_id))).json()["id"]
 
     # When
@@ -109,7 +109,7 @@ def test_deleting_a_comp_leaves_the_agents_it_grouped_tracked(client: TestClient
 
 def test_two_members_cannot_share_a_slot(client: TestClient) -> None:
     # Given
-    soldier_id, ellen_id = track_account(client)
+    soldier_id, ellen_id = claimed_account_roster(client)
 
     # When
     response = client.post(
@@ -124,7 +124,7 @@ def test_two_members_cannot_share_a_slot(client: TestClient) -> None:
 
 def test_the_same_agent_cannot_take_two_slots_of_a_comp(client: TestClient) -> None:
     # Given
-    soldier_id, _ = track_account(client)
+    soldier_id, _ = claimed_account_roster(client)
 
     # When
     response = client.post(
@@ -141,7 +141,7 @@ def test_a_comp_cannot_borrow_an_agent_from_another_account(
     client: TestClient, session: Session
 ) -> None:
     # Given
-    soldier_id, _ = track_account(client)
+    soldier_id, _ = claimed_account_roster(client)
     stranger_id = agent_of_another_account(session)
 
     # When
@@ -156,7 +156,7 @@ def test_a_comp_cannot_borrow_an_agent_from_another_account(
 
 def test_a_comp_with_an_agent_that_is_not_tracked_answers_not_found(client: TestClient) -> None:
     # Given
-    track_account(client)
+    claimed_account_roster(client)
 
     # When
     response = client.post(f"/accounts/{TRACKED_UID}/teams", json=comp((1, 4242)))
@@ -168,7 +168,7 @@ def test_a_comp_with_an_agent_that_is_not_tracked_answers_not_found(client: Test
 
 def test_a_comp_holds_at_most_three_agents(client: TestClient, session: Session) -> None:
     # Given
-    soldier_id, ellen_id = track_account(client)
+    soldier_id, ellen_id = claimed_account_roster(client)
     extras = [
         Agent(account_uid=TRACKED_UID, game_id=game_id, source=SOURCE_MANUAL)
         for game_id in (1211, 1221)
@@ -196,7 +196,7 @@ def test_a_comp_holds_at_most_three_agents(client: TestClient, session: Session)
 
 def test_a_comp_needs_at_least_one_agent(client: TestClient) -> None:
     # Given
-    track_account(client)
+    claimed_account_roster(client)
 
     # When
     response = client.post(f"/accounts/{TRACKED_UID}/teams", json={"name": "Empty", "members": []})
@@ -226,7 +226,7 @@ def test_reading_editing_or_deleting_a_comp_that_does_not_exist_answers_not_foun
     client: TestClient,
 ) -> None:
     # Given
-    soldier_id, _ = track_account(client)
+    soldier_id, _ = claimed_account_roster(client)
 
     # Then
     assert client.get("/teams/77").status_code == 404

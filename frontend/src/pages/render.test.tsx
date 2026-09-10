@@ -7,7 +7,7 @@ import AgentFormPage from './AgentFormPage';
 import AgentPage from './AgentPage';
 import BangboosPage from './BangboosPage';
 import ChroniclePage from './ChroniclePage';
-import CredentialsPage from './CredentialsPage';
+import AccountKeyPage from './AccountKeyPage';
 import HomePage from './HomePage';
 import LostVoidPage from './LostVoidPage';
 import NotFoundPage from './NotFoundPage';
@@ -27,7 +27,7 @@ const SCREENS: [string, string, React.ReactElement][] = [
   ['Asalto', '/account/1300000000/chronicle/assault', <ChroniclePage mode="assault" />],
   ['Vacío Perdido', '/account/1300000000/chronicle/void', <LostVoidPage />],
   ['Bangboos', '/account/1300000000/chronicle/bangboos', <BangboosPage />],
-  ['Credenciales', '/account/1300000000/credentials', <CredentialsPage />],
+  ['Key de la cuenta', '/account/1300000000/key', <AccountKeyPage />],
   ['No encontrado', '/nada', <NotFoundPage />],
 ];
 

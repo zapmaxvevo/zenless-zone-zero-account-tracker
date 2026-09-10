@@ -13,9 +13,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Response, status
+from fastapi import APIRouter, Depends, Path, Response, status
 
-from zzz_tracker.web.deps import StaticDataDep, TrackerServiceDep
+from zzz_tracker.web.deps import (
+    StaticDataDep,
+    TrackerServiceDep,
+    require_account_key,
+    require_agent_owner_key,
+)
 from zzz_tracker.web.schemas import (
     UID_PATTERN,
     AgentDetailRead,
@@ -31,7 +36,11 @@ NOT_FOUND: dict[int | str, dict[str, Any]] = {
 }
 WRITE_ERRORS: dict[int | str, dict[str, Any]] = {
     **NOT_FOUND,
-    409: {"model": ErrorResponse, "description": "The account already tracks that agent"},
+    403: {"model": ErrorResponse, "description": "The account key is missing or not this one"},
+    409: {
+        "model": ErrorResponse,
+        "description": "The account has no owner yet, or already tracks that agent",
+    },
     422: {"model": ErrorResponse, "description": "The build breaks a rule, e.g. a repeated slot"},
 }
 
@@ -57,6 +66,7 @@ def list_account_agents(
     response_model=AgentDetailRead,
     status_code=status.HTTP_201_CREATED,
     responses=WRITE_ERRORS,
+    dependencies=[Depends(require_account_key)],
 )
 def create_account_agent(
     uid: UidPath, payload: AgentWrite, service: TrackerServiceDep, static: StaticDataDep
@@ -74,7 +84,12 @@ def get_agent(
     return AgentDetailRead.from_agent(service.get_agent(agent_id), static)
 
 
-@router.patch("/agents/{agent_id}", response_model=AgentDetailRead, responses=WRITE_ERRORS)
+@router.patch(
+    "/agents/{agent_id}",
+    response_model=AgentDetailRead,
+    responses=WRITE_ERRORS,
+    dependencies=[Depends(require_agent_owner_key)],
+)
 def update_agent(
     agent_id: AgentIdPath,
     payload: AgentUpdate,
@@ -90,6 +105,8 @@ def update_agent(
     "/agents/{agent_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
+    responses=WRITE_ERRORS,
+    dependencies=[Depends(require_agent_owner_key)],
 )
 def delete_agent(agent_id: AgentIdPath, service: TrackerServiceDep) -> Response:
     """Stop tracking an agent, with its build.

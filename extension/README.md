@@ -2,8 +2,13 @@
 
 Extensión MV3 (WXT + React + TypeScript) que importa el Battle Chronicle de Zenless Zone Zero
 desde la sesión viva de HoYoLAB del navegador al tracker, sin que el backend vea nunca las
-cookies. Es la fase 2 del plan `docs/EXTENSION.md`; la referencia técnica de la API de HoYoLAB
-está en `docs/HOYOLAB.md`.
+cookies. La referencia técnica de la API de HoYoLAB está en `docs/HOYOLAB.md`.
+
+**Es la única puerta de entrada al tracker.** El servidor no sale a HoYoLAB, no guarda cookies y
+no sincroniza nada por su cuenta: todo lo del Chronicle entra por acá, a mano. Y es también la
+única forma de volverse dueño de un UID — mirar una cuenta es público, pero escribirla (agentes,
+teams, cualquier edición) pide la key que emite el primer import. Sin la extensión, un UID se
+puede mirar pero no editar nunca.
 
 ## Comandos
 
@@ -46,8 +51,40 @@ Vercel (`https://personal-zzz.vercel.app`); cuando exista el deploy real hay que
 3. **URL del frontend del tracker** (opcional): la del SPA, `http://localhost:5173` en dev.
    Es la base del link "Ver la cuenta en el tracker" (`/account/<uid>`); si queda vacía el
    popup no muestra el link (la URL del backend daría un 404 del SPA).
-4. **Token de la API**: el valor de `ZZZ_API_TOKEN` del backend. Sin token el endpoint de
-   import responde 401 (y 503 si el backend no tiene la variable configurada).
+4. **Token de la API** (opcional): el valor de `ZZZ_API_TOKEN` del backend. Sólo hace falta si
+   ese backend lo tiene seteado, donde sigue siendo una reja extra sobre el import; si está
+   vacío, la extensión ni siquiera manda el header `Authorization`. Quien autoriza a escribir
+   es la key de la cuenta (abajo): un token que viaja adentro de una extensión publicada no es
+   un secreto, así que no puede ser la única defensa.
+
+## La key de la cuenta
+
+Leer el tracker es público; **escribir una cuenta pide su key** (`X-Account-Key`). El modelo
+completo está en `docs/OWNERSHIP.md`; lo que importa acá:
+
+- La key es de un UID, no de la extensión. La emite el backend y se muestra **una sola vez**,
+  en la respuesta del import: la guarda hasheada y no la vuelve a devolver.
+- La extensión la guarda sola en `chrome.storage.sync`, bajo `accountKeys` (`{ "<uid>": "zzk_…" }`,
+  una key por UID), y la manda como `X-Account-Key` en el import siguiente de ese UID.
+- **Regla de rotación**: el primer import de un UID **sin dueño** lo reclama y emite la key —es
+  el único momento en que una cuenta cambia de manos, y la única vía de reclamo que existe. A
+  partir de ahí la cuenta **tiene dueño** y cada import tiene que presentar la key vigente: uno
+  sin ella responde **403 y no escribe nada**, y no rota nunca. Lo que sostiene la propiedad es
+  la key, no el bundle: un bundle es un JSON que elige el cliente y el `role_id` es público, así
+  que por sí solo no prueba nada y no puede desalojar a nadie. La extensión persiste siempre la
+  key que vuelve, reemplazando a la anterior.
+- **"Esta cuenta ya tiene dueño y no tengo la key acá"**: es el 403 de arriba, y el popup lo
+  dice con esas palabras. Si tiene dueño es porque alguien la importó: no hay otra forma de
+  reclamar un UID. Copiá la key desde la instalación que sí la tiene (abajo); si no quedó en
+  ninguna, la única salida es `zzz-tracker rotate-key <uid>` en el servidor — reimportar ya no
+  la recupera.
+- **Copiarla a otra instalación** (otro navegador, otra máquina): opciones → *Keys de cuenta* →
+  *Ver* / *Copiar* en el UID, y en la otra instalación pegar el UID y la key en el formulario
+  de abajo de esa misma lista. Es el único camino para importar el mismo UID desde dos
+  navegadores.
+- Después de un import, el link "Ver la cuenta en el tracker" lleva la key en el fragmento
+  (`/account/<uid>#key=…`), así el frontend queda autenticado sin copiar y pegar nada. El
+  fragmento no viaja al servidor y el frontend lo limpia de la URL apenas lo guarda.
 
 ## Uso
 
@@ -99,7 +136,8 @@ En Chrome y en Firefox, con un build fresco:
 
 1. **Opciones vacías**: popup recién instalado → el botón Importar está deshabilitado y el
    aviso lleva a las opciones.
-2. **Guardar opciones**: URL + token quedan persistidos al cerrar y reabrir (storage.sync).
+2. **Guardar opciones**: URL (y token, si el backend lo pide) quedan persistidos al cerrar y
+   reabrir (storage.sync).
 3. **Sin sesión de HoYoLAB**: Importar → mensaje "Iniciá sesión en HoYoLAB" y la pestaña de
    act.hoyolab.com queda abierta y activa para loguearse.
 4. **Import feliz**: con sesión y backend corriendo (`ZZZ_API_TOKEN` seteado) → progreso por
@@ -108,8 +146,8 @@ En Chrome y en Firefox, con un build fresco:
    HoYoLAB en segundo plano se cierra sola.
 5. **Cuenta nueva**: importar un UID que el tracker no tiene → la cuenta se crea
    (`GET /accounts/{uid}` la devuelve).
-6. **Token inválido**: cambiar el token en opciones → Importar → error 401 con el detail del
-   backend, sin payload persistido.
+6. **Token inválido**: con un backend que tenga `ZZZ_API_TOKEN` seteado, cambiar el token en
+   opciones → Importar → error 401 con el detail del backend, sin payload persistido.
 7. **Backend caído**: parar el backend → Importar → "No se pudo conectar con el tracker…".
 8. **Popup cerrado a mitad**: cerrar el popup durante el import → al reabrirlo el botón vuelve
    deshabilitado en "Importando…" (el popup le consulta el estado al background, que además
@@ -122,7 +160,15 @@ En Chrome y en Firefox, con un build fresco:
     agente en el juego → el siguiente import pide sólo esa build.
 11. **Reimportar todo**: el botón pide los 36 agentes aunque no haya cambios (~1 minuto), y el
     contador avanza de 1 a 36.
-12. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
+12. **Key de la cuenta**: primer import de un UID → en opciones aparece su key bajo *Keys de
+    cuenta* y el link del popup termina en `#key=…`. Segundo import del mismo UID → la key
+    guardada **no** cambia (se mandó como `X-Account-Key` y el backend no rotó).
+13. **Cuenta con dueño sin la key**: borrar la key desde opciones e importar de nuevo → 403 con
+    el mensaje "ya tiene dueño y este navegador no tiene su key" y el `zzz-tracker rotate-key
+    <uid>`, y en el tracker no cambió nada. Volver a pegar la key → el import anda otra vez.
+14. **Key en otro navegador**: copiar la key del UID y pegarla en la otra instalación (UID +
+    key) → esa instalación importa sin rotar nada y las dos siguen sirviendo.
+15. **Solo Firefox**: verificar en `about:debugging` que el background corre (event page via
     `background.scripts`) y que los permisos de host están concedidos en `about:addons`.
 
 ## Estructura
@@ -134,7 +180,7 @@ extension/
     background.ts           # orquesta: abre la pestaña, pide el sync, POST al tracker
     hoyolab.content.ts      # matches act.hoyolab.com — todos los fetch a HoYoLAB salen de acá
     popup/                  # React: estado, Importar, progreso, último import
-    options/                # URL del tracker + ZZZ_API_TOKEN (chrome.storage.sync)
+    options/                # URL del tracker, token opcional y keys de cuenta (storage.sync)
   lib/
     hoyolab.ts              # URLs, headers x-rpc-*, retcodes, jitter, descubrimiento de rol
     chronicle.ts            # armado del paquete del contrato de import

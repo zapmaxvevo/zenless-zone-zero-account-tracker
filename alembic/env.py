@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import make_url
 
 from alembic import context
+from zzz_tracker.storage.database import normalize_database_url
 from zzz_tracker.storage.models import Base
 
 config = context.config
@@ -19,9 +20,10 @@ target_metadata = Base.metadata
 
 
 def get_database_url() -> str:
-    return os.getenv("ZZZ_DATABASE_URL") or config.get_main_option(
+    configured = os.getenv("ZZZ_DATABASE_URL") or config.get_main_option(
         "sqlalchemy.url", "sqlite:///./data/zzz.db"
     )
+    return normalize_database_url(configured)
 
 
 def ensure_sqlite_parent_dir(database_url: str) -> None:

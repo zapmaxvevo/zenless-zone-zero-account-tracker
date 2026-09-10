@@ -4,6 +4,7 @@ import { describeError } from '../api/errors';
 export interface UseApiResult<T> {
   data: T | null;
   error: string | null;
+  cause: unknown;
   loading: boolean;
   reload: () => void;
 }
@@ -12,6 +13,7 @@ interface Settled<T> {
   requestId: string;
   data: T | null;
   error: string | null;
+  cause: unknown;
 }
 
 export function useApi<T>(fetcher: () => Promise<T>, key: string = ''): UseApiResult<T> {
@@ -29,10 +31,11 @@ export function useApi<T>(fetcher: () => Promise<T>, key: string = ''): UseApiRe
     fetcherRef
       .current()
       .then((data) => {
-        if (!cancelled) setSettled({ requestId, data, error: null });
+        if (!cancelled) setSettled({ requestId, data, error: null, cause: null });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setSettled({ requestId, data: null, error: describeError(error) });
+        if (!cancelled)
+          setSettled({ requestId, data: null, error: describeError(error), cause: error });
       });
     return () => {
       cancelled = true;
@@ -45,6 +48,7 @@ export function useApi<T>(fetcher: () => Promise<T>, key: string = ''): UseApiRe
   return {
     data: current?.data ?? null,
     error: current?.error ?? null,
+    cause: current?.cause ?? null,
     loading: current === null,
     reload,
   };

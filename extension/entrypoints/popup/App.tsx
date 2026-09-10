@@ -66,11 +66,11 @@ export default function App() {
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
   const refresh = useCallback(() => {
+    // Alcanza con la URL del tracker: el token es opcional (sólo lo pide un backend con
+    // ZZZ_API_TOKEN seteado) y la key de la cuenta la emite el propio import.
     void browser.storage.sync
-      .get([STORAGE_KEYS.trackerUrl, STORAGE_KEYS.apiToken])
-      .then((sync) =>
-        setConfigured(Boolean(sync[STORAGE_KEYS.trackerUrl] && sync[STORAGE_KEYS.apiToken])),
-      );
+      .get(STORAGE_KEYS.trackerUrl)
+      .then((sync) => setConfigured(Boolean(sync[STORAGE_KEYS.trackerUrl])));
     void browser.storage.local
       .get(STORAGE_KEYS.lastImport)
       .then((local) =>
@@ -131,7 +131,7 @@ export default function App() {
 
       {configured === false && (
         <p className="warning">
-          Falta configurar la URL del tracker y el token.{' '}
+          Falta configurar la URL del tracker.{' '}
           <button className="link" onClick={() => void browser.runtime.openOptionsPage()}>
             Abrir opciones
           </button>

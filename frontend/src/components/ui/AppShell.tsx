@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useMatch } from 'react-router-dom';
-import { api, ApiError } from '../../api/client';
-import { describeError } from '../../api/errors';
+import { api } from '../../api/client';
+import { describeError, isRateLimited } from '../../api/errors';
+import { useKeyFromUrlFragment } from '../../hooks/useAccountKey';
 import { useApi } from '../../hooks/useApi';
 import { useCompactHeader } from '../../hooks/useCompactHeader';
 import { SyncContext } from '../../lib/syncContext';
 import type { SyncState } from '../../lib/syncContext';
 import Banner from './Banner';
+import Button from './Button';
 
 interface Tab {
   label: string;
@@ -25,6 +27,7 @@ export default function AppShell() {
   const root = useMatch('/account/:uid');
   const uid = nested?.params.uid ?? root?.params.uid ?? '';
   const { narrow, hidden, ref } = useCompactHeader();
+  useKeyFromUrlFragment(uid);
   const [menuOpen, setMenuOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<SyncNotice | null>(null);
@@ -52,7 +55,7 @@ export default function AppShell() {
       await api.syncAccount(uid);
       setVersion((current) => current + 1);
     } catch (caught) {
-      const paused = caught instanceof ApiError && caught.status === 429;
+      const paused = isRateLimited(caught);
       setNotice({
         title: paused ? 'Sincronización en pausa' : 'No se pudo sincronizar',
         text: describeError(caught),
@@ -69,14 +72,9 @@ export default function AppShell() {
   );
 
   const syncButton = uid && (
-    <button
-      type="button"
-      className="zui-button zui-button-accent zui-button-sm"
-      onClick={state.sync}
-      disabled={syncing}
-    >
+    <Button tone="accent" size="sm" onClick={state.sync} disabled={syncing}>
       {syncing ? 'Sincronizando…' : 'Sincronizar'}
-    </button>
+    </Button>
   );
 
   const uidPill = uid && (

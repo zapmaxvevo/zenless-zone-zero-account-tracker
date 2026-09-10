@@ -5,9 +5,11 @@ import { describeError } from '../api/errors';
 import type { AgentDetailRead, CatalogPropertyRead, EquippedSetRead } from '../api/types';
 import DiscCard from '../components/DiscCard';
 import StatusMessage from '../components/StatusMessage';
+import Button, { LinkButton } from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import IconTag from '../components/ui/IconTag';
 import SectionHead from '../components/ui/SectionHead';
+import { useAccountKey } from '../hooks/useAccountKey';
 import { useApi } from '../hooks/useApi';
 import { elementIcon, professionIcon, rankIcon, skillIcon } from '../lib/icons';
 import {
@@ -74,6 +76,7 @@ interface AgentBuildProps {
 
 function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
   const navigate = useNavigate();
+  const { hasKey } = useAccountKey(uid);
   const name = nameOr(agent.name, 'Agente', agent.game_id);
   const rank = agentRankLabel(agent.rarity, agent.game_id);
   const profession = professionLabel(agent.profession);
@@ -93,7 +96,7 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await api.deleteAgent(agent.id);
+      await api.deleteAgent(uid, agent.id);
       navigate(`/account/${uid}/agents`);
     } catch (caught) {
       setDeleteError(describeError(caught));
@@ -119,20 +122,14 @@ function AgentBuild({ agent, uid, properties }: AgentBuildProps) {
             <span className="ne-label">ID {agent.game_id}</span>
           </div>
           <div className="ne-build-bar-group">
-            <Link
-              className="zui-button zui-button-sm"
-              to={`/account/${uid}/agents/${agent.id}/edit`}
-            >
-              Editar
-            </Link>
-            <button
-              type="button"
-              className="zui-button zui-button-sm zui-button-danger"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? 'Eliminando…' : 'Eliminar'}
-            </button>
+            <LinkButton size="sm" to={`/account/${uid}/agents/${agent.id}/edit`}>
+              {hasKey ? 'Editar' : 'Ver los datos'}
+            </LinkButton>
+            {hasKey && (
+              <Button tone="danger" size="sm" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Eliminando…' : 'Eliminar'}
+              </Button>
+            )}
           </div>
         </div>
 

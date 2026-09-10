@@ -15,8 +15,6 @@ from zzz_tracker.app import create_app
 from zzz_tracker.config import Settings
 from zzz_tracker.enka.client import EnkaClient
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.hoyolab.client import HoyolabClient
-from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.storage.models import (
     MODE_DEADLY_ASSAULT,
@@ -31,7 +29,9 @@ from .conftest import (
     PREVIOUS_SHIYU_SEASON,
     TRACKED_UID,
     UNKNOWN_UID,
+    key_headers,
     shiyu_season_never_played,
+    track_account,
 )
 
 API_TOKEN = "extension-shared-secret"
@@ -48,9 +48,6 @@ BUILD_GAME_IDS = [1091, 1311, 1321, 1371, 1431, 1451]
 MIYABI = 1091
 SOLDIER_11 = 1041
 LYCAON = 1131
-
-LTUID = "81002000"
-LTOKEN = "v2_the-secret-cookie"
 
 
 def fixture(name: str) -> dict[str, Any]:
@@ -119,8 +116,13 @@ def import_chronicle(
     client: TestClient,
     body: dict[str, Any] | None = None,
     uid: str = TRACKED_UID,
-    headers: dict[str, str] = AUTH,
+    account_key: str = "",
+    bearer: bool = True,
 ) -> httpx.Response:
+    """Post a bundle, with the shared token this app is configured with unless told not to."""
+    headers = dict(AUTH) if bearer else {}
+    if account_key:
+        headers.update(key_headers(account_key))
     return client.post(
         f"/accounts/{uid}/chronicle/import", json=body or import_body(), headers=headers
     )
@@ -144,16 +146,8 @@ def import_app(
     db_manager: DatabaseManager,
     enka_client: EnkaClient,
     static_data: StaticData,
-    hoyolab_client: HoyolabClient,
-    cipher: CredentialCipher,
 ) -> FastAPI:
-    application = create_app(
-        import_settings,
-        enka=enka_client,
-        static=static_data,
-        hoyolab=hoyolab_client,
-        cipher=cipher,
-    )
+    application = create_app(import_settings, enka=enka_client, static=static_data)
     application.state.db = db_manager
     return application
 
@@ -172,7 +166,6 @@ def test_a_full_import_stores_the_whole_chronicle_and_tracks_the_account_implici
     assert response.status_code == 200
     body = response.json()
     assert body["account_uid"] == TRACKED_UID
-    assert body["skipped"] is False
     assert body["agents_synced"] == ROSTER_SIZE
     assert body["bangboos_synced"] == BANGBOO_COUNT
     assert body["lost_void_synced"] is True
@@ -352,7 +345,7 @@ def test_an_import_whose_chronicle_belongs_to_another_uid_is_refused(
 def test_importing_without_a_token_is_unauthorized_and_stores_nothing(
     import_client: TestClient,
 ) -> None:
-    response = import_chronicle(import_client, headers={})
+    response = import_chronicle(import_client, bearer=False)
 
     assert response.status_code == 401
     assert response.json()["detail"]
@@ -362,28 +355,37 @@ def test_importing_without_a_token_is_unauthorized_and_stores_nothing(
 def test_importing_with_the_wrong_token_is_unauthorized_and_stores_nothing(
     import_client: TestClient,
 ) -> None:
-    response = import_chronicle(import_client, headers={"Authorization": "Bearer not-the-token"})
+    response = import_client.post(
+        f"/accounts/{TRACKED_UID}/chronicle/import",
+        json=import_body(),
+        headers={"Authorization": "Bearer not-the-token"},
+    )
 
     assert response.status_code == 401
     assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
 
 
-def test_importing_while_no_token_is_configured_answers_service_unavailable(
-    chronicle_client: TestClient,
+def test_importing_while_no_token_is_configured_goes_through_on_the_bundle_alone(
+    client: TestClient,
 ) -> None:
-    response = import_chronicle(chronicle_client)
+    """Without ZZZ_API_TOKEN there is no token gate; the bundle is the whole proof."""
+    response = import_chronicle(client, bearer=False)
 
-    assert response.status_code == 503
-    assert "ZZZ_API_TOKEN" in response.json()["detail"]
-    assert chronicle_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+    assert response.status_code == 200
+    assert response.json()["account_key"]
+    assert client.get(f"/accounts/{TRACKED_UID}").status_code == 200
 
 
 def test_an_import_leaves_hand_written_agents_untouched(import_client: TestClient) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    account_key = owned_by_an_import(import_client)
     hand_written = agent_id_of(import_client, 1191)
-    import_client.patch(f"/agents/{hand_written}", json={"level": 12, "mindscape_level": 5})
+    import_client.patch(
+        f"/agents/{hand_written}",
+        json={"level": 12, "mindscape_level": 5},
+        headers=key_headers(account_key),
+    )
 
-    response = import_chronicle(import_client)
+    response = import_chronicle(import_client, account_key=account_key)
 
     assert response.status_code == 200
     assert response.json()["agents_synced"] == ROSTER_SIZE - 1
@@ -517,14 +519,19 @@ def test_a_build_from_the_chronicle_takes_over_the_one_enka_brought(
 def test_a_build_never_overwrites_an_agent_edited_by_hand(
     import_client: TestClient,
 ) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(import_client)  # Enka brings the build the edit has to preserve
+    account_key = owned_by_an_import(import_client)
     soldier = agent_id_of(import_client, SOLDIER_11)
-    import_client.patch(f"/agents/{soldier}", json={"level": 42, "mindscape_level": 1})
+    import_client.patch(
+        f"/agents/{soldier}",
+        json={"level": 42, "mindscape_level": 1},
+        headers=key_headers(account_key),
+    )
 
     payloads = full_payloads()
     payloads["avatar_info"] = [build_of(SOLDIER_11)]
 
-    response = import_chronicle(import_client, import_body(payloads))
+    response = import_chronicle(import_client, import_body(payloads), account_key=account_key)
 
     assert response.status_code == 200
     assert response.json()["builds_synced"] == 0
@@ -555,13 +562,14 @@ def test_an_import_keeps_the_raw_payload_of_every_build_it_read(
 def test_importing_twice_overwrites_the_snapshot_instead_of_piling_them_up(
     import_client: TestClient, session: Session
 ) -> None:
-    import_chronicle(import_client)
+    """The second import is the same owner coming back, so it carries the key it was given."""
+    account_key = import_chronicle(import_client).json()["account_key"]
 
     payloads = full_payloads()
     levelled = build_payloads()[0]
     levelled["avatar_list"][0]["level"] = 55
     payloads["avatar_info"] = [levelled]
-    import_chronicle(import_client, import_body(payloads))
+    import_chronicle(import_client, import_body(payloads), account_key=account_key)
 
     session.expire_all()
     snapshots = list(
@@ -598,27 +606,6 @@ def test_a_season_repeated_across_both_schedules_is_stored_once(
     assert [item["schedule_id"] for item in challenges] == [SHIYU_SEASON]
 
 
-def test_an_import_never_touches_the_stored_hoyolab_credentials(
-    import_client: TestClient, session: Session
-) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
-    import_client.put(
-        f"/accounts/{TRACKED_UID}/credentials",
-        json={"ltuid_v2": LTUID, "ltoken_v2": LTOKEN},
-    )
-
-    response = import_chronicle(import_client)
-
-    assert response.status_code == 200
-    session.expire_all()
-    account = session.get(Account, TRACKED_UID)
-    assert account is not None
-    assert account.credential is not None
-    assert account.credential.last_used_at is None
-    assert account.credential.rejected_at is None
-    assert account.chronicle_synced_at is not None
-
-
 def test_an_import_marks_the_account_as_imported_from_the_extension(
     import_client: TestClient,
 ) -> None:
@@ -627,26 +614,7 @@ def test_an_import_marks_the_account_as_imported_from_the_extension(
     assert response.status_code == 200
     account = import_client.get(f"/accounts/{TRACKED_UID}").json()
     assert account["chronicle_import_source"] == "extension"
-    assert account["has_hoyolab_credentials"] is False
-
-
-def test_an_import_after_a_server_sync_takes_over_as_the_latest_import_source(
-    import_client: TestClient,
-) -> None:
-    import_client.post("/accounts", json={"uid": TRACKED_UID})
-    import_client.put(
-        f"/accounts/{TRACKED_UID}/credentials",
-        json={"ltuid_v2": LTUID, "ltoken_v2": LTOKEN},
-    )
-    import_client.post(f"/accounts/{TRACKED_UID}/chronicle/sync")
-    synced = import_client.get(f"/accounts/{TRACKED_UID}").json()
-
-    import_chronicle(import_client)
-
-    imported = import_client.get(f"/accounts/{TRACKED_UID}").json()
-    assert synced["chronicle_import_source"] == "server"
-    assert imported["chronicle_import_source"] == "extension"
-    assert imported["has_hoyolab_credentials"] is True
+    assert account["has_owner"] is True
 
 
 def test_sections_that_come_with_the_wrong_shape_are_skipped_like_missing_ones(
@@ -703,7 +671,7 @@ def test_a_season_the_player_never_entered_is_reported_unavailable_by_the_import
 
 
 def test_two_simultaneous_imports_of_a_new_account_do_not_collide(
-    chronicle_service: TrackerService, session: Session, db_manager: DatabaseManager
+    service: TrackerService, session: Session, db_manager: DatabaseManager
 ) -> None:
     raced = {"done": False}
 
@@ -718,9 +686,7 @@ def test_two_simultaneous_imports_of_a_new_account_do_not_collide(
             other_session.add(Account(uid=TRACKED_UID))
             other_session.commit()
 
-    report = chronicle_service.import_chronicle(
-        TRACKED_UID, full_payloads(), region=IMPORTED_REGION
-    )
+    report = service.import_chronicle(TRACKED_UID, full_payloads(), region=IMPORTED_REGION)
 
     assert raced["done"] is True
     assert report.account.uid == TRACKED_UID
@@ -739,3 +705,192 @@ def test_an_import_for_a_malformed_uid_is_refused_by_the_path_itself(
 
     assert response.status_code == 422
     assert import_client.get(f"/accounts/{UNKNOWN_UID}").status_code == 404
+
+
+def owned_by_an_import(client: TestClient, uid: str = TRACKED_UID) -> str:
+    """Import once, which is what gives the account an owner, and keep the key it hands out."""
+    response = import_chronicle(client, uid=uid)
+    assert response.status_code == 200, response.text
+    key: str = response.json()["account_key"]
+    assert key
+    return key
+
+
+def any_agent_of(client: TestClient, uid: str = TRACKED_UID) -> int:
+    roster = client.get(f"/accounts/{uid}/agents").json()["items"]
+    assert roster, f"account {uid} has no agent to edit"
+    return int(roster[0]["id"])
+
+
+def forged_bundle(uid: str = TRACKED_UID) -> dict[str, Any]:
+    """What an attacker can put together knowing only a UID, which is public."""
+    return import_body({"index": {"role": {"role_id": uid, "nickname": "pwned"}}})
+
+
+def test_the_first_import_of_a_uid_claims_it_and_hands_out_the_key_that_writes_it(
+    import_client: TestClient,
+) -> None:
+    response = import_chronicle(import_client)
+
+    assert response.status_code == 200
+    account_key = response.json()["account_key"]
+    assert account_key.startswith("zzk_")
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["has_owner"] is True
+
+    edited = import_client.patch(
+        f"/agents/{any_agent_of(import_client)}",
+        json={"level": 33},
+        headers=key_headers(account_key),
+    )
+    assert edited.status_code == 200
+
+
+def test_an_import_that_presents_the_key_in_force_keeps_it_instead_of_handing_out_another(
+    import_client: TestClient,
+) -> None:
+    """Importing twice from the same browser must not make the owner write down a new key."""
+    account_key = owned_by_an_import(import_client)
+
+    response = import_chronicle(import_client, account_key=account_key)
+
+    assert response.status_code == 200
+    assert response.json()["account_key"] is None
+    still_valid = import_client.patch(
+        f"/agents/{any_agent_of(import_client)}",
+        json={"level": 41},
+        headers=key_headers(account_key),
+    )
+    assert still_valid.status_code == 200
+
+
+def test_a_forged_bundle_cannot_take_over_an_account_that_already_has_an_owner(
+    import_client: TestClient,
+) -> None:
+    """Naming the UID is free — a UID is public — so it cannot outrank the key in force."""
+    owner_key = owned_by_an_import(import_client)
+    before = import_client.get(f"/accounts/{TRACKED_UID}").json()
+
+    response = import_chronicle(import_client, forged_bundle())
+
+    assert response.status_code == 403
+    assert TRACKED_UID in response.json()["detail"]
+
+    account = import_client.get(f"/accounts/{TRACKED_UID}").json()
+    assert account["has_owner"] is True
+    assert account["nickname"] == before["nickname"] != "pwned"
+    assert account["chronicle_synced_at"] == before["chronicle_synced_at"]
+    assert (
+        import_client.patch(
+            f"/agents/{any_agent_of(import_client)}",
+            json={"level": 41},
+            headers=key_headers(owner_key),
+        ).status_code
+        == 200
+    )
+
+
+def test_an_import_with_a_key_that_is_not_the_one_in_force_is_refused_without_rotating(
+    import_client: TestClient,
+) -> None:
+    owner_key = owned_by_an_import(import_client)
+
+    response = import_chronicle(import_client, account_key="zzk_a-key-of-nobody")
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "forbidden"
+    assert import_chronicle(import_client, account_key=owner_key).status_code == 200
+
+
+def test_the_key_of_another_account_counts_for_nothing_on_an_import(
+    import_client: TestClient, session: Session
+) -> None:
+    """A key belongs to one UID; holding somebody else's is the same as holding none."""
+    owned_by_an_import(import_client)
+    session.add(Account(uid=ANOTHER_UID, nickname="Belle"))
+    session.commit()
+    stranger_key = import_chronicle(
+        import_client,
+        import_body({"index": {"stats": {"active_days": 1}}}),
+        uid=ANOTHER_UID,
+    ).json()["account_key"]
+
+    response = import_chronicle(import_client, account_key=stranger_key)
+
+    assert response.status_code == 403
+    assert import_client.get(f"/accounts/{ANOTHER_UID}").json()["has_owner"] is True
+
+
+def test_an_import_whose_role_id_names_another_uid_is_refused_and_claims_nothing(
+    import_client: TestClient,
+) -> None:
+    payloads = full_payloads()
+    del payloads["index"]["role"]["game_role_id"]
+    payloads["index"]["role"]["role_id"] = ANOTHER_UID
+
+    response = import_chronicle(import_client, import_body(payloads))
+
+    assert response.status_code == 422
+    assert ANOTHER_UID in response.json()["detail"]
+    assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+
+
+def test_a_bundle_that_names_no_uid_still_claims_an_account_nobody_owns(
+    import_client: TestClient,
+) -> None:
+    """The real `index` carries no UID, so a capture without a record card names nothing."""
+    payloads = full_payloads()
+    payloads["index"] = real_index_payload()
+
+    response = import_chronicle(import_client, import_body(payloads))
+
+    assert response.status_code == 200
+    assert response.json()["account_key"].startswith("zzk_")
+    assert import_client.get(f"/accounts/{TRACKED_UID}").json()["has_owner"] is True
+
+
+def test_a_bundle_that_names_no_uid_cannot_take_over_an_account_that_has_an_owner(
+    import_client: TestClient,
+) -> None:
+    owner_key = owned_by_an_import(import_client)
+    payloads = full_payloads()
+    payloads["index"] = real_index_payload()
+
+    refused = import_chronicle(import_client, import_body(payloads))
+    with_the_key = import_chronicle(import_client, import_body(payloads), account_key=owner_key)
+
+    assert refused.status_code == 403
+    assert with_the_key.status_code == 200
+    assert with_the_key.json()["agents_synced"] == ROSTER_SIZE
+
+
+def test_with_a_token_configured_the_import_needs_the_bearer_even_holding_the_key(
+    import_client: TestClient,
+) -> None:
+    account_key = owned_by_an_import(import_client)
+
+    response = import_chronicle(import_client, account_key=account_key, bearer=False)
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthorized"
+
+
+def test_an_import_that_names_a_region_that_does_not_exist_is_refused_at_the_door(
+    import_client: TestClient,
+) -> None:
+    """The region says which HoYoLAB server the account lives on; it cannot be invented."""
+    body = import_body()
+    body["region"] = "prod_gf_pwned"
+
+    response = import_chronicle(import_client, body)
+
+    assert response.status_code == 422
+    assert import_client.get(f"/accounts/{TRACKED_UID}").status_code == 404
+
+
+def test_a_region_the_service_cannot_place_falls_back_to_the_one_the_uid_implies(
+    service: TrackerService,
+) -> None:
+    """The use case does not trust its caller either, however it was reached."""
+    report = service.import_chronicle(TRACKED_UID, full_payloads(), region="prod_gf_pwned")
+
+    assert report.account.region == "prod_gf_jp"

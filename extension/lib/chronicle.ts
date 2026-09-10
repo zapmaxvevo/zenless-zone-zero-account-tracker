@@ -75,9 +75,20 @@ export function buildImportPayload(args: {
   };
 }
 
+/**
+ * El espejo de `ChronicleImportResponse` de `src/zzz_tracker/web/schemas.py`. Los campos van
+ * opcionales a propósito —el backend los manda todos salvo `account_key`— para que un cambio
+ * de forma se degrade en un resumen incompleto y no en una pantalla rota.
+ */
 export interface ChronicleImportResponse {
   account_uid?: string;
-  skipped?: boolean;
+  /**
+   * Sólo viene cuando el import reclama una cuenta que no tenía dueño, que es el único momento
+   * en que la key rota. Se muestra una vez y hay que guardarla: el backend la tiene hasheada y
+   * no la vuelve a devolver. Un import con la key vigente no la trae; uno sin key contra una
+   * cuenta con dueño ni llega a esta respuesta: es un 403.
+   */
+  account_key?: string | null;
   agents_synced?: number;
   bangboos_synced?: number;
   lost_void_synced?: boolean;

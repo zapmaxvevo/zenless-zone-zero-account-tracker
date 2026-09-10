@@ -10,9 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Response, status
+from fastapi import APIRouter, Depends, Path, Response, status
 
-from zzz_tracker.web.deps import StaticDataDep, TrackerServiceDep
+from zzz_tracker.web.deps import (
+    StaticDataDep,
+    TrackerServiceDep,
+    require_account_key,
+    require_team_owner_key,
+)
 from zzz_tracker.web.schemas import (
     UID_PATTERN,
     ErrorResponse,
@@ -22,7 +27,9 @@ from zzz_tracker.web.schemas import (
 )
 
 TEAM_ERRORS: dict[int | str, dict[str, Any]] = {
+    403: {"model": ErrorResponse, "description": "The account key is missing or not this one"},
     404: {"model": ErrorResponse, "description": "The account, the team or an agent is missing"},
+    409: {"model": ErrorResponse, "description": "The account has no owner to write on behalf of"},
     422: {"model": ErrorResponse, "description": "The comp breaks a slot or ownership rule"},
 }
 
@@ -46,6 +53,7 @@ def list_account_teams(
     "/accounts/{uid}/teams",
     response_model=TeamRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_account_key)],
 )
 def create_team(
     uid: UidPath, payload: TeamWrite, service: TrackerServiceDep, static: StaticDataDep
@@ -60,7 +68,11 @@ def get_team(team_id: TeamIdPath, service: TrackerServiceDep, static: StaticData
     return TeamRead.from_team(service.get_team(team_id), static)
 
 
-@router.put("/teams/{team_id}", response_model=TeamRead)
+@router.put(
+    "/teams/{team_id}",
+    response_model=TeamRead,
+    dependencies=[Depends(require_team_owner_key)],
+)
 def update_team(
     team_id: TeamIdPath, payload: TeamWrite, service: TrackerServiceDep, static: StaticDataDep
 ) -> TeamRead:
@@ -73,6 +85,7 @@ def update_team(
     "/teams/{team_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
+    dependencies=[Depends(require_team_owner_key)],
 )
 def delete_team(team_id: TeamIdPath, service: TrackerServiceDep) -> Response:
     """Drop the comp. The agents it grouped stay tracked."""

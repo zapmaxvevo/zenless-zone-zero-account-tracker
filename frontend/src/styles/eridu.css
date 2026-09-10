@@ -749,6 +749,73 @@
   border-color: var(--accent);
 }
 
+/* ---------- Botón base de zzz-ui ---------- */
+
+/**
+ * El botón no es una forma de la piel: es el componente base que publica el paquete `zzz-ui`.
+ * Por eso lleva radio y no chaflán (regla 3) y va en Inter y no en las fuentes display o
+ * técnica (regla 1). Vive acá porque acá viven los estilos compartidos, y ésta es su ÚNICA
+ * definición en la app: `components/ui/Button.tsx` es la única forma de pedirlo y nadie
+ * escribe `zui-button` a mano. `design-system/` se regenera desde acá, no al revés.
+ */
+
+.zui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  font-family: var(--ui);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zui-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.zui-button:disabled,
+.zui-button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.zui-button-accent {
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.zui-button-accent:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.zui-button-danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-danger:hover:not(:disabled) {
+  color: var(--bg);
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.zui-button-sm {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
 /* ---------- 12. Shell ---------- */
 
 .ne-shell {
@@ -1228,4 +1295,69 @@ a.ne-ghost {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* ---------- Propiedad de una cuenta ---------- */
+
+/**
+ * Un nombre que hay que tipear igual: una variable de entorno, una cookie, un comando de la
+ * CLI. Se lee carácter por carácter, así que va en mono como el UID. Subió acá desde
+ * `chronicle.css` cuando el aviso de modo lectura lo necesitó fuera de la pantalla de conexión.
+ */
+.ne-connect-token {
+  padding: 2px 6px;
+  background: var(--ink);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+}
+
+/**
+ * La key de una cuenta, en la única pantalla que la muestra.
+ *
+ * Es la cifra que importa del bloque, así que va en acento (regla 6). Se lee carácter por
+ * carácter, como el UID y las cookies, así que va en mono; y es larga y no se puede cortar por
+ * una palabra, así que rompe donde caiga en vez de estirar el bloque. Por eso no es
+ * `.ne-data-pill`, que es un dato corto de una sola línea.
+ */
+.ne-key {
+  display: inline-block;
+  max-width: 100%;
+  padding: 5px 8px;
+  background: var(--ink);
+  border: 1px solid var(--border-strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  color: var(--accent);
+  user-select: all;
+}
+
+/**
+ * La misma caja, tapada: la key va enmascarada hasta que alguien pide verla, igual que en las
+ * opciones de la extensión. Los puntos no son el dato, así que van en el gris de lo ausente
+ * (regla 11) y no se pueden seleccionar — copiar puntos creyendo que es la key es peor que no
+ * copiar nada. Para eso está el botón Copiar, que no necesita revelarla.
+ */
+.ne-key.is-masked {
+  color: var(--text-dim);
+  user-select: none;
+}
+
+/**
+ * Modo lectura de un formulario: un `<fieldset disabled>` apaga de una todos sus campos, sin
+ * que cada campo tenga que enterarse. `display: contents` lo saca del layout, así que el
+ * bloque conserva la grilla y la densidad que ya tenía (regla 9) y el formulario se sigue
+ * viendo entero, con sus valores: lo que no se puede editar igual se puede mirar (regla 11).
+ */
+.ne-lock {
+  display: contents;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

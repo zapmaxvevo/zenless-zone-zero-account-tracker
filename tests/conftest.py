@@ -15,8 +15,6 @@ from zzz_tracker.app import create_app
 from zzz_tracker.config import Settings
 from zzz_tracker.enka.client import EnkaClient
 from zzz_tracker.enka.static_data import StaticData
-from zzz_tracker.hoyolab.client import SCHEDULE_CURRENT, SCHEDULE_PREVIOUS, HoyolabClient
-from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.tracker.service import TrackerService
 
@@ -29,18 +27,10 @@ CHINESE_UID = "13000001"
 
 ENKA_BASE_URL = "https://enka.test/api/zzz"
 
-HOYOLAB_BASE_URL = "https://hoyolab.test/event/game_record_zzz/api/zzz"
-HOYOLAB_PATH_PREFIX = "/event/game_record_zzz/api/zzz/"
-
-PATH_PROFILE = "index"
-PATH_AGENTS = "avatar/basic"
-PATH_BANGBOOS = "buddy/info"
-PATH_SHIYU = "hadal_info_v2"
-PATH_DEADLY_ASSAULT = "hadal_mem_detail_v2"
-PATH_LOST_VOID = "abysss2_abstract"
-SEASONAL_PATHS = (PATH_SHIYU, PATH_DEADLY_ASSAULT)
-
-RETCODE_INVALID_COOKIES = -100
+# The keys a chronicle bundle uses for the two seasons of a challenge mode. They are
+# HoYoLAB's `schedule_type`, which the extension copies into the bundle as it found it.
+SCHEDULE_CURRENT = 1
+SCHEDULE_PREVIOUS = 2
 
 CURRENT_SHIYU_SEASON = 3902
 PREVIOUS_SHIYU_SEASON = 3901
@@ -283,97 +273,126 @@ def deadly_assault_season(
     }
 
 
-class FakeHoyolab:
-    def __init__(self) -> None:
-        self._records: dict[str, dict[str, Any]] = {
-            PATH_PROFILE: chronicle_profile(),
-            PATH_AGENTS: chronicle_roster(
-                roster_agent(1041, level=60, mindscape=6),
-                roster_agent(1191, level=60, mindscape=4),
-                roster_agent(1211, level=55, mindscape=1),
-            ),
-            PATH_BANGBOOS: chronicle_bangboos(
-                chronicle_bangboo(53001, "Amillion", level=60),
-                chronicle_bangboo(53101, "Butler", level=45, rarity="A", star=3),
-            ),
-            PATH_LOST_VOID: chronicle_lost_void(),
-        }
-        self._seasons: dict[str, dict[int, dict[str, Any]]] = {
-            PATH_SHIYU: {
-                SCHEDULE_CURRENT: shiyu_season(CURRENT_SHIYU_SEASON),
-                SCHEDULE_PREVIOUS: shiyu_season(PREVIOUS_SHIYU_SEASON, rating="S", score=28000),
-            },
-            PATH_DEADLY_ASSAULT: {
-                SCHEDULE_CURRENT: deadly_assault_season(CURRENT_ASSAULT_SEASON),
-                SCHEDULE_PREVIOUS: deadly_assault_season(
-                    PREVIOUS_ASSAULT_SEASON, total_score=18000
-                ),
-            },
-        }
-        self._asked: list[tuple[str, int | None]] = []
-        self._retcodes: dict[str, int] = {}
-        self._retcode_everywhere: int | None = None
+ACCOUNT_KEY_HEADER = "X-Account-Key"
 
-    def handle(self, request: httpx.Request) -> httpx.Response:
-        path = request.url.path.removeprefix(HOYOLAB_PATH_PREFIX)
-        raw_schedule = request.url.params.get("schedule_type")
-        schedule_type = int(raw_schedule) if raw_schedule is not None else None
-        self._asked.append((path, schedule_type))
 
-        retcode = self._retcodes.get(path, self._retcode_everywhere)
-        if retcode is not None:
-            return httpx.Response(200, json={"retcode": retcode, "message": "Not logged in"})
-        return httpx.Response(
-            200, json={"retcode": 0, "message": "OK", "data": self._data_for(path, schedule_type)}
+def key_headers(account_key: str) -> dict[str, str]:
+    return {ACCOUNT_KEY_HEADER: account_key}
+
+
+def account_key_of(response: httpx.Response) -> str:
+    key: str = response.json()["account_key"]
+    assert key, "the response was expected to hand out an account key"
+    return key
+
+
+def track_account(client: TestClient, uid: str = TRACKED_UID) -> httpx.Response:
+    """Start tracking a UID from the web, which is free and owns nothing."""
+    return client.post("/accounts", json={"uid": uid})
+
+
+def chronicle_bundle(
+    index: dict[str, Any] | None = None,
+    roster: dict[str, Any] | None = None,
+    bangboos: dict[str, Any] | None = None,
+    lost_void: dict[str, Any] | None = None,
+    shiyu: dict[int, dict[str, Any]] | None = None,
+    deadly_assault: dict[int, dict[str, Any]] | None = None,
+    record_card: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The `payloads` map an extension posts, defaulting to a full, healthy capture.
+
+    Each section is the raw `data` of one HoYoLAB endpoint, exactly as the browser received
+    it. Pass a section to change it, or an empty one to say the capture came back with
+    nothing to store.
+    """
+    if shiyu is None:
+        shiyu = {
+            SCHEDULE_CURRENT: shiyu_season(CURRENT_SHIYU_SEASON),
+            SCHEDULE_PREVIOUS: shiyu_season(PREVIOUS_SHIYU_SEASON, rating="S", score=28000),
+        }
+    if deadly_assault is None:
+        deadly_assault = {
+            SCHEDULE_CURRENT: deadly_assault_season(CURRENT_ASSAULT_SEASON),
+            SCHEDULE_PREVIOUS: deadly_assault_season(PREVIOUS_ASSAULT_SEASON, total_score=18000),
+        }
+    payloads: dict[str, Any] = {
+        "index": chronicle_profile() if index is None else index,
+        "avatar_basic": chronicle_roster(
+            roster_agent(1041, level=60, mindscape=6),
+            roster_agent(1191, level=60, mindscape=4),
+            roster_agent(1211, level=55, mindscape=1),
         )
+        if roster is None
+        else roster,
+        "buddy_info": chronicle_bangboos(
+            chronicle_bangboo(53001, "Amillion", level=60),
+            chronicle_bangboo(53101, "Butler", level=45, rarity="A", star=3),
+        )
+        if bangboos is None
+        else bangboos,
+        "lost_void": chronicle_lost_void() if lost_void is None else lost_void,
+        "shiyu_defense": {str(schedule): season for schedule, season in shiyu.items()},
+        "deadly_assault": {str(schedule): season for schedule, season in deadly_assault.items()},
+    }
+    if record_card is not None:
+        payloads["record_card"] = record_card
+    return payloads
 
-    def _data_for(self, path: str, schedule_type: int | None) -> dict[str, Any]:
-        if path in SEASONAL_PATHS:
-            return self._seasons[path].get(schedule_type or SCHEDULE_CURRENT, {})
-        return self._records.get(path, {})
 
-    def as_client(self) -> HoyolabClient:
-        transport = httpx.MockTransport(self.handle)
-        return HoyolabClient(base_url=HOYOLAB_BASE_URL, client=httpx.Client(transport=transport))
+def import_chronicle(
+    client: TestClient,
+    payloads: dict[str, Any] | None = None,
+    uid: str = TRACKED_UID,
+    account_key: str = "",
+    region: str = "prod_gf_jp",
+) -> httpx.Response:
+    """Post a bundle the way the extension does: the only door chronicle data has."""
+    return client.post(
+        f"/accounts/{uid}/chronicle/import",
+        json={
+            "source": "extension",
+            "extension_version": "0.1.0",
+            "region": region,
+            "language": "en-us",
+            "payloads": chronicle_bundle() if payloads is None else payloads,
+        },
+        headers=key_headers(account_key) if account_key else {},
+    )
 
-    def times_queried(self, path: str) -> int:
-        return sum(1 for asked_path, _ in self._asked if asked_path == path)
 
-    def was_queried(self) -> bool:
-        return bool(self._asked)
+def owned_account(client: TestClient, uid: str = TRACKED_UID) -> str:
+    """Track a UID from Enka and take ownership of it, which only an import can give.
 
-    def was_asked_for_schedule(self, schedule_type: int) -> bool:
-        return any(asked_schedule == schedule_type for _, asked_schedule in self._asked)
+    The bundle it claims with is deliberately empty: it adds no agent, no bangboo and no
+    season, so a test that cares about the roster still sees exactly what Enka served. The
+    key is left on the client, the way a browser keeps it.
+    """
+    track_account(client, uid)
+    empty = chronicle_bundle(
+        index={"stats": {"active_days": 1}},
+        roster={},
+        bangboos={},
+        lost_void={},
+        shiyu={},
+        deadly_assault={},
+    )
+    account_key = account_key_of(import_chronicle(client, empty, uid=uid))
+    client.headers[ACCOUNT_KEY_HEADER] = account_key
+    return account_key
 
-    def forget_what_was_asked(self) -> None:
-        self._asked.clear()
 
-    def serves_profile(self, payload: dict[str, Any]) -> None:
-        self._records[PATH_PROFILE] = payload
+def imported_account(client: TestClient, uid: str = TRACKED_UID) -> str:
+    """Import once — which is also what gives the account an owner — and keep the key.
 
-    def serves_roster(self, payload: dict[str, Any]) -> None:
-        self._records[PATH_AGENTS] = payload
-
-    def serves_bangboos(self, payload: dict[str, Any]) -> None:
-        self._records[PATH_BANGBOOS] = payload
-
-    def serves_lost_void(self, payload: dict[str, Any]) -> None:
-        self._records[PATH_LOST_VOID] = payload
-
-    def serves_shiyu(self, schedule_type: int, payload: dict[str, Any]) -> None:
-        self._seasons[PATH_SHIYU][schedule_type] = payload
-
-    def serves_deadly_assault(self, schedule_type: int, payload: dict[str, Any]) -> None:
-        self._seasons[PATH_DEADLY_ASSAULT][schedule_type] = payload
-
-    def answers_with_retcode(self, retcode: int, path: str | None = None) -> None:
-        if path is None:
-            self._retcode_everywhere = retcode
-        else:
-            self._retcodes[path] = retcode
-
-    def rejects_the_cookies(self) -> None:
-        self.answers_with_retcode(RETCODE_INVALID_COOKIES)
+    Importing is the only way chronicle data gets in, so every test that reads a challenge,
+    a bangboo or the Lost Void starts here.
+    """
+    response = import_chronicle(client, uid=uid)
+    assert response.status_code == 200, response.text
+    account_key = account_key_of(response)
+    client.headers[ACCOUNT_KEY_HEADER] = account_key
+    return account_key
 
 
 @pytest.fixture
@@ -428,45 +447,6 @@ def service(session: Session, enka_client: EnkaClient, static_data: StaticData) 
 
 
 @pytest.fixture
-def hoyolab() -> FakeHoyolab:
-    return FakeHoyolab()
-
-
-@pytest.fixture
-def hoyolab_client(hoyolab: FakeHoyolab) -> Iterator[HoyolabClient]:
-    client = hoyolab.as_client()
-    yield client
-    client.close()
-
-
-@pytest.fixture
-def credentials_key() -> str:
-    return CredentialCipher.generate_key()
-
-
-@pytest.fixture
-def cipher(credentials_key: str) -> CredentialCipher:
-    return CredentialCipher(credentials_key)
-
-
-@pytest.fixture
-def chronicle_service(
-    session: Session,
-    enka_client: EnkaClient,
-    static_data: StaticData,
-    hoyolab_client: HoyolabClient,
-    cipher: CredentialCipher,
-) -> TrackerService:
-    return TrackerService(
-        session=session,
-        enka=enka_client,
-        static=static_data,
-        hoyolab=hoyolab_client,
-        cipher=cipher,
-    )
-
-
-@pytest.fixture
 def app(
     settings: Settings,
     db_manager: DatabaseManager,
@@ -481,32 +461,6 @@ def app(
 @pytest.fixture
 def client(app: FastAPI) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def chronicle_app(
-    settings: Settings,
-    db_manager: DatabaseManager,
-    enka_client: EnkaClient,
-    static_data: StaticData,
-    hoyolab_client: HoyolabClient,
-    cipher: CredentialCipher,
-) -> FastAPI:
-    application = create_app(
-        settings,
-        enka=enka_client,
-        static=static_data,
-        hoyolab=hoyolab_client,
-        cipher=cipher,
-    )
-    application.state.db = db_manager
-    return application
-
-
-@pytest.fixture
-def chronicle_client(chronicle_app: FastAPI) -> Iterator[TestClient]:
-    with TestClient(chronicle_app) as test_client:
         yield test_client
 
 

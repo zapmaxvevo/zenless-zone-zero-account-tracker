@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import StatusMessage from '../components/StatusMessage';
+import Button from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import SectionHead from '../components/ui/SectionHead';
 import { useApi } from '../hooks/useApi';
@@ -64,9 +65,9 @@ export default function HomePage() {
                 setError(null);
               }}
             />
-            <button type="submit" className="zui-button zui-button-accent" disabled={tracking}>
+            <Button type="submit" tone="accent" disabled={tracking}>
               {tracking ? 'Importando…' : 'Importar'}
-            </button>
+            </Button>
           </form>
         </div>
 
@@ -78,14 +79,9 @@ export default function HomePage() {
           title="Cuentas seguidas"
           count={items.length}
           action={
-            <button
-              type="button"
-              className="zui-button zui-button-sm"
-              onClick={accounts.reload}
-              disabled={accounts.loading}
-            >
+            <Button size="sm" onClick={accounts.reload} disabled={accounts.loading}>
               Actualizar
-            </button>
+            </Button>
           }
         />
 

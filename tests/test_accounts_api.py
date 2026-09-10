@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from .conftest import RATE_LIMITED_UID, TRACKED_UID, UNKNOWN_UID, FakeEnkaNetwork
+from .conftest import (
+    RATE_LIMITED_UID,
+    TRACKED_UID,
+    UNKNOWN_UID,
+    FakeEnkaNetwork,
+    track_account,
+)
 
 
 def test_tracking_a_uid_returns_the_imported_account(client: TestClient) -> None:
-    response = client.post("/accounts", json={"uid": TRACKED_UID})
+    response = track_account(client)
 
     assert response.status_code == 201
     body = response.json()
@@ -19,7 +25,7 @@ def test_tracking_a_uid_returns_the_imported_account(client: TestClient) -> None
 
 
 def test_a_tracked_account_can_be_read_back_and_listed(client: TestClient) -> None:
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
 
     detail = client.get(f"/accounts/{TRACKED_UID}")
     listing = client.get("/accounts")
@@ -62,7 +68,7 @@ def test_reading_an_account_that_is_not_tracked_answers_not_found(client: TestCl
 def test_syncing_a_tracked_account_only_refetches_when_forced(
     client: TestClient, enka: FakeEnkaNetwork
 ) -> None:
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    track_account(client)
 
     within_ttl = client.post(f"/accounts/{TRACKED_UID}/sync")
     forced = client.post(f"/accounts/{TRACKED_UID}/sync", params={"force": True})

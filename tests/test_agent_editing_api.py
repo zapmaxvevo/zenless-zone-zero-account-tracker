@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from .conftest import TRACKED_UID, UNKNOWN_UID, FakeEnkaNetwork
+from .conftest import TRACKED_UID, UNKNOWN_UID, FakeEnkaNetwork, owned_account
 
 SOLDIER_11 = 1041
 ELLEN = 1191
@@ -57,7 +57,7 @@ def hand_written_build() -> dict[str, Any]:
 
 def test_an_agent_typed_in_by_hand_is_stored_with_its_whole_build(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
 
     # When
     response = client.post(f"/accounts/{TRACKED_UID}/agents", json=hand_written_build())
@@ -109,7 +109,7 @@ def test_a_disc_typed_without_its_set_takes_the_one_the_static_data_knows(
     client: TestClient,
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
 
     # When
     response = client.post(
@@ -126,7 +126,7 @@ def test_a_disc_typed_without_its_set_takes_the_one_the_static_data_knows(
 
 def test_adding_an_agent_the_account_already_tracks_answers_conflict(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
 
     # When
     response = client.post(f"/accounts/{TRACKED_UID}/agents", json={"game_id": SOLDIER_11})
@@ -138,7 +138,7 @@ def test_adding_an_agent_the_account_already_tracks_answers_conflict(client: Tes
 
 def test_two_discs_cannot_share_a_slot(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
 
     # When
     response = client.post(
@@ -164,7 +164,7 @@ def test_adding_an_agent_to_an_account_that_is_not_tracked_answers_not_found(
 
 def test_a_level_out_of_the_game_range_is_rejected(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
 
     # When
     response = client.post(
@@ -179,7 +179,7 @@ def test_correcting_an_imported_agent_makes_it_manual_and_the_next_sync_leaves_i
     client: TestClient, enka: FakeEnkaNetwork
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
     soldier_id = agent_id_of(client, SOLDIER_11)
 
     # When
@@ -205,7 +205,7 @@ def test_correcting_an_imported_agent_makes_it_manual_and_the_next_sync_leaves_i
 
 def test_patching_the_discs_replaces_the_whole_set(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
     soldier_id = agent_id_of(client, SOLDIER_11)
     assert len(client.get(f"/agents/{soldier_id}").json()["discs"]) == 6
 
@@ -228,7 +228,7 @@ def test_patching_the_discs_replaces_the_whole_set(client: TestClient) -> None:
 
 def test_patching_the_wengine_swaps_it_and_sending_null_unequips_it(client: TestClient) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
     soldier_id = agent_id_of(client, SOLDIER_11)
 
     # When
@@ -256,7 +256,7 @@ def test_a_patch_that_says_nothing_keeps_the_build_but_still_claims_the_agent(
     client: TestClient,
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
     soldier_id = agent_id_of(client, SOLDIER_11)
 
     # When
@@ -281,7 +281,7 @@ def test_deleting_an_agent_drops_its_slot_and_leaves_the_rest_of_the_comp_standi
     client: TestClient,
 ) -> None:
     # Given
-    client.post("/accounts", json={"uid": TRACKED_UID})
+    owned_account(client)
     soldier_id = agent_id_of(client, SOLDIER_11)
     ellen_id = agent_id_of(client, ELLEN)
     team_id = client.post(

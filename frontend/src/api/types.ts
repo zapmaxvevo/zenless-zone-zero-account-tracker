@@ -1,3 +1,15 @@
+export type ErrorCode =
+  | 'forbidden'
+  | 'unclaimed_account'
+  | 'conflict'
+  | 'not_found'
+  | 'validation_error'
+  | 'unauthorized'
+  | 'rate_limited'
+  | 'external_service_error'
+  | 'static_data_unavailable'
+  | 'internal_error';
+
 export interface HealthResponse {
   status: string;
   app: string;
@@ -19,11 +31,11 @@ export interface AccountRead {
   chronicle_public: boolean;
   chronicle_synced_at: string | null;
   chronicle_import_source: ChronicleImportSource | null;
-  has_hoyolab_credentials: boolean;
+  has_owner: boolean;
   agent_count: number;
 }
 
-export type ChronicleImportSource = 'extension' | 'server';
+export type ChronicleImportSource = 'extension';
 
 export interface StatRead {
   prop_id: number;
@@ -219,20 +231,6 @@ export const MODE_SHIYU_DEFENSE: ChallengeMode = 'shiyu_defense';
 export const MODE_DEADLY_ASSAULT: ChallengeMode = 'deadly_assault';
 export const CHALLENGE_MODES: ChallengeMode[] = [MODE_SHIYU_DEFENSE, MODE_DEADLY_ASSAULT];
 
-export interface CredentialWrite {
-  ltuid_v2: string;
-  ltoken_v2: string;
-}
-
-export interface CredentialRead {
-  account_uid: string;
-  ltuid_v2: string;
-  rejected: boolean;
-  last_used_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
 export interface ChallengeAgentRead {
   game_id: number;
   level: number;
@@ -306,14 +304,4 @@ export interface LostVoidRead {
   ultimate_challenge_tier: string;
   data_collected: number;
   synced_at: string | null;
-}
-
-export interface ChronicleSyncResponse {
-  account_uid: string;
-  skipped: boolean;
-  agents_synced: number;
-  bangboos_synced: number;
-  lost_void_synced: boolean;
-  unavailable_modes: string[];
-  runs: ChallengeRunRead[];
 }
