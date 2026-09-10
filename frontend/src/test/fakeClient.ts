@@ -26,16 +26,16 @@ function answer(method: string): unknown {
 
 export function resolved<T>(value: T): Settled<T> {
   return {
-    then: <R,>(ok?: (value: T) => R) => (ok ? settle(() => ok(value)) : (resolved(value) as never)),
+    then: <R>(ok?: (value: T) => R) => (ok ? settle(() => ok(value)) : (resolved(value) as never)),
     catch: () => resolved(value),
   };
 }
 
 export function rejected<T>(failure: unknown): Settled<T> {
   return {
-    then: <R,>(_ok?: (value: T) => R, bad?: (failure: unknown) => R) =>
+    then: <R>(_ok?: (value: T) => R, bad?: (failure: unknown) => R) =>
       bad ? settle(() => bad(failure)) : (rejected<R>(failure) as Settled<R>),
-    catch: <R,>(bad: (failure: unknown) => R) => settle(() => bad(failure)) as Settled<T | R>,
+    catch: <R>(bad: (failure: unknown) => R) => settle(() => bad(failure)) as Settled<T | R>,
   };
 }
 

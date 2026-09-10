@@ -12,6 +12,7 @@ import type {
   WEngineRead,
 } from '../api/types';
 import { MODE_SHIYU_DEFENSE } from '../api/types';
+import { discGameId } from '../lib/agentDraft';
 import { UID } from './render';
 
 export function account(overrides: Partial<AccountRead> = {}): AccountRead {
@@ -73,20 +74,49 @@ export function agent(overrides: Partial<AgentRead> = {}): AgentRead {
 /** Ellen a full six discs, Lycaon a half build, Anby fresh out of the box. */
 export function roster(): AgentRead[] {
   return [
-    agent({ id: 3, game_id: 1011, name: 'Anby', elements: ['Elec'], profession: 'Stun', rarity: 3, level: 20, mindscape_level: 0, disc_count: 0, wengine: null }),
-    agent({ id: 2, game_id: 1061, name: 'Von Lycaon', elements: ['Ice'], profession: 'Stun', level: 50, mindscape_level: 0, disc_count: 3, wengine: wengine({ game_id: 14104, name: 'The Restrained' }) }),
+    agent({
+      id: 3,
+      game_id: 1011,
+      name: 'Anby',
+      elements: ['Elec'],
+      profession: 'Stun',
+      rarity: 3,
+      level: 20,
+      mindscape_level: 0,
+      disc_count: 0,
+      wengine: null,
+    }),
+    agent({
+      id: 2,
+      game_id: 1061,
+      name: 'Von Lycaon',
+      elements: ['Ice'],
+      profession: 'Stun',
+      level: 50,
+      mindscape_level: 0,
+      disc_count: 3,
+      wengine: wengine({ game_id: 14104, name: 'The Restrained' }),
+    }),
     agent({ id: 1, game_id: 1091, name: 'Ellen Joe' }),
   ];
 }
 
 export function stat(overrides: Partial<StatRead> = {}): StatRead {
-  return { prop_id: 20103, name: 'Crit', format: '%', value: 240, rolls: 2, total: null, ...overrides };
+  return {
+    prop_id: 20103,
+    name: 'Crit',
+    format: '%',
+    value: 240,
+    rolls: 2,
+    total: null,
+    ...overrides,
+  };
 }
 
 export function disc(slot: number, overrides: Partial<DriveDiscRead> = {}): DriveDiscRead {
   return {
     slot,
-    game_id: 31000 + slot,
+    game_id: discGameId(31000, 4, slot),
     set_id: 31000,
     set_name: 'Polar Metal',
     set_icon_url: null,
@@ -111,7 +141,13 @@ export function agentDetail(overrides: Partial<AgentDetailRead> = {}): AgentDeta
     obtained_at: '2025-07-04T10:00:00Z',
     discs: [1, 2, 3, 4, 5, 6].map((slot) => disc(slot)),
     equipped_sets: [
-      { set_id: 31000, name: 'Polar Metal', icon_url: null, pieces: 4, bonus_props: { '31201': 1000 } },
+      {
+        set_id: 31000,
+        name: 'Polar Metal',
+        icon_url: null,
+        pieces: 4,
+        bonus_props: { '31201': 1000 },
+      },
     ],
     ...overrides,
   };
@@ -164,7 +200,7 @@ export function run(overrides: Partial<ChallengeRunRead> = {}): ChallengeRunRead
     score: 1000,
     max_score: 1000,
     total_stars: 27,
-    rank_percent: 1250,
+    rank_percent: 12.5,
     clear_time_seconds: 900,
     schema_version: '1',
     synced_at: '2026-09-01T12:00:00Z',
@@ -174,7 +210,15 @@ export function run(overrides: Partial<ChallengeRunRead> = {}): ChallengeRunRead
 }
 
 export function bangboo(overrides: Partial<BangbooRead> = {}): BangbooRead {
-  return { game_id: 53001, name: 'Amillion', level: 60, rarity: 4, star: 5, icon: '', ...overrides };
+  return {
+    game_id: 53001,
+    name: 'Amillion',
+    level: 60,
+    rarity: 4,
+    star: 5,
+    icon: '',
+    ...overrides,
+  };
 }
 
 export function lostVoid(overrides: Partial<LostVoidRead> = {}): LostVoidRead {
