@@ -28,18 +28,6 @@ describe('queryString', () => {
 });
 
 describe('rutas del chronicle', () => {
-  it('manda el sync sin query cuando no se le pasan opciones', async () => {
-    const urls = stubFetch();
-
-    await api.syncChronicle('1300000000');
-    await api.syncChronicle('1300000000', { force: true, previous: false });
-
-    expect(urls).toEqual([
-      '/api/accounts/1300000000/chronicle/sync',
-      '/api/accounts/1300000000/chronicle/sync?force=true&previous=false',
-    ]);
-  });
-
   it('filtra los desafíos por modo solo si se pide uno', async () => {
     const urls = stubFetch();
 
@@ -57,14 +45,10 @@ describe('rutas del chronicle', () => {
 
     await api.listBangboos('1300000000');
     await api.getLostVoid('1300000000');
-    await api.deleteCredentials('1300000000');
-    await api.storeCredentials('1300000000', { ltuid_v2: '42', ltoken_v2: 'v2_token' });
 
     expect(urls).toEqual([
       '/api/accounts/1300000000/bangboos',
       '/api/accounts/1300000000/lost-void',
-      '/api/accounts/1300000000/credentials',
-      '/api/accounts/1300000000/credentials',
     ]);
   });
 });

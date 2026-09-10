@@ -1,6 +1,5 @@
 import { readKey } from '../lib/accountKey';
 import type {
-  AccountCreatedRead,
   AccountListResponse,
   AccountRead,
   AgentDetailRead,
@@ -15,11 +14,6 @@ import type {
   CatalogWEngineRead,
   ChallengeMode,
   ChallengeRunListResponse,
-  ChronicleSyncResponse,
-  ClaimResponse,
-  CredentialRead,
-  CredentialStatusRead,
-  CredentialWrite,
   HealthResponse,
   LostVoidRead,
   TeamListResponse,
@@ -31,19 +25,24 @@ const BASE = '/api';
 
 export const KEY_HEADER = 'X-Account-Key';
 
-export type ChronicleSyncOptions = { force?: boolean; previous?: boolean };
-
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
   readonly code: string | null;
+  readonly sentKey: boolean;
 
-  constructor(status: number, detail: string, code: string | null = null) {
+  constructor(
+    status: number,
+    detail: string,
+    code: string | null = null,
+    sentKey: boolean = false,
+  ) {
     super(`HTTP ${status}: ${detail}`);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
     this.code = code;
+    this.sentKey = sentKey;
   }
 }
 
@@ -91,10 +90,10 @@ export function queryString(
   return text ? `?${text}` : '';
 }
 
-async function toApiError(res: Response): Promise<ApiError> {
+async function toApiError(res: Response, sentKey: boolean): Promise<ApiError> {
   const fallback = statusFallback(res.status, res.statusText);
   const body: unknown = await res.json().catch(() => null);
-  return new ApiError(res.status, extractDetail(body, fallback), extractCode(body));
+  return new ApiError(res.status, extractDetail(body, fallback), extractCode(body), sentKey);
 }
 
 async function request<T>(
@@ -114,7 +113,7 @@ async function request<T>(
     headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) throw await toApiError(res, key !== null);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
@@ -142,8 +141,7 @@ export function del<T>(path: string, owner?: string): Promise<T> {
 export const api = {
   health: () => get<HealthResponse>('/health'),
 
-  trackAccount: (uid: string) => post<AccountCreatedRead>('/accounts', { uid }),
-  claimAccount: (uid: string) => post<ClaimResponse>(`/accounts/${uid}/claim`),
+  trackAccount: (uid: string) => post<AccountRead>('/accounts', { uid }),
 
   listAccounts: () => get<AccountListResponse>('/accounts'),
   getAccount: (uid: string) => get<AccountRead>(`/accounts/${uid}`),
@@ -164,13 +162,6 @@ export const api = {
     put<TeamRead>(`/teams/${teamId}`, body, uid),
   deleteTeam: (uid: string, teamId: number | string) => del<void>(`/teams/${teamId}`, uid),
 
-  getCredentialsStatus: (uid: string) => get<CredentialStatusRead>(`/accounts/${uid}/credentials`),
-  storeCredentials: (uid: string, body: CredentialWrite) =>
-    put<CredentialRead>(`/accounts/${uid}/credentials`, body, uid),
-  deleteCredentials: (uid: string) => del<void>(`/accounts/${uid}/credentials`, uid),
-
-  syncChronicle: (uid: string, options: ChronicleSyncOptions = {}) =>
-    post<ChronicleSyncResponse>(`/accounts/${uid}/chronicle/sync${queryString(options)}`, {}, uid),
   listChallenges: (uid: string, mode?: ChallengeMode) =>
     get<ChallengeRunListResponse>(`/accounts/${uid}/challenges${queryString({ mode })}`),
   listBangboos: (uid: string) => get<BangbooListResponse>(`/accounts/${uid}/bangboos`),

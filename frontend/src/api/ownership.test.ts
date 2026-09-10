@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KEY_PREFIX, storageKey } from '../lib/accountKey';
 import { ApiError, KEY_HEADER, api } from './client';
-import { FORBIDDEN_MESSAGE, UNCLAIMED_MESSAGE, describeError } from './errors';
+import { FORBIDDEN_MESSAGE, UNCLAIMED_MESSAGE, WRONG_KEY_MESSAGE, describeError } from './errors';
 
 const UID = '1300000000';
 const OTHER_UID = '1300000001';
@@ -12,12 +12,12 @@ interface Call {
   key: string | undefined;
 }
 
-function stubFetch(): Call[] {
+function stubFetch(body = '{}'): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     const headers = (init?.headers ?? {}) as Record<string, string>;
     calls.push({ url, key: headers[KEY_HEADER] });
-    return Promise.resolve(new Response('{}', { status: 200 }));
+    return Promise.resolve(new Response(body, { status: 200 }));
   });
   return calls;
 }
@@ -28,13 +28,14 @@ function stubRejection(status: number, detail: string, code: string): void {
   );
 }
 
-function stubStoredKeys(keys: Record<string, string>): void {
+function stubStoredKeys(keys: Record<string, string>): Map<string, string> {
   const entries = new Map(Object.entries(keys).map(([uid, key]) => [storageKey(uid), key]));
   vi.stubGlobal('localStorage', {
     getItem: (name: string) => entries.get(name) ?? null,
     setItem: (name: string, value: string) => entries.set(name, value),
     removeItem: (name: string) => entries.delete(name),
   });
+  return entries;
 }
 
 afterEach(() => {
@@ -52,11 +53,10 @@ describe('la key en las llamadas al backend', () => {
     await api.getAgent(7);
     await api.listTeams(UID);
     await api.getTeam(3);
-    await api.getCredentialsStatus(UID);
     await api.listBangboos(UID);
     await api.catalogAgents();
 
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(8);
     expect(calls.every((call) => call.key === undefined)).toBe(true);
   });
 
@@ -70,12 +70,9 @@ describe('la key en las llamadas al backend', () => {
     await api.createTeam(UID, { name: 'A', notes: '', members: [] });
     await api.updateTeam(UID, 3, { name: 'A', notes: '', members: [] });
     await api.deleteTeam(UID, 3);
-    await api.storeCredentials(UID, { ltuid_v2: '42', ltoken_v2: 'v2_token' });
-    await api.deleteCredentials(UID);
-    await api.syncChronicle(UID);
     await api.syncAccount(UID);
 
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(7);
     expect(calls.every((call) => call.key === KEY)).toBe(true);
   });
 
@@ -118,14 +115,30 @@ describe('la key en las llamadas al backend', () => {
     expect(describeError(unclaimed)).toBe(UNCLAIMED_MESSAGE);
   });
 
-  it('empezar a trackear y reclamar no mandan key: son las puertas de entrada', async () => {
+  it('el error recuerda si la llamada presentó una key, que es lo que separa los dos 403', async () => {
     stubStoredKeys({ [UID]: KEY });
-    const calls = stubFetch();
+    stubRejection(403, 'This account has an owner', 'forbidden');
+    const withKey = await api.updateAgent(UID, 7, { level: 60 }).catch((c: unknown) => c);
+
+    stubStoredKeys({});
+    stubRejection(403, 'This account has an owner', 'forbidden');
+    const withoutKey = await api.updateAgent(UID, 7, { level: 60 }).catch((c: unknown) => c);
+
+    expect((withKey as ApiError).sentKey).toBe(true);
+    expect(describeError(withKey)).toBe(WRONG_KEY_MESSAGE);
+
+    expect((withoutKey as ApiError).sentKey).toBe(false);
+    expect(describeError(withoutKey)).toBe(FORBIDDEN_MESSAGE);
+  });
+
+  it('empezar a trackear no manda key ni se guarda ninguna: la web ya no reclama nada', async () => {
+    const entries = stubStoredKeys({});
+    const calls = stubFetch(JSON.stringify({ uid: UID, has_owner: false, account_key: KEY }));
 
     await api.trackAccount(UID);
-    await api.claimAccount(UID);
 
-    expect(calls.map((call) => call.url)).toEqual(['/api/accounts', `/api/accounts/${UID}/claim`]);
-    expect(calls.every((call) => call.key === undefined)).toBe(true);
+    expect(calls.map((call) => call.url)).toEqual(['/api/accounts']);
+    expect(calls[0].key).toBeUndefined();
+    expect([...entries.keys()]).toEqual([]);
   });
 });

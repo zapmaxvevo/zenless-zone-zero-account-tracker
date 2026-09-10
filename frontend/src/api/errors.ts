@@ -2,19 +2,22 @@ import { ApiError } from './client';
 import type { ErrorCode } from './types';
 
 export const FORBIDDEN_MESSAGE =
-  'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Si la key vigente está en otra instalación, pegala en «Conectar HoYoLAB».';
+  'Este UID tiene dueño y esta computadora no guarda su key, así que solo se puede mirar. Si la key vigente está en otra instalación, pegala en «Key de la cuenta».';
+
+export const WRONG_KEY_MESSAGE =
+  'La key que guarda esta computadora no es la de este UID: el backend la rechazó. O se pegó mal, o alguien corrió `zzz-tracker rotate-key` en el servidor y la vigente es otra. Pegá la correcta en «Key de la cuenta».';
 
 export const UNCLAIMED_MESSAGE =
-  'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Reclamalo y quedate con la key que te devuelve.';
+  'Nadie reclamó este UID todavía, así que no hay key que pueda escribirlo. Importalo con la extensión: el import lo reclama y te devuelve su key.';
 
 const CODE_FORBIDDEN: ErrorCode = 'forbidden';
 const CODE_UNCLAIMED: ErrorCode = 'unclaimed_account';
 const CODE_RATE_LIMITED: ErrorCode = 'rate_limited';
 const CODE_NOT_FOUND: ErrorCode = 'not_found';
 
-const MESSAGES_BY_CODE: Partial<Record<ErrorCode, string>> = {
-  [CODE_FORBIDDEN]: FORBIDDEN_MESSAGE,
-  [CODE_UNCLAIMED]: UNCLAIMED_MESSAGE,
+const MESSAGES_BY_CODE: Partial<Record<ErrorCode, (error: ApiError) => string>> = {
+  [CODE_FORBIDDEN]: (error) => (error.sentKey ? WRONG_KEY_MESSAGE : FORBIDDEN_MESSAGE),
+  [CODE_UNCLAIMED]: () => UNCLAIMED_MESSAGE,
 };
 
 export function isMissingKeyError(error: unknown): boolean {
@@ -44,7 +47,7 @@ const NETWORK_MESSAGE = 'No pudimos hablar con el backend. Fijate que esté leva
 
 function messageForApiError(error: ApiError): string {
   const byCode = error.code ? MESSAGES_BY_CODE[error.code as ErrorCode] : undefined;
-  return byCode ?? messageForStatus(error);
+  return byCode ? byCode(error) : messageForStatus(error);
 }
 
 function messageForStatus(error: ApiError): string {

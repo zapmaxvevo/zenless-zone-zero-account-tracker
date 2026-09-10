@@ -3,6 +3,7 @@ import { ApiError } from './client';
 import {
   FORBIDDEN_MESSAGE,
   UNCLAIMED_MESSAGE,
+  WRONG_KEY_MESSAGE,
   describeError,
   isMissingKeyError,
   isRateLimited,
@@ -53,21 +54,29 @@ describe('los dos 409 del modelo de propiedad', () => {
     expect(describeError(conflict)).not.toBe(describeError(unclaimed));
   });
 
-  it('el 403 de la key dice otra cosa que el 403 del Chronicle privado', () => {
+  it('no tener la key y tener la equivocada son dos problemas distintos', () => {
+    const noKey = new ApiError(403, 'This account has an owner', 'forbidden');
+    const wrongKey = new ApiError(403, 'This account has an owner', 'forbidden', true);
+
+    expect(describeError(noKey)).toBe(FORBIDDEN_MESSAGE);
+    expect(describeError(noKey)).toContain('no guarda su key');
+
+    expect(describeError(wrongKey)).toBe(WRONG_KEY_MESSAGE);
+    expect(describeError(wrongKey)).toContain('no es la de este UID');
+    expect(describeError(wrongKey)).toContain('rotate-key');
+  });
+
+  it('el 403 de la key tiene mensaje propio y cualquier otro 403 deja pasar su detail', () => {
     const missingKey = new ApiError(403, 'This account has an owner', 'forbidden');
-    const notPublic = new ApiError(
-      403,
-      'That player keeps their Chronicle private',
-      'data_not_public',
-    );
+    const other = new ApiError(403, 'Enka refused the request', 'internal_error');
 
     expect(describeError(missingKey)).toBe(FORBIDDEN_MESSAGE);
-    expect(describeError(notPublic)).toBe('That player keeps their Chronicle private');
+    expect(describeError(other)).toBe('Enka refused the request');
   });
 
   it('reconoce los dos casos por su code y no por su status', () => {
     expect(isMissingKeyError(new ApiError(403, 'x', 'forbidden'))).toBe(true);
-    expect(isMissingKeyError(new ApiError(403, 'x', 'data_not_public'))).toBe(false);
+    expect(isMissingKeyError(new ApiError(403, 'x', 'internal_error'))).toBe(false);
     expect(isUnclaimedError(new ApiError(409, 'x', 'unclaimed_account'))).toBe(true);
     expect(isUnclaimedError(new ApiError(409, 'x', 'conflict'))).toBe(false);
   });

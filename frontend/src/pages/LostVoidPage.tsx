@@ -28,7 +28,7 @@ export default function LostVoidPage() {
 
   return (
     <div className="ne-stack">
-      <ChronicleNav uid={uid} account={account.data} onSynced={reload} empty={missing} />
+      <ChronicleNav uid={uid} account={account.data} empty={missing} />
 
       <Hero size="sm" watermark="VACÍO">
         <span className="ne-eyebrow">HoYoLAB Chronicle // UID {uid}</span>

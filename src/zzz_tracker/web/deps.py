@@ -16,8 +16,6 @@ from zzz_tracker.errors import (
     UnauthorizedError,
     UnclaimedAccountError,
 )
-from zzz_tracker.hoyolab.client import HoyolabClient
-from zzz_tracker.storage.crypto import CredentialCipher
 from zzz_tracker.storage.database import DatabaseManager
 from zzz_tracker.tracker.service import TrackerService
 from zzz_tracker.web.schemas import UID_PATTERN
@@ -59,16 +57,6 @@ def get_required_static_data(
     return static
 
 
-def get_hoyolab_client(request: Request) -> HoyolabClient:
-    hoyolab: HoyolabClient = request.app.state.hoyolab
-    return hoyolab
-
-
-def get_credential_cipher(request: Request) -> CredentialCipher | None:
-    cipher: CredentialCipher | None = request.app.state.cipher
-    return cipher
-
-
 def require_api_token(
     request: Request,
     authorization: Annotated[str, Header()] = "",
@@ -92,30 +80,17 @@ def require_api_token(
 
 
 def get_tracker_service(
-    request: Request,
     session: Annotated[Session, Depends(get_db)],
     enka: Annotated[EnkaClient, Depends(get_enka_client)],
     static: Annotated[StaticData | None, Depends(get_static_data)],
-    hoyolab: Annotated[HoyolabClient, Depends(get_hoyolab_client)],
-    cipher: Annotated[CredentialCipher | None, Depends(get_credential_cipher)],
 ) -> TrackerService:
-    settings = get_app_settings(request)
-    return TrackerService(
-        session=session,
-        enka=enka,
-        static=static,
-        hoyolab=hoyolab,
-        cipher=cipher,
-        chronicle_ttl_seconds=settings.hoyolab_sync_ttl_seconds,
-        chronicle_backoff_seconds=settings.hoyolab_backoff_seconds,
-    )
+    return TrackerService(session=session, enka=enka, static=static)
 
 
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 DatabaseManagerDep = Annotated[DatabaseManager, Depends(get_db_manager)]
 SessionDep = Annotated[Session, Depends(get_db)]
 EnkaClientDep = Annotated[EnkaClient, Depends(get_enka_client)]
-HoyolabClientDep = Annotated[HoyolabClient, Depends(get_hoyolab_client)]
 StaticDataDep = Annotated["StaticData | None", Depends(get_static_data)]
 RequiredStaticDataDep = Annotated[StaticData, Depends(get_required_static_data)]
 TrackerServiceDep = Annotated[TrackerService, Depends(get_tracker_service)]
@@ -140,15 +115,15 @@ AccountKeyHeader = Annotated[
 def _check_account_key(service: TrackerService, uid: str, given: str) -> None:
     """Let the write through only for whoever holds the key of *that* account.
 
-    An unclaimed account has no key at all, which is a different answer from a wrong one:
-    there is nothing to present yet, so the caller is told to claim it instead of hunting
-    for a secret that was never issued.
+    An account with no owner has no key at all, which is a different answer from a wrong
+    one: there is nothing to present yet, so the caller is pointed at the way to become the
+    owner rather than left hunting for a secret that was never issued.
     """
     account = service.get_account(uid)
     if not account.is_claimed:
         raise UnclaimedAccountError(
-            f"Account {uid} has no owner yet; claim it with POST /accounts/{uid}/claim "
-            "before writing to it"
+            f"Account {uid} has no owner yet, so nothing may write to it; import its "
+            "chronicle with the browser extension to claim it and get its key"
         )
     if not service.verify_key(uid, given):
         raise ForbiddenError(

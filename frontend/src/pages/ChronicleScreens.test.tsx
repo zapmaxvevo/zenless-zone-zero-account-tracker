@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KEY_PREFIX, storageKey } from '../lib/accountKey';
 import BangboosPage from './BangboosPage';
 import ChroniclePage from './ChroniclePage';
-import CredentialsPage from './CredentialsPage';
+import AccountKeyPage from './AccountKeyPage';
 import LostVoidPage from './LostVoidPage';
 
 function render(path: string, element: ReactNode): string {
@@ -13,7 +13,7 @@ function render(path: string, element: ReactNode): string {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/account/:uid/chronicle/:section" element={element} />
-        <Route path="/account/:uid/credentials" element={element} />
+        <Route path="/account/:uid/key" element={element} />
       </Routes>
     </MemoryRouter>,
   );
@@ -73,33 +73,22 @@ describe('pantallas del Chronicle', () => {
     expect(html).toContain('0 bangboos registrados');
   });
 
-  it('Conectar HoYoLAB jerarquiza la extensión sobre las cookies', () => {
-    const html = render(`/account/${UID}/credentials`, <CredentialsPage />);
+  it('la Key de la cuenta abre explicando de dónde sale y cómo pegarla', () => {
+    const html = render(`/account/${UID}/key`, <AccountKeyPage />);
 
-    expect(html).toContain('Conectar HoYoLAB');
-    expect(html).toContain('Extensión del navegador');
-    expect(html).toContain('Recomendado');
-    expect(html).toContain('ZZZ_API_TOKEN');
-    expect(html.indexOf('Extensión del navegador')).toBeLessThan(
-      html.indexOf('Cookies de HoYoLAB'),
-    );
-    expect(html).toContain('Alternativa manual');
+    expect(html).toContain('Key de la cuenta');
+    expect(html).toContain('De dónde sale la key');
+    expect(html).toContain('account-key');
+    expect(html).toContain('Guardar la key acá');
+    expect(html).toContain('Último import');
   });
 
-  it('Conectar HoYoLAB dibuja el último import aunque nunca haya habido uno', () => {
-    const html = render(`/account/${UID}/credentials`, <CredentialsPage />);
+  it('la Key de la cuenta ya no habla de cookies ni de sincronizar desde el servidor', () => {
+    const html = render(`/account/${UID}/key`, <AccountKeyPage />);
 
-    expect(html).toContain('Último import desde la extensión');
-    expect(html).toContain('—');
-  });
-
-  it('Conectar HoYoLAB conserva el formulario de cookies entero', () => {
-    const html = render(`/account/${UID}/credentials`, <CredentialsPage />);
-
-    expect(html).toContain('cred-ltuid');
-    expect(html).toContain('cred-ltoken');
-    expect(html).toContain('Guardar credenciales');
-    expect(html).toContain('Borrar credenciales');
-    expect(html).toContain('Solo se usan para sincronizar');
+    expect(html).not.toContain('cred-ltuid');
+    expect(html).not.toContain('cred-ltoken');
+    expect(html).not.toContain('Cookies de HoYoLAB');
+    expect(html).not.toContain('Guardar credenciales');
   });
 });

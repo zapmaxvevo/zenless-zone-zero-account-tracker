@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query
 
 from zzz_tracker.errors import NotFoundError
 from zzz_tracker.storage.models import MODE_DEADLY_ASSAULT, MODE_SHIYU_DEFENSE
 from zzz_tracker.web.deps import (
     AccountKeyHeader,
     TrackerServiceDep,
-    require_account_key,
     require_api_token,
 )
 from zzz_tracker.web.schemas import (
@@ -20,10 +19,6 @@ from zzz_tracker.web.schemas import (
     ChallengeRunRead,
     ChronicleImportResponse,
     ChronicleImportWrite,
-    ChronicleSyncResponse,
-    CredentialRead,
-    CredentialStatusRead,
-    CredentialWrite,
     LostVoidRead,
 )
 
@@ -36,57 +31,6 @@ ModeQuery = Annotated[
     str | None,
     Query(description=f"Filter by mode: `{MODE_SHIYU_DEFENSE}` or `{MODE_DEADLY_ASSAULT}`"),
 ]
-ForceQuery = Annotated[bool, Query(description="Sync even if the chronicle ttl has not expired")]
-PreviousQuery = Annotated[bool, Query(description="Also fetch the previous season")]
-
-
-@router.get("/{uid}/credentials", response_model=CredentialStatusRead)
-def get_credentials_status(uid: UidPath, service: TrackerServiceDep) -> CredentialStatusRead:
-    """Whether the account is connected to HoYoLAB, without saying anything the cookies say.
-
-    Public, like every other read: that an account has cookies stored is already in
-    `has_hoyolab_credentials` on the account itself. What is never public — the ltoken, the
-    ltuid, anything decrypted — is not here either. An account with nothing stored answers
-    `stored: false` rather than 404, which is the question the frontend is really asking.
-    """
-    account = service.get_account(uid)
-    return CredentialStatusRead.from_credential(account.uid, account.credential)
-
-
-@router.put(
-    "/{uid}/credentials",
-    response_model=CredentialRead,
-    dependencies=[Depends(require_account_key)],
-)
-def store_credentials(
-    uid: UidPath, payload: CredentialWrite, service: TrackerServiceDep
-) -> CredentialRead:
-    credential = service.store_credentials(uid, payload.ltuid_v2, payload.ltoken_v2)
-    return CredentialRead.from_credential(credential)
-
-
-@router.delete(
-    "/{uid}/credentials",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_account_key)],
-)
-def delete_credentials(uid: UidPath, service: TrackerServiceDep) -> None:
-    service.delete_credentials(uid)
-
-
-@router.post(
-    "/{uid}/chronicle/sync",
-    response_model=ChronicleSyncResponse,
-    dependencies=[Depends(require_account_key)],
-)
-def sync_chronicle(
-    uid: UidPath,
-    service: TrackerServiceDep,
-    force: ForceQuery = False,
-    previous: PreviousQuery = True,
-) -> ChronicleSyncResponse:
-    report = service.sync_chronicle(uid, force=force, include_previous=previous)
-    return ChronicleSyncResponse.from_report(report)
 
 
 @router.post(
@@ -102,14 +46,13 @@ def import_chronicle(
 ) -> ChronicleImportResponse:
     """Store a chronicle bundle captured in the browser, tracking the account if it is new.
 
-    The only write that a key does not always gate — but a bundle proves nothing on its own,
-    since the client picks every byte of it, the UID it names included, and a UID is public.
-    So it goes through without a key only where nothing can be taken: an unclaimed account,
-    or a `provisional` one where the bundle at least names the UID. Against an account an
-    import already claimed it is 403, and the way back in is `zzz-tracker rotate-key` on the
-    machine that holds the database. Sending the key in force always works and keeps it;
-    every other accepted case rotates the account onto a new key that comes back in the
-    answer.
+    The only way HoYoLAB data reaches this backend, and the only way an account gets an
+    owner. A bundle proves nothing on its own — the client picks every byte of it, the UID
+    it names included, and a UID is public — so it goes through without a key only where
+    nothing can be taken: an account nobody owns yet, which it then claims, answering with
+    the key once. Against an account that has an owner it takes that owner's key, and
+    answers 403 without it; the way back in from a lost key is `zzz-tracker rotate-key` on
+    the machine that holds the database.
     """
     report = service.import_chronicle(
         uid, payload.payloads, region=payload.region, account_key=x_account_key

@@ -7,14 +7,14 @@ from sqlalchemy.orm import Session
 
 from zzz_tracker.storage.models import SOURCE_MANUAL, Account, Agent
 
-from .conftest import TRACKED_UID, UNKNOWN_UID, track_account
+from .conftest import TRACKED_UID, UNKNOWN_UID, owned_account
 
 OTHER_UID = "1300000002"
 
 
 def claimed_account_roster(client: TestClient) -> list[int]:
     """Claim the recorded account and return the ids of its agents, in roster order."""
-    track_account(client)
+    owned_account(client)
     roster = client.get(f"/accounts/{TRACKED_UID}/agents").json()["items"]
     return [item["id"] for item in roster]
 

@@ -19,14 +19,7 @@ SOURCE_ENKA = "enka"
 SOURCE_MANUAL = "manual"
 SOURCE_HOYOLAB = "hoyolab"
 
-CHRONICLE_SOURCE_SERVER = "server"
 CHRONICLE_SOURCE_EXTENSION = "extension"
-
-# How well an account is owned. `unclaimed` is the absence of a key, so it never reaches the
-# database: it is what an account with no `account_keys` row reads as.
-CLAIM_UNCLAIMED = "unclaimed"
-CLAIM_PROVISIONAL = "provisional"
-CLAIM_VERIFIED = "verified"
 
 MODE_SHIYU_DEFENSE = "shiyu_defense"
 MODE_DEADLY_ASSAULT = "deadly_assault"
@@ -90,9 +83,6 @@ class Account(Base):
         DateTime(timezone=True), default=None
     )
     chronicle_import_source: Mapped[str | None] = mapped_column(String(16), default=None)
-    chronicle_failed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -114,11 +104,6 @@ class Account(Base):
         cascade="all, delete-orphan",
         order_by="Bangboo.game_id",
     )
-    credential: Mapped[HoyolabCredential | None] = relationship(
-        back_populates="account",
-        cascade="all, delete-orphan",
-        uselist=False,
-    )
     key: Mapped[AccountKey | None] = relationship(
         back_populates="account",
         cascade="all, delete-orphan",
@@ -131,12 +116,8 @@ class Account(Base):
     )
 
     @property
-    def claim_level(self) -> str:
-        """How the account was claimed; `unclaimed` while no key was ever handed out."""
-        return self.key.claim_level if self.key is not None else CLAIM_UNCLAIMED
-
-    @property
     def is_claimed(self) -> bool:
+        """Whether anybody holds the key of this account. Nobody, at first, and for ever."""
         return self.key is not None
 
     def next_sync_available_at(self) -> datetime | None:
@@ -152,33 +133,14 @@ class Account(Base):
             return True
         return (now or utc_now()) >= next_sync
 
-    def is_in_chronicle_backoff(self, backoff_seconds: int, now: datetime | None = None) -> bool:
-        failed_at = as_utc(self.chronicle_failed_at)
-        if failed_at is None:
-            return False
-        return (now or utc_now()) < failed_at + timedelta(seconds=backoff_seconds)
-
-    def is_chronicle_sync_due(
-        self,
-        ttl_seconds: int,
-        backoff_seconds: int = 0,
-        now: datetime | None = None,
-    ) -> bool:
-        moment = now or utc_now()
-        if self.is_in_chronicle_backoff(backoff_seconds, moment):
-            return False
-        synced_at = as_utc(self.chronicle_synced_at)
-        if synced_at is None:
-            return True
-        return moment >= synced_at + timedelta(seconds=ttl_seconds)
-
 
 class AccountKey(Base):
-    """The hashed write key of one account, and how it was earned.
+    """The hashed write key of one account.
 
-    Mirrors `hoyolab_credentials`: one row per account, holding a secret that is never read
-    back. Rotating is what an import does when whoever sent it could not present the key in
-    force, so `rotated_at` doubles as the trail of a UID changing hands.
+    One row per account, holding a secret that is never read back: the row existing is what
+    "this account has an owner" means. Only the first import of a UID creates one — after
+    that the key is the only thing that speaks for the account — so `rotated_at` marks the
+    deliberate reissues, which only happen from the CLI.
     """
 
     __tablename__ = "account_keys"
@@ -188,42 +150,12 @@ class AccountKey(Base):
         ForeignKey("accounts.uid", ondelete="CASCADE"), unique=True, index=True
     )
     key_hash: Mapped[str] = mapped_column(String(64))
-    claim_level: Mapped[str] = mapped_column(String(16), default=CLAIM_PROVISIONAL)
 
     claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     account: Mapped[Account] = relationship(back_populates="key")
-
-    @property
-    def is_verified(self) -> bool:
-        return self.claim_level == CLAIM_VERIFIED
-
-
-class HoyolabCredential(Base):
-    __tablename__ = "hoyolab_credentials"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    account_uid: Mapped[str] = mapped_column(
-        ForeignKey("accounts.uid", ondelete="CASCADE"), unique=True, index=True
-    )
-    ltuid_v2: Mapped[str] = mapped_column(String(32))
-    encrypted_ltoken: Mapped[str] = mapped_column(Text)
-
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, onupdate=utc_now
-    )
-
-    account: Mapped[Account] = relationship(back_populates="credential")
-
-    @property
-    def is_rejected(self) -> bool:
-        return self.rejected_at is not None
 
 
 class Bangboo(Base):

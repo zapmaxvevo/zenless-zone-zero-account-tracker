@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError, isRateLimited } from '../api/errors';
 import type { AccountRead, AgentRead, TeamRead } from '../api/types';
-import AccountKeyBanner from '../components/AccountKeyBanner';
 import StatusMessage from '../components/StatusMessage';
 import Banner from '../components/ui/Banner';
 import Button, { LinkButton } from '../components/ui/Button';
@@ -165,6 +164,9 @@ function Dashboard({ account, access, agents, teams, onSynced }: DashboardProps)
                 ? `Disponible en ${formatCountdown(remaining)}`
                 : 'Sincronizar'}
           </Button>
+          <LinkButton to={`/account/${uid}/key`}>
+            {access.canWrite ? 'Key de la cuenta' : 'Modo lectura'}
+          </LinkButton>
         </div>
       </Hero>
 
@@ -173,27 +175,6 @@ function Dashboard({ account, access, agents, teams, onSynced }: DashboardProps)
           {notice.text}
         </Banner>
       )}
-
-      {access.issuedKey && (
-        <AccountKeyBanner
-          uid={uid}
-          accountKey={access.issuedKey}
-          stored={access.issuedKeyStored}
-          onDismiss={access.dismissIssuedKey}
-        />
-      )}
-
-      {access.claimable && (
-        <Banner title="Esta cuenta no tiene dueño" tone="warn">
-          Nadie reclamó el UID {uid}, así que se puede mirar pero no editar. Reclamalo y quedate con
-          la key que escribe builds, equipos y credenciales.{' '}
-          <Button tone="accent" size="sm" onClick={access.claim} disabled={access.claiming}>
-            {access.claiming ? 'Reclamando…' : 'Reclamar este UID'}
-          </Button>
-        </Banner>
-      )}
-
-      {access.error && <StatusMessage kind="error">{access.error}</StatusMessage>}
 
       <Tiles account={account} agents={agents} score={score} />
 

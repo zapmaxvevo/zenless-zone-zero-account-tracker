@@ -5,13 +5,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from zzz_tracker.errors import (
-    CaptchaRequiredError,
     ConflictError,
-    DataNotPublicError,
     ExternalServiceError,
     ForbiddenError,
-    InvalidCredentialsError,
-    MissingCredentialsError,
     NotFoundError,
     RateLimitedError,
     StaticDataUnavailableError,
@@ -32,13 +28,9 @@ ERROR_CONTRACT = [
     (ForbiddenError("this account has an owner"), 403, "forbidden"),
     (UnclaimedAccountError("claim it first"), 409, "unclaimed_account"),
     (UnauthorizedError("no bearer"), 401, "unauthorized"),
-    (MissingCredentialsError("no cookies stored"), 401, "missing_credentials"),
-    (InvalidCredentialsError("hoyolab said no"), 401, "invalid_credentials"),
-    (DataNotPublicError("the chronicle is private"), 403, "data_not_public"),
     (StaticDataUnavailableError("run sync-static"), 503, "static_data_unavailable"),
     (ExternalServiceError("enka is down"), 502, "external_service_error"),
     (RateLimitedError("slow down"), 429, "rate_limited"),
-    (CaptchaRequiredError("solve a captcha"), 503, "captcha_required"),
 ]
 
 

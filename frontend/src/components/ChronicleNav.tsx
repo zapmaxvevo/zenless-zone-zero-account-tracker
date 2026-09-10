@@ -1,19 +1,12 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { api } from '../api/client';
 import type { AccountRead } from '../api/types';
-import { useAccountKey } from '../hooks/useAccountKey';
-import type { Notice } from '../lib/notices';
-import { errorNotice, reportNotice } from '../lib/notices';
 import '../styles/chronicle.css';
 import Banner from './ui/Banner';
-import Button from './ui/Button';
 
 interface ChronicleNavProps {
   uid: string;
   account?: AccountRead | null;
-  onSynced?: () => void;
   empty?: boolean;
 }
 
@@ -24,30 +17,8 @@ const SECTIONS: { slug: string; label: string }[] = [
   { slug: 'bangboos', label: 'Bangboos' },
 ];
 
-export default function ChronicleNav({
-  uid,
-  account = null,
-  onSynced,
-  empty = false,
-}: ChronicleNavProps) {
-  const { hasKey } = useAccountKey(uid);
-  const [syncing, setSyncing] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
+export default function ChronicleNav({ uid, account = null, empty = false }: ChronicleNavProps) {
   const fromExtension = account?.chronicle_import_source === 'extension';
-
-  async function handleSync() {
-    setSyncing(true);
-    setNotice(null);
-    try {
-      const report = await api.syncChronicle(uid);
-      setNotice(reportNotice(report.skipped, report.unavailable_modes));
-      onSynced?.();
-    } catch (caught) {
-      setNotice(errorNotice(caught));
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   return (
     <>
@@ -70,24 +41,12 @@ export default function ChronicleNav({
 
         <span className="ne-chronicle-gap" />
 
-        <Link className="ne-ghost" to={`/account/${uid}/credentials`}>
-          Conectar HoYoLAB
+        <Link className="ne-ghost" to={`/account/${uid}/key`}>
+          Key de la cuenta
         </Link>
 
         {fromExtension && <span className="ne-data-pill">Importá de nuevo desde la extensión</span>}
-
-        {!fromExtension && hasKey && account?.has_hoyolab_credentials && (
-          <Button tone="accent" size="sm" onClick={() => void handleSync()} disabled={syncing}>
-            {syncing ? 'Sincronizando…' : 'Sincronizar Chronicle'}
-          </Button>
-        )}
       </nav>
-
-      {notice && (
-        <Banner title={notice.title} tone={notice.tone} onDismiss={() => setNotice(null)}>
-          {notice.text}
-        </Banner>
-      )}
 
       {empty && (
         <Banner title="Sin datos del Chronicle" tone="warn">
@@ -103,15 +62,11 @@ function emptyHint(uid: string, account: AccountRead | null): ReactNode {
     return 'Esta cuenta se importa con la extensión. Abrí el popup de la extensión y volvé a importar para traer esta sección.';
   }
 
-  if (account?.has_hoyolab_credentials) {
-    return 'Las cookies de HoYoLAB ya están guardadas: sincronizá el Chronicle para traer los datos.';
-  }
-
   return (
     <>
-      Esta cuenta no tiene nada sincronizado desde HoYoLAB todavía.{' '}
-      <Link to={`/account/${uid}/credentials`}>Conectá HoYoLAB</Link> —con la extensión o con
-      cookies— y volvé a esta pantalla.
+      Esta cuenta no tiene nada sincronizado desde HoYoLAB todavía. El Chronicle entra solo por la
+      extensión, con tu propia sesión: mirá cómo en{' '}
+      <Link to={`/account/${uid}/key`}>Key de la cuenta</Link> y volvé a esta pantalla.
     </>
   );
 }

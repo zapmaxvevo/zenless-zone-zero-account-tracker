@@ -93,15 +93,9 @@ export default function ChroniclePage({ mode }: ChroniclePageProps) {
 
   const empty = !runs.loading && !runs.error && seasons.length === 0;
 
-  function reload() {
-    account.reload();
-    runs.reload();
-    bangboos.reload();
-  }
-
   return (
     <div className="ne-stack">
-      <ChronicleNav uid={uid} account={account.data} onSynced={reload} empty={empty} />
+      <ChronicleNav uid={uid} account={account.data} empty={empty} />
 
       <Hero size="sm" watermark={spec.watermark}>
         <span className="ne-eyebrow">HoYoLAB Chronicle // UID {uid}</span>

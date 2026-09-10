@@ -24,7 +24,7 @@ export default function BangboosPage() {
 
   return (
     <div className="ne-stack">
-      <ChronicleNav uid={uid} account={account.data} onSynced={reload} empty={empty} />
+      <ChronicleNav uid={uid} account={account.data} empty={empty} />
 
       <Hero size="sm" watermark="BANGBOO">
         <span className="ne-eyebrow">HoYoLAB Chronicle // UID {uid}</span>

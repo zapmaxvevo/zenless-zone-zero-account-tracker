@@ -61,30 +61,6 @@ class RateLimitedError(ExternalServiceError):
     default_detail = "Upstream service rate limited the request"
 
 
-class MissingCredentialsError(ZZZTrackerError):
-    status_code = 401
-    code = "missing_credentials"
-    default_detail = "The account has no HoYoLAB credentials stored"
-
-
-class InvalidCredentialsError(ZZZTrackerError):
-    status_code = 401
-    code = "invalid_credentials"
-    default_detail = "HoYoLAB rejected the stored credentials"
-
-
-class DataNotPublicError(ZZZTrackerError):
-    status_code = 403
-    code = "data_not_public"
-    default_detail = "That player keeps their Battle Chronicle private"
-
-
-class CaptchaRequiredError(ExternalServiceError):
-    status_code = 503
-    code = "captcha_required"
-    default_detail = "HoYoLAB is asking for a captcha; try again later"
-
-
 class UnauthorizedError(ZZZTrackerError):
     status_code = 401
     code = "unauthorized"
