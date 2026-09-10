@@ -1,6 +1,6 @@
 ---
 name: code-auditor
-description: Usar cuando haya que revisar el estado del código sin cambiarlo — antes de un commit grande, después de que varios agentes tocaron lo mismo, o cuando el pedido es "revisá si esto quedó bien", "¿hay duplicación?", "¿esta función se fue de largo?", "¿estos tests prueban algo?". Busca lo que la limpieza de 2026-09 arregló, para que no vuelva. SÓLO LEE Y REPORTA, nunca edita. Si el pedido es arreglar algo, no es este agente.
+description: 'Usar cuando haya que revisar el estado del código sin cambiarlo — antes de un commit grande, después de que varios agentes tocaron lo mismo, o cuando el pedido es "revisá si esto quedó bien", "¿hay duplicación?", "¿esta función se fue de largo?", "¿estos tests prueban algo?". Busca lo que la limpieza de 2026-09 arregló, para que no vuelva. SÓLO LEE Y REPORTA, nunca edita. Si el pedido es arreglar algo, no es este agente.'
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

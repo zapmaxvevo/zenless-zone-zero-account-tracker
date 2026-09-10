@@ -1,6 +1,6 @@
 ---
 name: docs-keeper
-description: Usar cuando un cambio de código deje desactualizada la documentación de referencia — se agregó o cambió un endpoint, cambió una tabla o una columna, cambió el flujo del import, apareció un error nuevo con su code, o se movió un módulo de lugar. Disparadores típicos: "actualizá los docs", "documentá el endpoint nuevo", "docs/reference quedó viejo". También cuando termina una tanda de cambios y hay que reconciliar docs/reference/ con el repo. NO usar para escribir planes ni para docs/DESIGN.md.
+description: 'Usar cuando un cambio de código deje desactualizada la documentación de referencia — se agregó o cambió un endpoint, cambió una tabla o una columna, cambió el flujo del import, apareció un error nuevo con su code, o se movió un módulo de lugar. Disparadores típicos: "actualizá los docs", "documentá el endpoint nuevo", "docs/reference quedó viejo". También cuando termina una tanda de cambios y hay que reconciliar docs/reference/ con el repo. NO usar para escribir planes ni para docs/DESIGN.md.'
 tools: Read, Edit, Write, Grep, Glob
 model: sonnet
 ---

@@ -5,6 +5,7 @@ import { describeError } from '../api/errors';
 import type { TeamRead } from '../api/types';
 import StatusMessage from '../components/StatusMessage';
 import TeamCard from '../components/TeamCard';
+import AsyncSection from '../components/ui/AsyncSection';
 import { LinkButton } from '../components/ui/Button';
 import SectionHead from '../components/ui/SectionHead';
 import { useAccountKey } from '../hooks/useAccountKey';
@@ -16,12 +17,12 @@ import '../styles/teams.css';
 export default function TeamsPage() {
   const uid = useParams().uid ?? '';
   const { version } = useSync();
-  const { data, error, loading, reload } = useApi(() => api.listTeams(uid), `${uid}:${version}`);
+  const saved = useApi(() => api.listTeams(uid), `${uid}:${version}`);
   const { art } = useAgentArt();
   const { hasKey } = useAccountKey(uid);
   const [removing, setRemoving] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const teams = data?.items ?? [];
+  const teams = saved.data?.items ?? [];
 
   async function handleDelete(team: TeamRead) {
     if (!window.confirm(`¿Borrar el equipo "${team.name}"? Los agentes siguen en el roster.`)) {
@@ -32,7 +33,7 @@ export default function TeamsPage() {
     setRemoveError(null);
     try {
       await api.deleteTeam(uid, team.id);
-      reload();
+      saved.reload();
     } catch (caught) {
       setRemoveError(describeError(caught));
     } finally {
@@ -60,21 +61,14 @@ export default function TeamsPage() {
           }
         />
 
-        {loading && <StatusMessage kind="loading">Cargando los equipos…</StatusMessage>}
-
-        {!loading && error && (
-          <StatusMessage kind="error" onRetry={reload}>
-            {error}
-          </StatusMessage>
-        )}
+        <AsyncSection
+          state={saved}
+          loading="Cargando los equipos…"
+          isEmpty={teams.length === 0}
+          empty="Todavía no armaste ningún equipo para esta cuenta."
+        />
 
         {removeError && <StatusMessage kind="error">{removeError}</StatusMessage>}
-
-        {!loading && !error && teams.length === 0 && (
-          <StatusMessage kind="empty">
-            Todavía no armaste ningún equipo para esta cuenta.
-          </StatusMessage>
-        )}
 
         <div className="ne-stack">
           {teams.map((team) => (

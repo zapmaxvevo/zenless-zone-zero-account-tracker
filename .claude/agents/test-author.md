@@ -1,6 +1,6 @@
 ---
 name: test-author
-description: Usar cuando el pedido sea escribir tests, ampliar la cobertura de un flujo, o reescribir tests que fijan implementación en vez de comportamiento. Disparadores típicos: "escribí tests para X", "falta cubrir el caso Y", "estos tests no prueban nada", "agregá el escenario de una key de otra cuenta". También cuando otro agente cambió comportamiento y hay que dejar el escenario cubierto. NO usar para arreglar código de producción: eso es backend-api, frontend-eridu o extension-wxt.
+description: 'Usar cuando el pedido sea escribir tests, ampliar la cobertura de un flujo, o reescribir tests que fijan implementación en vez de comportamiento. Disparadores típicos: "escribí tests para X", "falta cubrir el caso Y", "estos tests no prueban nada", "agregá el escenario de una key de otra cuenta". También cuando otro agente cambió comportamiento y hay que dejar el escenario cubierto. NO usar para arreglar código de producción: eso es backend-api, frontend-eridu o extension-wxt.'
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 ---

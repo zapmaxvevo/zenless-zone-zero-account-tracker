@@ -1,6 +1,6 @@
 ---
 name: extension-wxt
-description: Usar cuando haya que trabajar sobre la extensión de navegador — la captura del Battle Chronicle desde la sesión de HoYoLAB, el content script, el popup, las opciones, los retcodes de HoYoLAB o el POST del bundle al backend. Disparadores típicos: "la captura falla con retcode X", "agregá la sección Y al bundle", "el popup no muestra el progreso", "hay que reintentar cuando HoYoLAB tira captcha". NO usar para el endpoint que recibe el bundle (backend-api) ni para la app web (frontend-eridu).
+description: 'Usar cuando haya que trabajar sobre la extensión de navegador — la captura del Battle Chronicle desde la sesión de HoYoLAB, el content script, el popup, las opciones, los retcodes de HoYoLAB o el POST del bundle al backend. Disparadores típicos: "la captura falla con retcode X", "agregá la sección Y al bundle", "el popup no muestra el progreso", "hay que reintentar cuando HoYoLAB tira captcha". NO usar para el endpoint que recibe el bundle (backend-api) ni para la app web (frontend-eridu).'
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 ---

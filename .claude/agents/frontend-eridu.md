@@ -1,6 +1,6 @@
 ---
 name: frontend-eridu
-description: Usar cuando haya que crear o cambiar algo visible de la app web — una pantalla de frontend/src/pages/, un componente, un estilo de eridu.css, un hook de datos o el espejo de tipos de api/types.ts. Disparadores típicos: "agregá una pantalla para X", "esta card se ve mal", "falta mostrar el elemento del agente", "el roster tendría que ordenarse por Y". NO usar para el backend (backend-api), ni para la extensión (extension-wxt).
+description: 'Usar cuando haya que crear o cambiar algo visible de la app web — una pantalla de frontend/src/pages/, un componente, un estilo de eridu.css, un hook de datos o el espejo de tipos de api/types.ts. Disparadores típicos: "agregá una pantalla para X", "esta card se ve mal", "falta mostrar el elemento del agente", "el roster tendría que ordenarse por Y". NO usar para el backend (backend-api), ni para la extensión (extension-wxt).'
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 ---

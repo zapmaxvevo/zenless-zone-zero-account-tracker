@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { describeError } from '../api/errors';
 import StatusMessage from '../components/StatusMessage';
+import AsyncSection from '../components/ui/AsyncSection';
 import Button from '../components/ui/Button';
 import Hero from '../components/ui/Hero';
 import SectionHead from '../components/ui/SectionHead';
@@ -85,17 +86,12 @@ export default function HomePage() {
           }
         />
 
-        {accounts.loading && <StatusMessage kind="loading">Buscando cuentas…</StatusMessage>}
-
-        {!accounts.loading && accounts.error && (
-          <StatusMessage kind="error" onRetry={accounts.reload}>
-            {accounts.error}
-          </StatusMessage>
-        )}
-
-        {!accounts.loading && !accounts.error && items.length === 0 && (
-          <p className="ne-empty">Todavía no seguís ninguna cuenta</p>
-        )}
+        <AsyncSection
+          state={accounts}
+          loading="Buscando cuentas…"
+          isEmpty={items.length === 0}
+          empty="Todavía no seguís ninguna cuenta. Pegá un UID acá arriba para empezar a trackearla."
+        />
 
         <div className="ne-stack">
           {items.map((account) => (

@@ -1,6 +1,6 @@
 ---
 name: db-migrations
-description: Usar cuando cambie el esquema de la base — se agregó o sacó una tabla, una columna, un índice o una constraint en src/zzz_tracker/storage/models.py, o hay que crear, arreglar o revisar una revisión de Alembic. Disparadores típicos: "generá la migración", "alembic check da deriva", "esta revisión no revierte", "hay que hacer backfill de la columna nueva". NO usar para cambios de endpoint o de servicio que no tocan el esquema: eso es backend-api.
+description: 'Usar cuando cambie el esquema de la base — se agregó o sacó una tabla, una columna, un índice o una constraint en src/zzz_tracker/storage/models.py, o hay que crear, arreglar o revisar una revisión de Alembic. Disparadores típicos: "generá la migración", "alembic check da deriva", "esta revisión no revierte", "hay que hacer backfill de la columna nueva". NO usar para cambios de endpoint o de servicio que no tocan el esquema: eso es backend-api.'
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 ---

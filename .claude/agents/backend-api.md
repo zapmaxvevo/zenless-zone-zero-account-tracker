@@ -1,6 +1,6 @@
 ---
 name: backend-api
-description: Usar cuando haya que agregar, cambiar o arreglar algo del backend FastAPI — un endpoint, un schema de pydantic, un método de TrackerService, una consulta de SQLAlchemy o un error de dominio. Disparadores típicos: "agregá el endpoint X", "el POST de teams devuelve mal", "falta el campo Y en la respuesta", "el servicio tendría que rechazar Z". NO usar para migraciones de Alembic (db-migrations), ni para los mappers de Enka/HoYoLAB si el cambio es sólo de parseo, ni para nada de frontend/ o extension/.
+description: 'Usar cuando haya que agregar, cambiar o arreglar algo del backend FastAPI — un endpoint, un schema de pydantic, un método de TrackerService, una consulta de SQLAlchemy o un error de dominio. Disparadores típicos: "agregá el endpoint X", "el POST de teams devuelve mal", "falta el campo Y en la respuesta", "el servicio tendría que rechazar Z". NO usar para migraciones de Alembic (db-migrations), ni para los mappers de Enka/HoYoLAB si el cambio es sólo de parseo, ni para nada de frontend/ o extension/.'
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 ---
