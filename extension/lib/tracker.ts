@@ -54,11 +54,10 @@ export function withAccountKey(keys: AccountKeys, uid: string, key: string): Acc
 
 /**
  * El mapa de keys que queda después de un import. La respuesta trae `account_key` sólo cuando
- * la key rotó, que es cuando el import reclama una cuenta libre (`unclaimed`/`provisional`):
- * esa es la única vez que se puede leer, así que se persiste siempre. Un import con la key
- * vigente no rota y no la trae, y contra una cuenta `verified` ajena no hay respuesta que
- * mirar: es un 403. En los dos casos devuelve el mismo mapa —misma referencia— y no hay nada
- * que escribir.
+ * el import reclama una cuenta sin dueño: esa es la única vez que se puede leer, así que se
+ * persiste siempre. Un import con la key vigente no rota y no la trae, y contra una cuenta con
+ * dueño ajena no hay respuesta que mirar: es un 403. En los dos casos devuelve el mismo mapa
+ * —misma referencia— y no hay nada que escribir.
  */
 export function accountKeysAfterImport(
   keys: AccountKeys,
@@ -101,15 +100,17 @@ export class TrackerError extends Error {
 }
 
 /**
- * El 403 del import significa una sola cosa: esa cuenta ya está `verified` y este navegador no
- * tiene su key. El backend no escribió nada y no emitió ninguna key nueva —desde que `verified`
- * es pegajoso, un bundle ya no desaloja al dueño—, así que el mensaje tiene que decir cómo
- * conseguir la key en vez de dejar al usuario reintentando.
+ * El 403 del import significa una sola cosa: esa cuenta ya tiene dueño y este navegador no
+ * tiene su key. El backend no escribió nada y no emitió ninguna key nueva —la propiedad no se
+ * pierde con otro bundle—, así que el mensaje tiene que decir cómo conseguir la key en vez de
+ * dejar al usuario reintentando.
  */
 export function ownedAccountHelp(uid: string, sentKey = false): string {
+  // Mandamos key y aun así rebotó: ya no se la puede haber llevado otro import —una cuenta con
+  // dueño no cambia de manos—, así que o la rotaron en el servidor o nunca fue de este UID.
   const problem = sentKey
-    ? `El UID ${uid} tiene dueño y la key guardada acá ya no sirve: la rotaron importando ` +
-      'desde otra instalación.'
+    ? `El UID ${uid} tiene dueño y la key guardada acá ya no sirve: la rotaron en el servidor ` +
+      'o es de otra cuenta.'
     : `El UID ${uid} ya tiene dueño y este navegador no tiene su key.`;
   return (
     `${problem} Si la key vigente está en otra instalación, copiala desde sus opciones ` +
@@ -165,8 +166,8 @@ export async function postChronicleImport(args: {
   if (args.settings.apiToken?.trim()) {
     headers.authorization = `Bearer ${args.settings.apiToken.trim()}`;
   }
-  // Con la key vigente el import no rota nada. Sin ella, una cuenta libre se reclama y la key
-  // rota; una cuenta ya `verified` responde 403 y no escribe nada (ver docs/OWNERSHIP.md).
+  // Con la key vigente el import no rota nada. Sin ella, una cuenta sin dueño se reclama y sale
+  // una key; una cuenta con dueño responde 403 y no escribe nada (ver docs/OWNERSHIP.md).
   const accountKey = args.settings.accountKey?.trim() ?? '';
   if (accountKey) headers['x-account-key'] = accountKey;
   let response;

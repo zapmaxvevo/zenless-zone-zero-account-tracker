@@ -78,10 +78,10 @@ export function buildImportPayload(args: {
 export interface ChronicleImportResponse {
   account_uid?: string;
   /**
-   * Sólo viene cuando la key rotó, que es cuando el import reclama una cuenta que estaba libre
-   * (`unclaimed`/`provisional`). Se muestra una vez y hay que guardarla: el backend la tiene
-   * hasheada y no la vuelve a devolver. Un import con la key vigente no rota y no la trae; uno
-   * sin key contra una cuenta ya `verified` no llega a esta respuesta: es un 403.
+   * Sólo viene cuando el import reclama una cuenta que no tenía dueño, que es el único momento
+   * en que la key rota. Se muestra una vez y hay que guardarla: el backend la tiene hasheada y
+   * no la vuelve a devolver. Un import con la key vigente no la trae; uno sin key contra una
+   * cuenta con dueño ni llega a esta respuesta: es un 403.
    */
   account_key?: string | null;
   skipped?: boolean;

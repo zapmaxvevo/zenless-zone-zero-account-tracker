@@ -2,8 +2,13 @@
 
 Extensión MV3 (WXT + React + TypeScript) que importa el Battle Chronicle de Zenless Zone Zero
 desde la sesión viva de HoYoLAB del navegador al tracker, sin que el backend vea nunca las
-cookies. Es la fase 2 del plan `docs/EXTENSION.md`; la referencia técnica de la API de HoYoLAB
-está en `docs/HOYOLAB.md`.
+cookies. La referencia técnica de la API de HoYoLAB está en `docs/HOYOLAB.md`.
+
+**Es la única puerta de entrada al tracker.** El servidor no sale a HoYoLAB, no guarda cookies y
+no sincroniza nada por su cuenta: todo lo del Chronicle entra por acá, a mano. Y es también la
+única forma de volverse dueño de un UID — mirar una cuenta es público, pero escribirla (agentes,
+teams, cualquier edición) pide la key que emite el primer import. Sin la extensión, un UID se
+puede mirar pero no editar nunca.
 
 ## Comandos
 
@@ -61,17 +66,18 @@ completo está en `docs/OWNERSHIP.md`; lo que importa acá:
   en la respuesta del import: la guarda hasheada y no la vuelve a devolver.
 - La extensión la guarda sola en `chrome.storage.sync`, bajo `accountKeys` (`{ "<uid>": "zzk_…" }`,
   una key por UID), y la manda como `X-Account-Key` en el import siguiente de ese UID.
-- **Regla de rotación**: el primer import de un UID libre (`unclaimed`/`provisional`) lo reclama
-  y emite la key. A partir de ahí la cuenta queda `verified` y **cada import tiene que presentar
-  la key vigente**: uno sin ella responde **403 y no escribe nada**. Lo que sostiene el nivel
-  `verified` es la key, no el bundle: un bundle es un JSON que elige el cliente y el `role_id`
-  es público, así que por sí solo no prueba nada y no puede desalojar a nadie. Un import con la
-  key vigente no rota nada. La extensión persiste siempre la key que vuelve, reemplazando a la
-  anterior.
+- **Regla de rotación**: el primer import de un UID **sin dueño** lo reclama y emite la key —es
+  el único momento en que una cuenta cambia de manos, y la única vía de reclamo que existe. A
+  partir de ahí la cuenta **tiene dueño** y cada import tiene que presentar la key vigente: uno
+  sin ella responde **403 y no escribe nada**, y no rota nunca. Lo que sostiene la propiedad es
+  la key, no el bundle: un bundle es un JSON que elige el cliente y el `role_id` es público, así
+  que por sí solo no prueba nada y no puede desalojar a nadie. La extensión persiste siempre la
+  key que vuelve, reemplazando a la anterior.
 - **"Esta cuenta ya tiene dueño y no tengo la key acá"**: es el 403 de arriba, y el popup lo
-  dice con esas palabras. Copiá la key desde la instalación que sí la tiene (abajo); si no
-  quedó en ninguna, la única salida es `zzz-tracker rotate-key <uid>` en el servidor —
-  reimportar ya no la recupera.
+  dice con esas palabras. Si tiene dueño es porque alguien la importó: no hay otra forma de
+  reclamar un UID. Copiá la key desde la instalación que sí la tiene (abajo); si no quedó en
+  ninguna, la única salida es `zzz-tracker rotate-key <uid>` en el servidor — reimportar ya no
+  la recupera.
 - **Copiarla a otra instalación** (otro navegador, otra máquina): opciones → *Keys de cuenta* →
   *Ver* / *Copiar* en el UID, y en la otra instalación pegar el UID y la key en el formulario
   de abajo de esa misma lista. Es el único camino para importar el mismo UID desde dos
