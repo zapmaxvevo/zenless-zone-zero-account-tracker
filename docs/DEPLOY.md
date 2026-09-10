@@ -100,9 +100,9 @@ obligatoria es la base.
 | `ZZZ_ENKA_BASE_URL` | dejarla sin setear salvo que apuntes a un mock |
 | `ZZZ_APP_NAME` | dejarla sin setear; solo es el título del OpenAPI |
 
-Ésa es la lista completa: `config.py::Settings` no tiene más campos. **No hay ningún secreto
-obligatorio que generar** — el `ZZZ_CREDENTIALS_KEY` que pedía este runbook desapareció junto
-con las cookies guardadas.
+Ésa es la lista completa: `config.py::Settings` no tiene más campos, y `.env.example` las
+explica una por una con sus defaults. **No hay ningún secreto obligatorio que generar** — el
+`ZZZ_CREDENTIALS_KEY` que pedía este runbook desapareció junto con las cookies guardadas.
 
 `ZZZ_API_TOKEN` es la única reja opcional que queda, y sigue en pie. Vacío, el import de la
 extensión lo gobiernan solo las reglas de propiedad: reclama una cuenta libre, y contra una
