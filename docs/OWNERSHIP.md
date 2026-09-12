@@ -232,7 +232,7 @@ así que enumerar ids no filtra nada que no se pueda leer de todos modos.
 - `tracker/service.py` — `claim_account(uid)`, `rotate_key(uid)`, `verify_key(uid, key)`,
   `account_uid_for_agent(id)`, `account_uid_for_team(id)`, y en `import_chronicle` el par
   `_ensure_import_allowed` / `_claim_by_import`.
-- `web/schemas.py` — `AccountRead.has_owner`; `ChronicleImportResponse.account_key`.
+- `web/schemas/accounts.py` — `AccountRead.has_owner`; `web/schemas/chronicle.py` — `ChronicleImportResponse.account_key`.
 - Migraciones `0006_account_keys` y `0007_drop_hoyolab_credentials`.
 
 Lo que se borró con el cambio de rumbo, para que nadie lo busque: `storage/crypto.py`,

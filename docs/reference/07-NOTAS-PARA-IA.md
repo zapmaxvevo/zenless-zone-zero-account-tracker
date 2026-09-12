@@ -28,7 +28,7 @@ La regla que quedó, y que vale para todo lo que escribas de ahora en más:
 | [`notas/backend-mappers.md`](notas/backend-mappers.md) | 20 | `parsing.py`, `enka/`, `hoyolab/`, `discs/values.py` |
 | [`notas/backend-web.md`](notas/backend-web.md) | 21 | `web/schemas/`, `web/routers/`, `api/index.py` |
 | [`notas/extension.md`](notas/extension.md) | 26 | `extension/` entera, y los límites medidos de la API de HoYoLAB |
-| [`notas/frontend.md`](notas/frontend.md) | 9 | `frontend/src/api/`, `hooks/`, `lib/` |
+| [`notas/frontend.md`](notas/frontend.md) | 10 | `frontend/src/api/`, `hooks/`, `lib/` |
 
 Está partido en cinco y no en uno porque cinco agentes lo escribieron en paralelo, cada uno dueño
 de su archivo. Si agregás una entrada, va al archivo del área que corresponde.

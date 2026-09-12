@@ -21,7 +21,7 @@ Dos ideas atraviesan casi todo lo que sigue:
 El paquete está partido por caso de uso: `accounts.py` (cuentas y keys), `agents.py` (agentes
 y builds), `teams.py`, `enka_sync.py`, `chronicle.py` (el import) y `rows.py` (dos helpers de
 fila compartidos). `service.py` es sólo la fachada: `TrackerService` compone los colaboradores
-y delega. **Todo lo público se re-exporta desde `service.py`** — `web/schemas.py`, `web/deps.py`,
+y delega. **Todo lo público se re-exporta desde `service.py`** — `web/schemas/`, `web/deps.py`,
 `cli.py` y los tests importan de ahí y no saben que hay un paquete abajo.
 
 ### `service.py` — `TrackerService`

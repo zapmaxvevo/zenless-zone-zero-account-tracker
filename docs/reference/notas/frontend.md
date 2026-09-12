@@ -11,8 +11,9 @@ Tres ideas atraviesan casi todo lo que sigue:
   y es lo único que separa mirar de editar.
 - **El frontend nunca comparte código con el backend.** Los tipos de `api/types.ts` son una copia
   a mano del contrato; cuando el backend cambia, alguien los actualiza acá.
-- **Los tests corren sin DOM.** Todo se renderiza con `renderToStaticMarkup`, en un solo paso.
-  Eso decide la forma de casi todos los componentes.
+- **Los tests corren sin DOM por default.** Casi todo se renderiza con `renderToStaticMarkup`, en
+  un solo paso. `jsdom` existe, pero acotado por pragma a dos archivos: no es el default y no debe
+  volverse global.
 
 ---
 
@@ -237,13 +238,19 @@ existía y no se cambió el set, se usa el `known_game_id` que vino, no la cuent
 
 ## `src/test/`
 
-**No obvio:** no hay entorno DOM. `vitest` corre en `node` y las pantallas se renderizan con
-`renderToStaticMarkup`, un solo paso de servidor. Eso significa que **los efectos nunca corren**:
-un `useEffect` no se ejecuta, un `onClick` no se puede disparar, un estado no cambia. Todo lo que
-se afirma es lo que la pantalla dibuja *la primera vez*, dado un estado.
+**No obvio:** el entorno por default es `node`, **sin DOM**, y las pantallas se renderizan con
+`renderToStaticMarkup`, un solo paso de servidor. Eso significa que en esos archivos **los efectos
+nunca corren**: un `useEffect` no se ejecuta, un `onClick` no se puede disparar, un estado no
+cambia. Todo lo que se afirma es lo que la pantalla dibuja *la primera vez*, dado un estado.
 
 **Si lo ignorás:** vas a escribir un test que espera que un botón haga algo, y va a pasar en verde
 sin haber probado nada.
+
+**La excepción, y por qué es una excepción:** `pages/interactions.test.tsx` y
+`pages/writeActions.test.tsx` piden `jsdom` con un pragma `@vitest-environment` por archivo, porque
+lo que prueban *es* el ciclo de vida (el `onRetry`, un submit, el editor rechazando el cuarto
+agente). El entorno **no se pone global**: los tests de funciones puras andan bien en `node` y son
+más rápidos así.
 
 ### `fakeClient.ts` + `fakeUseApi.ts`
 
@@ -267,8 +274,22 @@ componente (`AgentForm`, `TeamForm`) y no contra la pantalla.
 
 ### Lo que queda sin cubrir por esto
 
-Nada que dependa del ciclo de vida: el botón «Reintentar» llama a `reload`, el submit de un
-formulario, el borrado con `confirm()`, el filtro del roster escribiendo en la caja. Las reglas
-que hay detrás sí están probadas, pero como funciones puras (`teamErrors`, `agentDraftErrors`,
-`visibleAgents`) y no a través de la pantalla. Si alguna vez entra un DOM de test, esos son los
-primeros tests que faltan.
+Lo que depende del ciclo de vida sólo se prueba en los dos archivos con `jsdom`. En todos los
+demás, la regla que hay detrás se prueba como función pura (`teamErrors`, `agentDraftErrors`,
+`visibleAgents`) y no a través de la pantalla. Si agregás un escenario que necesita un click o un
+efecto, va a uno de esos dos archivos, no a un pragma nuevo repartido por todo el árbol.
+
+### Un test afirma lo que se ve, no una clase de CSS
+
+**No obvio:** que `expect(html).toContain('ne-key is-masked')` sea la forma más corta de probar que
+la key se muestra tapada no la hace la correcta. Renombrar esa clase en `eridu.css` rompe el test
+sin romper nada, y borrar el enmascarado lo deja pasar si la clase sigue ahí.
+
+**La regla:** se afirma lo que un usuario leería —el texto, el `href`, el `alt`, los puntos de la
+key tapada, el rótulo de la píldora—. Un componente puede mirar su propio markup cuando la pieza
+es **decoración sin texto**: las tres barras del hero, las estrellas de un intento, la capa de
+scanlines. Lo que no se hace nunca es que una **pantalla** afirme la clase de un componente
+anidado: ahí la clase es un detalle de otro archivo.
+
+**Si lo ignorás:** los diez tests que se reescribieron el 2026-09-10 vuelven a aparecer de a uno,
+y el `docs/DESIGN.md` deja de poder mover una clase sin romper la suite.

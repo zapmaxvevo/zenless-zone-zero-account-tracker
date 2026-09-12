@@ -221,7 +221,7 @@ otros juegos del usuario.
 
 ### `extension/lib/chronicle.ts` — `ChronicleImportResponse`
 
-**No obvio:** es el espejo de `ChronicleImportResponse` de `src/zzz_tracker/web/schemas.py`,
+**No obvio:** es el espejo de `ChronicleImportResponse` de `src/zzz_tracker/web/schemas/chronicle.py`,
 con **todos** los campos opcionales a propósito —el backend los manda todos salvo
 `account_key`— para que un cambio de forma en el backend se degrade en un resumen incompleto y
 no en una pantalla rota.

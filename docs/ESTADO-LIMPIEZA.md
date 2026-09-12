@@ -1,6 +1,10 @@
 # Estado de la limpieza — traspaso
 
-Escrito el 2026-09-09. Documento **temporal**: cuando la limpieza termine, se borra.
+Escrito el 2026-09-09, **actualizado el 2026-09-10**. Documento **temporal**: cuando la limpieza
+termine, se borra.
+
+Al 2026-09-10 sólo queda el punto 5 (rehacer los commits) y una decisión tuya
+(`extension/scripts/probe-avatar-info.js`: se borra o se queda). Todo lo demás de abajo está hecho.
 
 Rama: `limpieza` (desde `main`, commit base `6707e4f`). Snapshot en `d4277e3`.
 
@@ -18,8 +22,10 @@ Medido sobre el snapshot `d4277e3`, con todo lo de abajo ya aplicado:
 | `cd frontend && npm run test` | **239 passed**, 24 archivos |
 | `cd extension && npm run test` | **118 passed**, 6 archivos |
 
-Falta correr `npm run build` del frontend y `npm run compile` de la extensión: quedaron sin
-verificar porque el teammate del frontend estaba a mitad de camino.
+Corrido el 2026-09-10, con todo lo de abajo aplicado: `cd frontend && npm run build` pasa,
+`cd extension && npm run build` pasa (la extensión **no tiene** script `compile`; el build es
+`build`, vía WXT). Los tests del frontend son hoy **384 en 40 archivos**, con 89.0 % de statements
+y 84.3 % de branches.
 
 ## Lo que ya está hecho
 
@@ -54,32 +60,63 @@ metida adentro del content script y no se podía testear.
 
 ## Lo que falta
 
-En orden de importancia:
+Al 2026-09-10 queda **sólo el punto 5**. Los demás quedaron cerrados; se anota con qué.
 
-1. **Terminar el frontend.** `frontend-limpieza` quedó a mitad. Le autoricé instalar `jsdom` +
-   `@testing-library/react` + `@vitest/coverage-v8`, porque el repo no tenía entorno DOM de test:
-   todos los tests usaban `renderToStaticMarkup`, que en SSR no corre `useEffect`, así que una
-   pantalla con datos era literalmente imposible de testear. **Eso explica por qué el único test
-   de páginas que había afirmaba dos clases de CSS.** Le falta: cubrir los escenarios que dependen
-   del ciclo de vida (el `onRetry`, el editor de equipo rechazando el cuarto agente, vacío-vs-error),
-   borrar `pages/render.test.tsx` si todavía está, y dejar los números de cobertura.
-   Condición que le puse: **no volver el entorno jsdom global** — los tests de funciones puras que
-   ya andan en node se quedan ahí (pragma por archivo o `environmentMatchGlobs`).
-2. **Faltan documentos del banco:** `docs/reference/README.md` (el índice), `01-ORIENTACION.md`,
-   `02-ARQUITECTURA.md`, `03-FLUJO-DE-DATOS.md`, `08-MAPA-DEL-REPO.md`. Los dejé para el final a
-   propósito, para que describan la estructura **post-refactor** y no la que acabamos de desarmar.
-   Ahora ya se pueden escribir: la estructura final es la que está en el árbol.
-3. **Ensamblar `07-NOTAS-PARA-IA.md`.** Hoy el banco está partido en `docs/reference/notas/`
-   (`backend-core.md`, `backend-mappers.md`, `extension.md`; faltan `backend-web.md` y
-   `frontend.md`). Se hizo así para que siete teammates escribieran en paralelo sin pisarse. Falta
-   el índice que los une.
-4. **Verificar lo que quedó sin correr:** `cd frontend && npm run build` y
-   `cd extension && npm run compile`.
+1. ~~Terminar el frontend.~~ **Hecho** (`7f48e1c`). Se instalaron `jsdom`,
+   `@testing-library/react` y `@vitest/coverage-v8` porque el repo no tenía entorno DOM de test:
+   todo usaba `renderToStaticMarkup`, y en SSR React no corre `useEffect`, así que una pantalla con
+   datos era imposible de testear —**por eso el único test de páginas que había afirmaba dos clases
+   de CSS**—. `pages/render.test.tsx` está borrado y el entorno `jsdom` quedó **acotado por pragma**
+   a `interactions.test.tsx` y `writeActions.test.tsx`: no lo vuelvas global.
+2. ~~Faltan documentos del banco.~~ **Hecho**: `README.md`, `01-ORIENTACION.md` y
+   `08-MAPA-DEL-REPO.md` en `f52c3e2`; `02-ARQUITECTURA.md` y `03-FLUJO-DE-DATOS.md` el 2026-09-10.
+   Los ocho documentos y el índice existen, y los seis diagramas mermaid renderizan.
+3. ~~Ensamblar `07-NOTAS-PARA-IA.md`.~~ **Hecho**: el índice existe y los cinco archivos de
+   `notas/` están (`backend-core`, `backend-mappers`, `backend-web`, `extension`, `frontend`).
+4. ~~Verificar lo que quedó sin correr.~~ **Hecho** el 2026-09-10: los dos builds pasan. Ojo que la
+   extensión no tiene script `compile`; es `npm run build`.
 5. **Rehacer los commits.** `d4277e3` es un WIP con todo junto. El plan pedía un commit por fase.
-   Con la suite verde se puede partir en commits temáticos antes de mergear a `main`.
-6. **Limpieza menor pendiente:** borrar `tests/__pycache__`, que guarda `.pyc` de cinco tests que
-   ya no existen (`test_chronicle_resilience`, `test_chronicle_sync`, `test_hoyolab_client`,
-   `test_tmp_review_probe`, `test_zz_adversarial_tmp`), y confirmar que `.gitignore` lo cubre.
+   Con la suite verde se puede partir en commits temáticos antes de mergear a `main`. **Es lo único
+   que queda.**
+6. ~~Limpieza menor pendiente.~~ **Hecho**: `tests/__pycache__` borrado (tenía los `.pyc` de cinco
+   tests que ya no existen) y `.gitignore:2` ya lo cubre; nunca estuvo trackeado.
+
+## Lo que salió del review del 2026-09-10
+
+Una auditoría de comentarios, tests y estructura sobre el árbol ya limpio. El diagnóstico: nada de
+lo que la limpieza arregló volvió. Cero `TODO/FIXME/HACK`, cero código comentado, ningún archivo de
+producción por encima de 470 líneas, y la única duplicación que queda es la latente de
+`.zui-input*` (`docs/PENDIENTES.md` §4). Lo que sí apareció, y se arregló:
+
+- **Volvían las aserciones sobre clases CSS**: diez, en `ownership.test.tsx`, `DiscCard.test.tsx`,
+  `AgentCard.test.tsx`, `ChronicleScreens.test.tsx`, `Hero.test.tsx`, `ChallengeAttempt.test.tsx` y
+  `PortraitCard.test.tsx`. Reescritas contra lo que se ve (el texto enmascarado de la key, las
+  cuatro secciones del Chronicle, "Sin equipar", el rótulo de la píldora, los nombres de los buffs).
+  El criterio que quedó: **una pantalla no afirma la clase de un componente anidado**; un componente
+  puede mirar su propio markup cuando la pieza es decoración sin texto (las tres barras del hero,
+  las estrellas, las scanlines).
+- **`PortraitCard.tsx` y `Hero.tsx` escribían forma y color a mano en el JSX** (`#0d0e12`,
+  `rgba(13,14,18,.66)`, `bottom:100px`, `font-size:98px`, los `clamp()` de las barras). Todo se mudó
+  a `eridu.css` como `.ne-portrait-band`, `.ne-portrait-band-element`, `.ne-hero-sm|md|lg`,
+  `.ne-beam-1|2|3` y las reglas de tinta de `.ne-pill`. En el JSX queda **sólo el color que sale del
+  dominio**, que es lo que `docs/DESIGN.md` permite.
+
+Lo que el review encontró y **no** se arregló, en orden de valor:
+
+1. **La extensión no tiene testeado ningún entrypoint**: `background.ts` (167 líneas, con `runImport`
+   adentro), `hoyolab.content.ts` (196), `popup/App.tsx` y `options/App.tsx` (211 cada uno) y
+   `lib/messages.ts`. No hay entorno DOM ni `@vitest/coverage-v8` en `extension/`: es el mismo
+   agujero que el frontend acaba de tapar.
+2. **No se puede medir cobertura del backend**: no hay `pytest-cov` instalado.
+3. **`src/zzz_tracker/parsing.py` no tiene test propio** — justo el módulo que existe porque las dos
+   copias habían divergido. Hoy se ejercita sólo de rebote por los mappers.
+4. **Puntos flojos de cobertura del frontend**: `hooks/useCountdown.ts` 27 %, `ui/AppShell.tsx` 55 %,
+   `DiscFields.tsx` 50 %, `TeamForm.tsx` 73 %, `AgentForm.tsx` 79 %.
+5. **Superficie sobre-exportada**: ~26 símbolos exportados que sólo se usan dentro de su archivo,
+   casi todos en `extension/lib/hoyolab.ts` (`RETCODES_*`, `ENDPOINTS`, `hoyolabHeaders`, …) y tipos
+   internos de `frontend/src/lib/`. Cosmético.
+6. **`tests/test_chronicle_import.py` (896 líneas) es hoy el archivo más grande del repo**, más que
+   cualquier god-file que partimos.
 
 ## Cómo se retoma
 
@@ -94,9 +131,8 @@ refactor, y si uno se rompe es el refactor el que está mal.
 
 ## Hallazgos de los teammates que no alcancé a atender
 
-- **`tests/test_disc_values.py:46`** tiene un comentario equivocado: dice `# B discs stop at 15`
-  y los discos B topean en **9**. El `assert` de abajo es correcto; el comentario miente. Una
-  línea de arreglo.
+- ~~**`tests/test_disc_values.py:46`** decía `# B discs stop at 15` cuando los discos B topean en
+  **9**.~~ Arreglado: hoy dice 9.
 - **`extension/scripts/probe-avatar-info.js` es resto de investigación ya resuelta** — existió
   para averiguar la forma de `id_list`, respuesta que hoy vive en `avatarInfoUrl` y en el banco.
   Se dejó a propósito, con un header que dice que sólo se vuelve a correr si HoYoLAB cambia los

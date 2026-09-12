@@ -192,7 +192,7 @@ si la cuenta ya tiene dueño (el primer import de un UID libre lo reclama y reci
 }
 ```
 
-Esta sección se mantiene al día contra `src/zzz_tracker/web/schemas.py`: es contrato, no plan.
+Esta sección se mantiene al día contra `src/zzz_tracker/web/schemas/chronicle.py`: es contrato, no plan.
 
 - Cada valor de `payloads` es **el `data` ya desenvuelto** de la respuesta de HoYoLAB, así los
   `parse_*` se aplican sin adaptador. Una sección que el navegador no pudo traer viene ausente
