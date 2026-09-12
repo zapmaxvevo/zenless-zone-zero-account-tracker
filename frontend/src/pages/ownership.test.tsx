@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReadOnlyNotice from '../components/ReadOnlyNotice';
 import type { AccountAccess } from '../hooks/useAccountAccess';
-import { KEY_PREFIX, storageKey } from '../lib/accountKey';
+import { KEY_PREFIX, maskKey, storageKey } from '../lib/accountKey';
 import AccountKeyPage from './AccountKeyPage';
 import HomePage from './HomePage';
 import RosterPage from './RosterPage';
@@ -137,7 +137,7 @@ describe('pegar la key a mano habilita la escritura', () => {
     expect(html).not.toContain('Este navegador no guarda la key del UID');
 
     expect(html).not.toContain(KEY);
-    expect(html).toContain('ne-key is-masked');
+    expect(html).toContain(maskKey(KEY, false));
     expect(html).toContain('Ver');
     expect(html).toContain('Copiar');
   });
@@ -170,7 +170,7 @@ describe('seguir una cuenta ya no reparte keys', () => {
     const html = render('/', <HomePage />);
 
     expect(html).toContain('Seguir una cuenta');
-    expect(html).not.toContain('ne-key');
+    expect(html).not.toMatch(/\bkeys?\b/i);
     expect(html).not.toContain('no se vuelve a mostrar');
     expect(html).not.toContain('Ya la guardé');
   });

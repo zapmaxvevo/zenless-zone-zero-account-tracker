@@ -47,7 +47,9 @@ describe('pantallas del Chronicle', () => {
     expect(html).toContain(`HoYoLAB Chronicle // UID ${UID}`);
     expect(html).toContain('Temporada actual y anterior');
     expect(html).toContain('Cargando el Chronicle…');
-    expect(html).toContain('ne-chronicle-nav');
+    expect(html).toContain('Defensa Shiyu');
+    expect(html).toContain('Vacío Perdido');
+    expect(html).toContain('Bangboos');
   });
 
   it('Asalto cambia el título y el subtítulo, no la estructura', () => {

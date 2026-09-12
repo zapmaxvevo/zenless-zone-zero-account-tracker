@@ -41,12 +41,12 @@ describe('la card de retrato de un agente', () => {
     const html = render({ art: null });
 
     expect(html).toContain('1091');
-    expect(html).not.toContain('<img class="ne-portrait-art"');
+    expect(html).not.toContain('<img');
   });
 
   it('el score solo aparece si hay score', () => {
     expect(render({ score: 95 })).toContain('>95</span>');
-    expect(render()).not.toContain('ne-portrait-score');
+    expect(render()).not.toContain('Build');
   });
 
   it('un score de cero se muestra igual: es un dato, no un vacío', () => {

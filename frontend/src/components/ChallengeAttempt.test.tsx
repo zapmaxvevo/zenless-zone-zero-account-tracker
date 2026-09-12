@@ -58,10 +58,10 @@ describe('ChallengeAttempt', () => {
     expect(html).toContain('2 de 3 estrellas');
   });
 
-  it('en Asalto no hay rating y la subline es solo la fecha', () => {
-    const html = render(<ChallengeAttempt entry={{ ...ENTRY, rating: '' }} mode="assault" />);
+  it('en Asalto no hay rating, aunque venga, y la subline es solo la fecha', () => {
+    const html = render(<ChallengeAttempt entry={{ ...ENTRY, rating: 'S+' }} mode="assault" />);
 
-    expect(html).not.toContain('ne-figure-md');
+    expect(html).not.toContain('S+');
     expect(html).not.toContain('Jefe:');
   });
 
@@ -70,7 +70,8 @@ describe('ChallengeAttempt', () => {
       <ChallengeAttempt entry={{ ...ENTRY, buffs: [], bangboo_id: null }} mode="shiyu" />,
     );
 
-    expect(html).not.toContain('ne-buffs');
+    expect(html).not.toContain('Sheer Force');
+    expect(html).not.toContain('Sheer DMG increases by 20%.');
     expect(html).toContain('Sin bangboo');
   });
 

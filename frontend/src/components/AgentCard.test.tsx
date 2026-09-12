@@ -64,8 +64,7 @@ describe('AgentCard', () => {
     );
 
     expect(html).toContain('Agente 1041');
-    expect(html).toContain('ne-portrait-fallback');
-    expect(html).not.toContain('ne-portrait-art');
+    expect(html).toContain('>1041<');
     expect(html).toContain('Sin W-Engine');
   });
 

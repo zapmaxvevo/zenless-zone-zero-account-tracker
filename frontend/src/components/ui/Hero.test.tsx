@@ -6,6 +6,11 @@ function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);
 }
 
+/** Lo que queda del hero cuando se le sacan las etiquetas: el texto que alguien lee. */
+function text(html: string): string {
+  return html.replace(/<[^>]*>/g, '').trim();
+}
+
 describe('el hero de una pantalla', () => {
   it('reparte el dato de la pantalla en marca de agua detrás del contenido', () => {
     const html = render(<Hero watermark="ELLEN JOE">contenido</Hero>);
@@ -18,36 +23,19 @@ describe('el hero de una pantalla', () => {
   it('sin marca de agua no dibuja una vacía', () => {
     const html = render(<Hero>contenido</Hero>);
 
-    expect(html).toContain('contenido');
-    expect(html).not.toContain('ne-watermark');
+    expect(text(html)).toBe('contenido');
   });
 
-  it('las barras diagonales van siempre de a tres, en degradé', () => {
-    const html = render(<Hero>contenido</Hero>);
+  it('el color de la pantalla tiñe dos de las tres barras: la tercera es el fondo', () => {
+    const html = render(<Hero beamColor="var(--element-ice)">x</Hero>);
 
-    expect(html.split('ne-beam')).toHaveLength(1 + 3);
-    expect(html).toContain('opacity:0.9');
-    expect(html).toContain('opacity:0.55');
+    expect(html.split('var(--element-ice)')).toHaveLength(1 + 2);
+    expect(html.split('ne-beam-')).toHaveLength(1 + 3);
   });
 
-  it('las barras toman el color que le pase la pantalla', () => {
-    expect(render(<Hero beamColor="var(--element-ice)">x</Hero>)).toContain('var(--element-ice)');
-  });
-
-  it('un hero chico usa una marca de agua más chica que uno grande', () => {
-    const small = render(
-      <Hero size="sm" watermark="SHIYU">
-        x
-      </Hero>,
-    );
-    const large = render(
-      <Hero size="lg" watermark="SHIYU">
-        x
-      </Hero>,
-    );
-
-    expect(small).toContain('font-size:98px');
-    expect(large).toContain('font-size:150px');
+  it('el tamaño elegido llega al hero, que es donde eridu.css lo viste', () => {
+    expect(render(<Hero size="sm">x</Hero>)).toContain('ne-hero-sm');
+    expect(render(<Hero>x</Hero>)).toContain('ne-hero-lg');
   });
 
   it('el arte del agente solo aparece si hay arte', () => {

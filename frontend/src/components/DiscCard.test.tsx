@@ -71,7 +71,8 @@ describe('DiscCard', () => {
   it('dibuja el casillero igual cuando el slot está vacío', () => {
     const html = render(null);
 
-    expect(html).toContain('ne-slot-empty');
+    expect(html).toContain('Sin equipar');
     expect(html).toContain('Slot vacío');
+    expect(html).toContain('>1<');
   });
 });
