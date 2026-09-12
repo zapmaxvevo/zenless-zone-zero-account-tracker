@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 export type HeroSize = 'sm' | 'md' | 'lg';
 
@@ -10,12 +10,6 @@ interface HeroProps {
   art?: string | null;
 }
 
-const SIZES: Record<HeroSize, { minHeight: string; wmSize: string; wmBottom: string }> = {
-  sm: { minHeight: '116px', wmSize: '98px', wmBottom: '-26px' },
-  md: { minHeight: 'clamp(240px, 36vw, 300px)', wmSize: '132px', wmBottom: '-32px' },
-  lg: { minHeight: 'clamp(280px, 42vw, 326px)', wmSize: '150px', wmBottom: '-40px' },
-};
-
 export default function Hero({
   children,
   size = 'lg',
@@ -23,18 +17,10 @@ export default function Hero({
   beamColor = 'var(--accent)',
   art = null,
 }: HeroProps) {
-  const spec = SIZES[size];
-  const wmStyle: CSSProperties = {
-    left: '-14px',
-    bottom: spec.wmBottom,
-    fontSize: spec.wmSize,
-    opacity: size === 'sm' ? 0.09 : 0.045,
-  };
-
   return (
-    <div className="ne-hero ne-cut ne-cut-xl" style={{ minHeight: spec.minHeight }}>
+    <div className={`ne-hero ne-hero-${size} ne-cut ne-cut-xl`}>
       {watermark && (
-        <span className="ne-watermark" style={wmStyle} aria-hidden="true">
+        <span className="ne-watermark" aria-hidden="true">
           {watermark}
         </span>
       )}
@@ -56,18 +42,9 @@ export default function Hero({
 function Beams({ color }: { color: string }) {
   return (
     <span aria-hidden="true">
-      <span
-        className="ne-beam"
-        style={{ right: '-8%', width: 'clamp(56px, 13vw, 150px)', background: color, opacity: 0.9 }}
-      />
-      <span
-        className="ne-beam"
-        style={{ right: '12%', width: 'clamp(12px, 3vw, 34px)', background: color, opacity: 0.55 }}
-      />
-      <span
-        className="ne-beam"
-        style={{ right: '-4%', width: 'clamp(4px, 1vw, 10px)', background: 'var(--bg)' }}
-      />
+      <span className="ne-beam ne-beam-1" style={{ background: color }} />
+      <span className="ne-beam ne-beam-2" style={{ background: color }} />
+      <span className="ne-beam ne-beam-3" />
     </span>
   );
 }

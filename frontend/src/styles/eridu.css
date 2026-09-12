@@ -163,6 +163,26 @@
   pointer-events: none;
 }
 
+/** El ancho y la opacidad de cada una de las tres. El color lo pone el dominio, no esto. */
+.ne-beam-1 {
+  right: -8%;
+  width: clamp(56px, 13vw, 150px);
+  opacity: 0.9;
+}
+
+.ne-beam-2 {
+  right: 12%;
+  width: clamp(12px, 3vw, 34px);
+  opacity: 0.55;
+}
+
+/** La tercera no es una barra de color: es el fondo cortando a las otras dos. */
+.ne-beam-3 {
+  right: -4%;
+  width: clamp(4px, 1vw, 10px);
+  background: var(--bg);
+}
+
 /** Banda horizontal detrás del recorte de una card. */
 .ne-band {
   position: absolute;
@@ -185,6 +205,15 @@
 
 .ne-pill > * {
   transform: skewX(calc(var(--skew-mark) * -1));
+}
+
+/** La píldora es amarillo sólido, así que su texto va en tinta oscura y no en la del tema. */
+.ne-pill .ne-label {
+  color: rgba(13, 14, 18, 0.66);
+}
+
+.ne-pill .ne-value {
+  color: var(--bg);
 }
 
 /* ---------- 3. La esquina cortada ---------- */
@@ -222,6 +251,40 @@
   overflow: hidden;
   background: var(--grad-hero);
   border: 1px solid var(--border);
+}
+
+/** Los tres tamaños del hero. La altura y la marca de agua salen del tamaño, no de la pantalla. */
+.ne-hero-sm {
+  min-height: 116px;
+}
+
+.ne-hero-md {
+  min-height: clamp(240px, 36vw, 300px);
+}
+
+.ne-hero-lg {
+  min-height: clamp(280px, 42vw, 326px);
+}
+
+.ne-hero > .ne-watermark {
+  left: -14px;
+}
+
+/** El hero chico tiene menos fondo donde apoyarla, así que la marca se lee un poco más. */
+.ne-hero-sm > .ne-watermark {
+  bottom: -26px;
+  font-size: 98px;
+  opacity: 0.09;
+}
+
+.ne-hero-md > .ne-watermark {
+  bottom: -32px;
+  font-size: 132px;
+}
+
+.ne-hero-lg > .ne-watermark {
+  bottom: -40px;
+  font-size: 150px;
 }
 
 .ne-hero-body {
@@ -389,6 +452,17 @@
   object-fit: contain;
   transform: translateX(-50%);
   filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.6));
+}
+
+/** Las dos bandas del retrato: la ancha corta el arte, la fina trae el color del elemento. */
+.ne-portrait-band {
+  bottom: 100px;
+  height: 34px;
+}
+
+.ne-portrait-band-element {
+  bottom: 85px;
+  height: 7px;
 }
 
 /** El pie de la card: el gradiente come del negro para que el texto se lea sobre el arte. */

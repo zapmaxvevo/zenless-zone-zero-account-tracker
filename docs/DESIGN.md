@@ -359,12 +359,14 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 **Tipografía** `.ne-display` (+`-xl/-lg/-md/-sm`) · `.ne-figure` (+`-xl/-lg/-md`) · `.ne-label`
 (+`-sm/-lg`) · `.ne-eyebrow` · `.ne-value` (+`-lg`) · `.ne-prose` · `.ne-accent`
 
-**Ángulos y marcas** `.ne-tick` (+`-sm`) · `.ne-beam` · `.ne-band` · `.ne-pill` · `.ne-watermark`
+**Ángulos y marcas** `.ne-tick` (+`-sm`) · `.ne-beam` (+`-1/-2/-3`, el ancho y la opacidad de
+cada barra) · `.ne-band` · `.ne-pill` · `.ne-watermark`
 
 **Estructura** `.ne-shell` · `.ne-panel` · `.ne-stack` · `.ne-cut` + `.ne-cut-sm/-md/-lg/-xl` ·
 `.ne-section-head` / `.ne-section-title` / `.ne-section-count` · `.ne-actions`
 
-**Bloques** `.ne-hero` / `.ne-hero-body` / `.ne-hero-row` / `.ne-hero-art` · `.ne-tile` (+`-ink`,
+**Bloques** `.ne-hero` (+`-sm/-md/-lg`, la altura y el tamaño de su marca de agua) /
+`.ne-hero-body` / `.ne-hero-row` / `.ne-hero-art` · `.ne-tile` (+`-ink`,
 `-ring`) · `.ne-stat-box` · `.ne-stat-row` · `.ne-row` / `.ne-row-body` (+`.is-flared`) /
 `.ne-row-main` / `.ne-row-figure` / `.ne-row-flare` / `.ne-row-link` · `.ne-ring`
 
@@ -372,7 +374,7 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 `.ne-grid-stats`
 
 **Retratos** `.ne-portrait-card` / `-art` / `-foot` / `-score` / `-rank` / `-fallback` / `-name` /
-`-note` · `.ne-face` / `-wrap` / `-badge` / `-fallback` · `.ne-faces`
+`-note` / `-band` / `-band-element` · `.ne-face` / `-wrap` / `-badge` / `-fallback` · `.ne-faces`
 
 **Discos** `.ne-disc` · `.ne-slot` (+`-empty`) · `.ne-disc-main` · `.ne-sub` (+`.is-key`) /
 `.ne-sub-label` / `.ne-sub-value` · `.ne-pips` / `.ne-pip` (+`.is-on`) · `.ne-bar` (+`-lg`)
@@ -387,6 +389,11 @@ Antes de inventar una clase, buscala acá. Todas viven en `eridu.css`.
 `.zui-button*` es la excepción al prefijo: es el botón base de `zzz-ui`, no una forma New Eridu,
 pero su única definición en la app vive igual en `eridu.css`. Ninguna pantalla escribe esas
 clases a mano — se piden como `<Button>` o `<LinkButton>`, que son la puerta hacia ellas.
+
+Ni la geometría ni los hex viajan en el JSX: un tamaño es un modificador (`.ne-hero-sm`), una
+posición es una clase (`.ne-portrait-band`), y el texto sobre una marca sólida toma su tinta de la
+marca (`.ne-pill .ne-label` / `.ne-value`). Lo único que una pantalla pasa por `style` es **el color
+que sale del dominio** —elemento, rango, nota— y las custom properties de abajo.
 
 Las custom properties que leen esas clases: `--cut` (chaflán), `--grade` (nota de un disco),
 `--element` (barra del main stat), `--fill` (relleno de una barra), `--flare` (franja de una

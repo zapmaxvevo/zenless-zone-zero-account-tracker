@@ -44,10 +44,10 @@ export default function PortraitCard({
         </span>
       )}
 
-      <span className="ne-band" style={{ bottom: '100px', height: '34px' }} aria-hidden="true" />
+      <span className="ne-band ne-portrait-band" aria-hidden="true" />
       <span
-        className="ne-band"
-        style={{ bottom: '85px', height: '7px', background: elementColor }}
+        className="ne-band ne-portrait-band-element"
+        style={{ background: elementColor }}
         aria-hidden="true"
       />
 
@@ -61,12 +61,8 @@ export default function PortraitCard({
 
       {score !== undefined && score !== null && (
         <span className="ne-pill ne-portrait-score">
-          <span className="ne-label ne-label-sm" style={{ color: 'rgba(13,14,18,.66)' }}>
-            {scoreLabel}
-          </span>
-          <span className="ne-value ne-value-lg" style={{ color: '#0d0e12' }}>
-            {score}
-          </span>
+          <span className="ne-label ne-label-sm">{scoreLabel}</span>
+          <span className="ne-value ne-value-lg">{score}</span>
         </span>
       )}
 
